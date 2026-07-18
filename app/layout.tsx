@@ -57,7 +57,7 @@ export default function RootLayout({
       lang="en"
       className={`${inter.variable} ${plusJakarta.variable} dark h-full antialiased`}
     >
-      <body className="flex min-h-full flex-col bg-background font-sans text-foreground">
+      <body className="flex min-h-full flex-col overflow-x-hidden bg-background font-sans text-foreground">
         <SiteHeader />
         <main className="flex flex-1 flex-col">{children}</main>
         <SiteFooter />
