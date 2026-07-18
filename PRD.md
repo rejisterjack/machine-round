@@ -1,6 +1,6 @@
 # Product Requirements Document
 
-## MachineRound — Train for the Interviewer That Isn't Human
+## Namaste Machine Round — Train for the Interviewer That Isn't Human
 
 **Hackathon:** OpenAI × NamasteDev Codex Hackathon
 **Submission deadline:** 19 July 2026, 23:59 IST
@@ -18,7 +18,7 @@ Every existing "interview prep" product trains candidates for a **human** interv
 
 This gap is not hypothetical. It is a lived, current problem, encountered directly during a real AI-screened hiring round days before this hackathon.
 
-**MachineRound is an AI agent that runs a realistic AI-style screening interview, adapts its follow-ups based on the candidate's actual answers, and returns a structured readiness report** — so candidates walk into a real AI screen already knowing what it's listening for.
+**Namaste Machine Round is an AI agent that runs a realistic AI-style screening interview, adapts its follow-ups based on the candidate's actual answers, and returns a structured readiness report** — so candidates walk into a real AI screen already knowing what it's listening for.
 
 ---
 
@@ -107,6 +107,21 @@ Developers and professionals currently facing, or about to face, an AI-conducted
 
 **Environment variables (7):** `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_API_VERSION`, `AZURE_OPENAI_CHAT_DEPLOYMENT`, `AZURE_OPENAI_REALTIME_DEPLOYMENT`, `AZURE_OPENAI_EMBEDDING_DEPLOYMENT`, `DATABASE_URL`. See `.env.example`.
 
+## 7.1 Design (NamasteDev alignment)
+
+Visual system matches [namastedev.com/hackathon](https://namastedev.com/hackathon):
+
+| Token | Value | Usage |
+|---|---|---|
+| Background | `#030303` | Page shell |
+| Surface | `#111111` / `#171717` | Cards, terminal panels |
+| Foreground | `#F7F4EE` | Headings and primary text |
+| Accent | `#E58C33` | CTAs, badges, progress |
+| Headings | Maven Pro 500 | Hero and section titles |
+| Body | Inter 14px | Copy and UI |
+
+Co-brand footer: **OpenAI × NamasteDev Codex Hackathon**.
+
 **Two-agent design is deliberate:** one agent conducts the interview (in-the-moment, adaptive), a second agent evaluates the full transcript afterward (reflective, structured). Separating these roles produces materially better output quality than a single agent trying to do both, and it's a detail worth surfacing in the demo as evidence of intentional AI design.
 
 ---
@@ -130,7 +145,7 @@ Developers and professionals currently facing, or about to face, an AI-conducted
 
 ## 9. Judging Criteria Alignment
 
-| Lens | How MachineRound addresses it |
+| Lens | How Namaste Machine Round addresses it |
 |---|---|
 | Originality | Inverts the standard "practice for a human interviewer" framing; trains for the machine instead |
 | Impact | Solves a real, current, fast-growing problem the builder personally experienced days before the hackathon |

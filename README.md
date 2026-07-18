@@ -1,10 +1,10 @@
-# MachineRound
+# Namaste Machine Round
 
-Train for the interviewer that isn't human. MachineRound runs a realistic AI-style screening interview, adapts follow-ups based on your answers, and returns a structured readiness report.
+Train for the interviewer that isn't human. Namaste Machine Round runs a realistic AI-style screening interview, adapts follow-ups based on your answers, and returns a structured readiness report.
 
 ## Architecture
 
-MachineRound uses a **two-agent design** on a single Next.js app:
+Namaste Machine Round uses a **two-agent design** on a single Next.js app:
 
 - **Interviewer agent** — conducts the live session with adaptive follow-ups (`getAzureChatModel`)
 - **Evaluator agent** — reviews the full transcript and generates the readiness report (`getAzureEvaluatorModel`)
@@ -158,6 +158,34 @@ lib/
   ai/                 # Azure OpenAI config and model factories
   db.ts               # Neon serverless client
 ```
+
+## Design system
+
+Namaste Machine Round uses the **NamasteDev design system** ([namastedev.com](https://namastedev.com)):
+
+- Dark-first theme (`#030303` background, `#F7F4EE` text)
+- Maven Pro headings + Inter body
+- Orange accent `#E58C33` for CTAs, badges, and progress
+- Dot-grid hero background and Codex-style terminal panels
+
+Tokens live in [`lib/design/tokens.ts`](lib/design/tokens.ts) and [`app/globals.css`](app/globals.css).
+
+## App routes
+
+| Route | Purpose |
+|---|---|
+| `/` | Landing page |
+| `/interview` | Role selection |
+| `/interview/session` | Live interview (text + voice) |
+| `/report` | Readiness report |
+
+## RAG seed (stretch)
+
+```bash
+bun run seed:questions
+```
+
+Requires Neon `DATABASE_URL` and `CREATE EXTENSION vector`.
 
 ## Deploy on Vercel
 
