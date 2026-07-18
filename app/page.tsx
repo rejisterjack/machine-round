@@ -101,7 +101,7 @@ export default function HomePage() {
                   imageUrl={role.imageUrl}
                   rating={role.rating}
                   language={role.language}
-                  href="/interview"
+                  href={`/interview?role=${encodeURIComponent(role.id)}`}
                 />
               ))}
         </div>

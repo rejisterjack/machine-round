@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 import { NdCourseCard } from "@/components/brand/nd-course-card";
 import { RoleCardSkeleton } from "@/components/brand/role-card-skeleton";
 import { Breadcrumb } from "@/components/layout/breadcrumb";
@@ -12,10 +12,37 @@ import { useRoles } from "@/hooks/use-roles";
 import { createSession, saveSession } from "@/lib/session/interview-store";
 
 export default function InterviewRolePage() {
+  return (
+    <Suspense
+      fallback={
+        <PageShell>
+          <div className="mx-auto max-w-5xl">
+            <p className="text-sm text-muted-foreground">Loading tracks...</p>
+          </div>
+        </PageShell>
+      }
+    >
+      <InterviewRoleContent />
+    </Suspense>
+  );
+}
+
+function InterviewRoleContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { roles, loading } = useRoles();
   const [selectedRole, setSelectedRole] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
+
+  useEffect(() => {
+    if (loading) return;
+    const roleParam = searchParams.get("role");
+    if (!roleParam) return;
+    const match = roles.find((role) => role.id === roleParam);
+    if (match) {
+      setSelectedRole(match.id);
+    }
+  }, [loading, roles, searchParams]);
 
   async function handleBegin() {
     if (!selectedRole || starting) return;
