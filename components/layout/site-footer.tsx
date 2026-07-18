@@ -145,12 +145,17 @@ export function SiteFooter() {
           </div>
 
           <div className="z-10 mt-12 flex flex-col items-center justify-between gap-4 border-t border-border pt-6 md:flex-row">
-            <div className="flex flex-wrap justify-center gap-x-5 gap-y-2 md:justify-start">
-              {footerNav.legal.map((link) => (
-                <FooterLink key={link.label} href={link.href} variant="legal">
-                  {link.label}
-                </FooterLink>
-              ))}
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:gap-6">
+              <p className="text-center text-xs text-muted-foreground md:text-left">
+                OpenAI × NamasteDev Codex Hackathon
+              </p>
+              <div className="flex flex-wrap justify-center gap-x-5 gap-y-2 md:justify-start">
+                {footerNav.legal.map((link) => (
+                  <FooterLink key={link.label} href={link.href} variant="legal">
+                    {link.label}
+                  </FooterLink>
+                ))}
+              </div>
             </div>
             <p className="text-sm text-foreground">© 2026 NamasteDev.com</p>
           </div>

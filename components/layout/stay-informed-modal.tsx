@@ -9,6 +9,10 @@ const STORAGE_KEY = "namaste-machine-round-stay-informed-dismissed";
 
 export function StayInformedModal() {
   const [open, setOpen] = useState(false);
+  const [email, setEmail] = useState("");
+  const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">(
+    "idle",
+  );
 
   useEffect(() => {
     const dismissed = localStorage.getItem(STORAGE_KEY);
@@ -21,6 +25,28 @@ export function StayInformedModal() {
   function dismiss() {
     localStorage.setItem(STORAGE_KEY, "1");
     setOpen(false);
+  }
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!email.trim() || status === "loading") return;
+
+    setStatus("loading");
+    try {
+      const response = await fetch("/api/newsletter", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: email.trim(),
+          resourcePreference: "Namaste Machine Round updates",
+        }),
+      });
+      if (!response.ok) throw new Error("Newsletter signup failed.");
+      setStatus("done");
+      window.setTimeout(dismiss, 1500);
+    } catch {
+      setStatus("error");
+    }
   }
 
   if (!open) return null;
@@ -53,24 +79,35 @@ export function StayInformedModal() {
           Get updates on new courses, interview prep tools, and Namaste Machine
           Round features.
         </p>
-        <form
-          className="mt-5 flex flex-col gap-3 sm:flex-row"
-          onSubmit={(event) => {
-            event.preventDefault();
-            dismiss();
-          }}
-        >
+        <form className="mt-5 flex flex-col gap-3 sm:flex-row" onSubmit={handleSubmit}>
           <Input
             type="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
             placeholder="Enter your email address"
             className="border-border bg-secondary"
             aria-label="Email address"
             required
+            disabled={status === "loading" || status === "done"}
           />
-          <Button variant="ndFilled" type="submit" className="shrink-0">
-            Subscribe
+          <Button
+            variant="ndFilled"
+            type="submit"
+            className="shrink-0"
+            disabled={status === "loading" || status === "done"}
+          >
+            {status === "loading"
+              ? "Submitting..."
+              : status === "done"
+                ? "Subscribed"
+                : "Subscribe"}
           </Button>
         </form>
+        {status === "error" ? (
+          <p className="mt-3 text-xs text-destructive">
+            Could not subscribe right now. Try again.
+          </p>
+        ) : null}
       </div>
     </div>
   );
