@@ -104,6 +104,7 @@ bun run db:seed      # seeds roles + RAG question bank
 ```bash
 bun run dev
 bun run smoke:api
+bun run smoke:frontend
 ```
 
 Acceptance checklist before submission:
@@ -112,8 +113,11 @@ Acceptance checklist before submission:
 3. App works when database is unavailable (client sessionStorage fallback)
 4. Evaluate request fails gracefully within the 10s budget
 5. At least one adaptive follow-up includes `referencedAnswer`
-6. Share token URL returns the same report JSON
+6. Share token URL returns the same report JSON and renders at `/report/share/[token]`
 7. Realtime route returns `client_secret` when Azure is configured
+8. Voice mode establishes WebRTC audio and appends transcripts to the session
+9. Replay page loads at `/replay/[publicId]` for persisted sessions
+10. Readiness report can be copied via share link and downloaded as PDF
 
 Optional admin reseed (requires `ADMIN_SECRET`):
 
@@ -210,6 +214,8 @@ Tokens live in [`lib/design/tokens.ts`](lib/design/tokens.ts) and [`app/globals.
 | `/interview` | Role selection |
 | `/interview/session` | Live interview (text + voice) |
 | `/report` | Readiness report |
+| `/report/share/[token]` | Public shared readiness report |
+| `/replay/[publicId]` | Session transcript replay |
 
 ## RAG seed (stretch)
 
