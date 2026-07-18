@@ -1,0 +1,100 @@
+"use client";
+
+import Link from "next/link";
+import { useParams } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
+import { Breadcrumb } from "@/components/layout/breadcrumb";
+import { PageShell } from "@/components/layout/page-shell";
+import { SessionReplay } from "@/components/replay/session-replay";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import type {
+  EvaluateResponse,
+  InterviewMessage,
+} from "@/lib/session/interview-store";
+
+type ReplayPayload = {
+  publicId: string;
+  roleTitle: string;
+  messages: InterviewMessage[];
+  report?: EvaluateResponse & { shareToken?: string | null };
+  shareToken?: string | null;
+};
+
+export default function ReplayPage() {
+  const params = useParams<{ publicId: string }>();
+  const publicId = params.publicId;
+  const [payload, setPayload] = useState<ReplayPayload | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string>();
+
+  const loadReplay = useCallback(async () => {
+    if (!publicId) return;
+    setLoading(true);
+    setError(undefined);
+
+    try {
+      const response = await fetch(`/api/sessions/replay/${publicId}`);
+      if (!response.ok) {
+        throw new Error("Session not found.");
+      }
+      const data = (await response.json()) as ReplayPayload;
+      setPayload(data);
+    } catch {
+      setError("This session replay could not be found.");
+      setPayload(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [publicId]);
+
+  useEffect(() => {
+    void loadReplay();
+  }, [loadReplay]);
+
+  return (
+    <PageShell>
+      <div className="mx-auto max-w-4xl">
+        <Breadcrumb
+          items={[
+            { label: "Home", href: "/" },
+            { label: "Session replay" },
+          ]}
+        />
+        <p className="nd-section-heading mb-3 mt-6">Session replay</p>
+        <h1 className="font-heading text-3xl font-medium sm:text-4xl">
+          Interview replay
+        </h1>
+
+        {loading ? (
+          <div className="mt-10 space-y-4">
+            <Skeleton className="h-24 w-full rounded-lg" />
+            <Skeleton className="h-64 w-full rounded-lg" />
+          </div>
+        ) : error ? (
+          <div className="nd-course-card mt-10 p-6">
+            <p className="text-sm text-destructive">{error}</p>
+            <div className="mt-4 flex gap-3">
+              <Button variant="ndPrimary" onClick={() => void loadReplay()}>
+                Retry
+              </Button>
+              <Button variant="ndGhost" render={<Link href="/interview" />}>
+                Start a round
+              </Button>
+            </div>
+          </div>
+        ) : payload ? (
+          <div className="mt-10">
+            <SessionReplay
+              roleTitle={payload.roleTitle}
+              messages={payload.messages}
+              report={payload.report}
+              shareToken={payload.shareToken}
+              publicId={payload.publicId}
+            />
+          </div>
+        ) : null}
+      </div>
+    </PageShell>
+  );
+}

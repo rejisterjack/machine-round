@@ -126,6 +126,17 @@ export default function ReportPage() {
           </div>
         ) : session.report ? (
           <div className="mt-10">
+            {session.publicId ? (
+              <p className="mb-4 text-sm text-muted-foreground">
+                Replay this session:{" "}
+                <Link
+                  href={`/replay/${session.publicId}`}
+                  className="text-primary underline-offset-4 hover:underline"
+                >
+                  /replay/{session.publicId}
+                </Link>
+              </p>
+            ) : null}
             <ReadinessReport report={session.report} />
           </div>
         ) : null}
