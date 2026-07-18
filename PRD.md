@@ -6,7 +6,7 @@
 **Submission deadline:** 19 July 2026, 23:59 IST
 **Author:** Rupam Das
 **Status:** Build-ready
-**Doc version:** v1.0 (final, hackathon scope)
+**Doc version:** v1.1 (aligned with implementation)
 
 ---
 
@@ -27,7 +27,7 @@ This gap is not hypothetical. It is a lived, current problem, encountered direct
 - Ship a **live, publicly hosted, working prototype** by end of Day 1 (buffer for Day 2 polish).
 - Make the AI agent's adaptivity **real, not scripted** — this is the single highest-leverage requirement for the "AI fluency" judging lens.
 - Produce a **feedback report** with enough visual polish to be screenshot-worthy.
-- Ship a **voice-enabled** interview mode (browser Speech API) — this is what makes the demo visceral rather than "just a chatbot."
+- Ship a **voice-enabled** interview mode (Azure OpenAI Realtime API) — this is what makes the demo visceral rather than "just a chatbot."
 - Deliver a **tightly produced 3-minute demo video** that opens with a true personal story.
 
 ## 3. Non-Goals (explicitly out of scope for hackathon build)
@@ -37,7 +37,7 @@ This gap is not hypothetical. It is a lived, current problem, encountered direct
 - User accounts / auth / persistence across sessions
 - Payment or credit-based billing (not needed for a prototype)
 - Native mobile app
-- Production-grade telephony/voice infra (LiveKit, Exotel, etc.) — browser Speech API only
+- Production-grade telephony/voice infra (LiveKit, Exotel, etc.) — Azure OpenAI Realtime only
 - Resume parsing or JD matching
 
 ---
@@ -69,12 +69,13 @@ Developers and professionals currently facing, or about to face, an AI-conducted
 ### 6.1 Interview Agent (core — highest priority)
 - System prompt defines a strict interviewer persona + explicit scoring rubric (clarity, specificity, structure, technical correctness signal, conciseness).
 - Each candidate answer is evaluated **before** generating the next question — the follow-up must reference something specific from the prior answer (proof of real adaptivity, not keyword branching).
-- Session state (question count, topics covered, weak signals flagged) held in memory for the duration of the session — no persistence required.
+- Session state (question count, topics covered, weak signals flagged) held **client-side** in React for the duration of the session — no server persistence required. Vercel serverless functions do not share memory across requests.
 - Hard cap of 5–7 questions to keep sessions demo-length and API cost bounded.
 
 ### 6.2 Voice Layer
-- Browser `SpeechRecognition` for candidate answer capture (speech-to-text).
-- Browser `SpeechSynthesis` for the agent asking questions aloud (text-to-speech).
+- Azure OpenAI Realtime API (GA `/openai/v1/realtime`, `gpt-realtime-2.1` or latest deployment) for bidirectional speech — agent speaks and listens in real time.
+- **WebRTC** (primary) — browser connects audio directly to Azure. A Next.js API route mints ephemeral keys via `/openai/v1/realtime/client_secrets`; no WebSocket server in Next.js/Vercel required.
+- WebSocket (server-side only) — fallback for non-browser clients; not used in the Vercel deployment.
 - Text input fallback always available (accessibility + reliability during live demo/judging).
 
 ### 6.3 Feedback Report
@@ -91,19 +92,20 @@ Developers and professionals currently facing, or about to face, an AI-conducted
 
 ## 7. Technical Architecture
 
-Leverages existing scaffold and prior work — no infra decisions from scratch.
-
 | Layer | Choice | Notes |
 |---|---|---|
-| Monorepo base | Existing Turborepo scaffold | Reuse, don't rebuild |
-| Frontend | Next.js + React | Chat/voice UI, report screen |
-| Backend | NestJS | Agent orchestration routes, session state |
+| App | Next.js 16 (App Router) + React | Full-stack: UI, API routes, agent orchestration |
 | Agent orchestration | LangChain.js | Interviewer chain + separate evaluator chain |
-| Model | OpenAI (via Codex-built integration) | Satisfies hackathon's AI-core-to-product requirement |
-| Voice | Browser Web Speech API | No telephony infra; zero external dependency risk |
-| RAG (stretch only) | Reuse `rag-starter-kit` (pgvector) | Only if core loop is done early — role-specific question grounding |
-| Hosting | Vercel (frontend) + lightweight Node host (backend) | Deploy Day 1 evening, iterate after |
-| Build tool | OpenAI Codex | Hackathon's mandated build toolkit |
+| Model | Azure OpenAI (`gpt-5.1` chat + `text-embedding-3-small`) | Runtime inference uses Azure OpenAI exclusively via `@langchain/openai` |
+| Voice | Azure OpenAI Realtime API (`gpt-realtime-2.1` or latest) | Browser WebRTC via ephemeral keys; no browser Speech API |
+| RAG (stretch only) | Neon PostgreSQL + pgvector + LangChain `PGVectorStore` | Role-specific question grounding; cut first if behind |
+| Database | Neon (`@neondatabase/serverless`) | Pooler connection string; `CREATE EXTENSION vector` required |
+| Hosting | Vercel | Single deployment — no separate backend host |
+| Build tool | OpenAI Codex | Hackathon build toolkit (not the inference provider) |
+
+**Shared modules:** `lib/ai/azure-openai.ts` (all Azure clients), `lib/db.ts` (Neon SQL client).
+
+**Environment variables (7):** `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_API_VERSION`, `AZURE_OPENAI_CHAT_DEPLOYMENT`, `AZURE_OPENAI_REALTIME_DEPLOYMENT`, `AZURE_OPENAI_EMBEDDING_DEPLOYMENT`, `DATABASE_URL`. See `.env.example`.
 
 **Two-agent design is deliberate:** one agent conducts the interview (in-the-moment, adaptive), a second agent evaluates the full transcript afterward (reflective, structured). Separating these roles produces materially better output quality than a single agent trying to do both, and it's a detail worth surfacing in the demo as evidence of intentional AI design.
 
@@ -113,13 +115,13 @@ Leverages existing scaffold and prior work — no infra decisions from scratch.
 
 **Day 1**
 - AM: Interviewer agent system prompt + scoring rubric finalized and tested standalone (text-only, terminal/Postman level)
-- Midday: NestJS routes wired, session state in memory, Next.js chat UI connected end-to-end
-- PM: Deploy to Vercel + backend host — **get a live URL working today, even if ugly**
+- Midday: Next.js API routes wired, client-side session state, chat UI connected end-to-end
+- PM: Deploy to Vercel — **get a live URL working today, even if ugly**
 - EOD: Core loop (role select → questions → adaptive follow-up → end) working live, 5/5 reliable runs
 
 **Day 2**
 - AM: Evaluator agent + feedback report UI
-- Midday: Voice layer (Speech API) — must-have if Day 1 finished on time; cut without hesitation if behind
+- Midday: Voice layer (Azure OpenAI Realtime) — must-have if Day 1 finished on time; cut without hesitation if behind
 - PM: Visual polish pass on landing page + report screen
 - Evening: Record and edit 3-minute demo video, write README, finalize public repo, optional pitch deck (5–7 slides)
 - Buffer: final smoke test of the live URL from a fresh browser/incognito session before submission
@@ -151,7 +153,7 @@ Leverages existing scaffold and prior work — no infra decisions from scratch.
 
 ## 11. Stretch Goals (only if core ships with time to spare)
 
-1. RAG-grounded, role-specific question bank via `rag-starter-kit`
+1. RAG-grounded, role-specific question bank via Neon pgvector + LangChain `PGVectorStore`
 2. Weak-topic tracking across a session (visual tag cloud in the report)
 3. Downloadable/shareable readiness report (PDF export)
 

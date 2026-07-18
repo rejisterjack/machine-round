@@ -10,6 +10,10 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
+    "@langchain/community": "^1.1.29",
+    "@langchain/core": "^1.2.3",
+    "@langchain/openai": "^1.2.3",
+    "@neondatabase/serverless": "^1.1.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "langchain": "^1.5.3",
@@ -17,6 +21,8 @@
     "motion": "^12.42.2",
     "next": "16.2.10",
     "openai": "^6.47.0",
+    "pg": "^8.22.0",
+    "pgvector": "^0.3.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "shadcn": "^4.13.0",
@@ -27,6 +33,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/pg": "^8.20.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
