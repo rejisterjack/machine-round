@@ -18,6 +18,18 @@ const buttonVariants = cva(
         destructive:
           "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
         link: "text-primary underline-offset-4 hover:underline",
+        ndPrimary:
+          "h-auto min-h-11 rounded-full border border-primary bg-transparent px-6 py-3 text-base font-medium text-primary hover:bg-primary/10 focus-visible:ring-primary/40 sm:px-8 sm:py-4",
+        ndHeroCta:
+          "h-auto min-h-11 gap-2 rounded-full border border-primary bg-transparent px-6 py-3 text-base font-medium text-primary hover:bg-primary/10 focus-visible:ring-primary/40 sm:min-h-[3.6875rem] sm:min-w-[14.8125rem] sm:px-8 sm:py-4",
+        ndFilled:
+          "rounded-full border-2 border-transparent bg-primary px-6 py-3 text-xs font-semibold text-white hover:bg-primary/90 focus-visible:ring-primary/40",
+        ndNav:
+          "rounded-lg border-transparent bg-transparent px-3 text-foreground hover:bg-white/5 hover:text-primary",
+        ndGhost:
+          "rounded-lg border-transparent bg-transparent text-foreground hover:bg-white/5",
+        ndBadgeLive:
+          "rounded-full bg-primary px-2 py-0.5 text-xs font-semibold text-white hover:bg-primary/90",
       },
       size: {
         default:
@@ -33,6 +45,12 @@ const buttonVariants = cva(
         "icon-lg": "size-9",
       },
     },
+    compoundVariants: [
+      {
+        variant: ["ndPrimary", "ndFilled", "ndBadgeLive", "ndHeroCta"],
+        className: "!rounded-full",
+      },
+    ],
     defaultVariants: {
       variant: "default",
       size: "default",
@@ -44,12 +62,16 @@ function Button({
   className,
   variant = "default",
   size = "default",
+  render,
+  nativeButton,
   ...props
 }: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
   return (
     <ButtonPrimitive
       data-slot="button"
       className={cn(buttonVariants({ variant, size, className }))}
+      nativeButton={render != null ? false : nativeButton}
+      render={render}
       {...props}
     />
   )
