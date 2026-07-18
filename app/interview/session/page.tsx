@@ -33,11 +33,31 @@ export default function InterviewSessionPage() {
     questionCount: session?.questionCount,
   });
   const bootstrapped = useRef(false);
+  const hydrating = useRef(false);
+
+  const endRound = useCallback(
+    (current?: InterviewSession) => {
+      const base = current ?? session;
+      if (!base) return;
+      const completed: InterviewSession = {
+        ...base,
+        status: "complete",
+      };
+      setSession(completed);
+      saveSession(completed);
+      router.push("/report");
+    },
+    [router, session],
+  );
 
   const requestNextQuestion = useCallback(async (
     current: InterviewSession,
     messages: InterviewMessage[],
   ) => {
+    if (current.questionCount >= MAX_QUESTIONS) {
+      endRound(current);
+      return;
+    }
     const nextSession = { ...current, status: "thinking" as const, error: undefined };
     setSession(nextSession);
     saveSession(nextSession);
@@ -90,7 +110,54 @@ export default function InterviewSessionPage() {
       setSession(errored);
       saveSession(errored);
     }
-  }, [router]);
+  }, [router, endRound]);
+
+  useEffect(() => {
+    const dbSessionId = session?.dbSessionId;
+    if (!dbSessionId || (session?.messages.length ?? 0) > 0 || hydrating.current) {
+      return;
+    }
+
+    hydrating.current = true;
+
+    async function hydrateSession() {
+      try {
+        const response = await fetch(`/api/sessions/${dbSessionId}`);
+        if (!response.ok) return;
+
+        const data = (await response.json()) as {
+          messages?: InterviewMessage[];
+          questionCount?: number;
+          topicsCovered?: string[];
+          weakSignals?: string[];
+          status?: string;
+          publicId?: string;
+        };
+
+        if (!data.messages?.length) return;
+
+        setSession((current) => {
+          if (!current) return current;
+          const hydrated: InterviewSession = {
+            ...current,
+            messages: data.messages!,
+            questionCount: data.questionCount ?? current.questionCount,
+            topicsCovered: data.topicsCovered ?? current.topicsCovered,
+            weakSignals: data.weakSignals ?? current.weakSignals,
+            status: data.status === "completed" ? "complete" : "idle",
+            publicId: data.publicId ?? current.publicId,
+          };
+          saveSession(hydrated);
+          bootstrapped.current = true;
+          return hydrated;
+        });
+      } catch {
+        // Keep client-only session when hydration fails.
+      }
+    }
+
+    void hydrateSession();
+  }, [session?.dbSessionId, session?.messages.length]);
 
   useEffect(() => {
     if (!session?.dbSessionId) return;
@@ -121,6 +188,10 @@ export default function InterviewSessionPage() {
 
   async function handleSend() {
     if (!session || !input.trim() || session.status === "thinking") return;
+    if (session.questionCount >= MAX_QUESTIONS) {
+      endRound();
+      return;
+    }
 
     const userMessage: InterviewMessage = { role: "user", content: input.trim() };
     const messages = [...session.messages, userMessage];
@@ -145,6 +216,11 @@ export default function InterviewSessionPage() {
   }
 
   const progressValue = (session.questionCount / MAX_QUESTIONS) * 100;
+  const atQuestionCap = session.questionCount >= MAX_QUESTIONS;
+  const canSend =
+    !atQuestionCap &&
+    session.status !== "thinking" &&
+    session.status !== "complete";
 
   return (
     <PageShell>
@@ -199,17 +275,26 @@ export default function InterviewSessionPage() {
           <Textarea
             value={input}
             onChange={(event) => setInput(event.target.value)}
-            placeholder="Type your answer. Voice is optional."
+            placeholder={
+              atQuestionCap
+                ? "Question limit reached. End the round to view your report."
+                : "Type your answer. Voice is optional."
+            }
             className="min-h-24 resize-none"
-            disabled={session.status === "thinking" || session.status === "complete"}
+            disabled={!canSend}
           />
-          <div className="mt-3 flex justify-end gap-3">
+          <div className="mt-3 flex flex-wrap justify-end gap-3">
             <Button variant="ndGhost" render={<Link href="/interview" />}>
               Change role
             </Button>
+            {atQuestionCap || session.messages.some((m) => m.role === "user") ? (
+              <Button variant="ndPrimary" onClick={() => endRound()}>
+                End round
+              </Button>
+            ) : null}
             <Button
               variant="ndFilled"
-              disabled={!input.trim() || session.status === "thinking"}
+              disabled={!input.trim() || !canSend}
               onClick={() => void handleSend()}
             >
               {session.status === "thinking" ? "Thinking..." : "Send answer"}
