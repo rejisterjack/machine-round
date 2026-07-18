@@ -4,8 +4,9 @@ import Link from "next/link";
 import { CodexTerminal } from "@/components/brand/codex-terminal";
 import { NdCourseCard } from "@/components/brand/nd-course-card";
 import { NdHero } from "@/components/brand/nd-hero";
+import { RoleCardSkeleton } from "@/components/brand/role-card-skeleton";
 import { PageShell } from "@/components/layout/page-shell";
-import { roles } from "@/lib/design/tokens";
+import { useRoles } from "@/hooks/use-roles";
 
 const steps = [
   {
@@ -44,6 +45,8 @@ const benefits = [
 ];
 
 export default function HomePage() {
+  const { roles, loading } = useRoles();
+
   function scrollToHowItWorks() {
     document.getElementById("how-it-works")?.scrollIntoView({ behavior: "smooth" });
   }
@@ -86,17 +89,21 @@ export default function HomePage() {
           how real engineering screens actually work.
         </p>
         <div className="nd-card-grid mt-10">
-          {roles.map((role) => (
-            <NdCourseCard
-              key={role.id}
-              title={`Namaste ${role.title}`}
-              description={role.description}
-              imageUrl={role.imageUrl}
-              rating={role.rating}
-              language={role.language}
-              href="/interview"
-            />
-          ))}
+          {loading
+            ? Array.from({ length: 4 }).map((_, index) => (
+                <RoleCardSkeleton key={index} />
+              ))
+            : roles.map((role) => (
+                <NdCourseCard
+                  key={role.id}
+                  title={`Namaste ${role.title}`}
+                  description={role.description}
+                  imageUrl={role.imageUrl}
+                  rating={role.rating}
+                  language={role.language}
+                  href="/interview"
+                />
+              ))}
         </div>
       </section>
 
