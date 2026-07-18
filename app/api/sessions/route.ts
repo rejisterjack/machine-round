@@ -1,68 +1,82 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { withApiHandler } from "@/lib/api/handler";
+import { ApiError } from "@/lib/api/errors";
 import {
   createInterviewSession,
   getInterviewSessionById,
-  reportToEvaluateResponse,
 } from "@/lib/session/persistence";
+import { reportToEvaluateResponse } from "@/lib/session/report-queries";
+import { resolveRole } from "@/lib/session/roles";
+import { roleSlugToId } from "@/lib/session/role-slug";
 
 const createSessionSchema = z.object({
   roleId: z.string(),
   inputMode: z.enum(["text", "voice", "mixed"]).optional(),
 });
 
-export async function POST(request: Request) {
-  try {
-    const body = createSessionSchema.parse(await request.json());
-    const session = await createInterviewSession(body);
-
-    return NextResponse.json({
-      id: session.id,
-      publicId: session.publicId,
-      roleId: body.roleId,
-      roleTitle: session.role.title,
-      status: session.status,
-    });
-  } catch (error) {
-    console.error("Create session error:", error);
-    return NextResponse.json(
-      { error: "Failed to create interview session." },
-      { status: 500 },
-    );
-  }
-}
-
-export async function GET(request: Request) {
-  const sessionId = new URL(request.url).searchParams.get("id");
-  if (!sessionId) {
-    return NextResponse.json({ error: "Missing session id." }, { status: 400 });
-  }
-
-  try {
-    const session = await getInterviewSessionById(sessionId);
-    if (!session) {
-      return NextResponse.json({ error: "Session not found." }, { status: 404 });
-    }
-
-    return NextResponse.json({
-      id: session.id,
-      publicId: session.publicId,
-      roleTitle: session.role.title,
-      status: session.status,
-      questionCount: session.questionCount,
-      topicsCovered: session.topicsCovered,
-      weakSignals: session.weakSignals,
-      messages: session.messages.map((message) => ({
+function serializeSession(
+  session: {
+    id: string;
+    publicId: string;
+    status: string;
+    inputMode: string;
+    questionCount: number;
+    topicsCovered: string[];
+    weakSignals: string[];
+    role: { slug: import("@/generated/client").RoleSlug; title: string };
+    messages?: Array<{ role: string; content: string }>;
+    report?: Parameters<typeof reportToEvaluateResponse>[0];
+  },
+) {
+  return {
+    id: session.id,
+    publicId: session.publicId,
+    roleId: roleSlugToId(session.role.slug),
+    roleTitle: session.role.title,
+    status: session.status,
+    inputMode: session.inputMode,
+    questionCount: session.questionCount,
+    topicsCovered: session.topicsCovered,
+    weakSignals: session.weakSignals,
+    messages:
+      session.messages?.map((message) => ({
         role: message.role,
         content: message.content,
-      })),
-      report: reportToEvaluateResponse(session.report),
-    });
-  } catch (error) {
-    console.error("Get session error:", error);
-    return NextResponse.json(
-      { error: "Failed to load interview session." },
-      { status: 500 },
-    );
-  }
+      })) ?? [],
+    report: reportToEvaluateResponse(session.report),
+    shareToken: session.report?.shareToken ?? null,
+  };
 }
+
+export const POST = withApiHandler(async (request: Request) => {
+  const body = createSessionSchema.parse(await request.json());
+  await resolveRole({ roleId: body.roleId });
+
+  const session = await createInterviewSession(body);
+  if (!session) {
+    return NextResponse.json({
+      persisted: false,
+      roleId: body.roleId,
+    });
+  }
+
+  return NextResponse.json({
+    persisted: true,
+    ...serializeSession(session),
+  });
+});
+
+export const GET = withApiHandler(async (request: Request) => {
+  const sessionId = new URL(request.url).searchParams.get("id");
+  if (!sessionId) {
+    throw new ApiError("VALIDATION_ERROR", "Missing session id.", 400);
+  }
+
+  const session = await getInterviewSessionById(sessionId);
+  if (!session) {
+    throw new ApiError("NOT_FOUND", "Session not found.", 404);
+  }
+
+  return NextResponse.json(serializeSession(session));
+});

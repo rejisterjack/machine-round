@@ -38,9 +38,11 @@ export default function ReportPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          role: current.roleTitle,
+          roleId: current.roleId,
+          roleTitle: current.roleTitle,
           messages: current.messages,
           sessionId: current.dbSessionId,
+          weakSignals: current.weakSignals,
         }),
       });
 

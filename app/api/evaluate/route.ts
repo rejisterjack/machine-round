@@ -1,69 +1,86 @@
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { NextResponse } from "next/server";
+import { API_TIMEOUTS, withApiHandler, withRetry } from "@/lib/api/handler";
 import { getAzureEvaluatorModel, getAzureConfig } from "@/lib/ai";
 import { buildEvaluatorPrompt } from "@/lib/ai/prompts/evaluator";
-import {
-  evaluateRequestSchema,
-  evaluateResponseSchema,
-} from "@/lib/session/interview-store";
+import { isDbReady } from "@/lib/db/ready";
 import {
   appendInterviewMessages,
   getInterviewSessionById,
   saveReadinessReport,
 } from "@/lib/session/persistence";
+import {
+  evaluateRequestSchema,
+  evaluateResponseSchema,
+} from "@/lib/session/interview-store";
+import { resolveRole } from "@/lib/session/roles";
 
-export async function POST(request: Request) {
-  try {
-    const body = evaluateRequestSchema.parse(await request.json());
-    const transcript = body.messages
-      .map((message) => `${message.role}: ${message.content}`)
-      .join("\n");
-
-    if (body.sessionId) {
-      const dbSession = await getInterviewSessionById(body.sessionId);
-      if (dbSession) {
-        const unsynced = body.messages.slice(dbSession.messages.length);
-        if (unsynced.length > 0) {
-          await appendInterviewMessages(body.sessionId, unsynced);
-        }
-      }
-    }
-
-    const model = getAzureEvaluatorModel();
-    const response = await model.invoke([
-      new SystemMessage(buildEvaluatorPrompt(body.role, transcript)),
-      new HumanMessage("Return the readiness report JSON."),
-    ]);
-
-    const content =
-      typeof response.content === "string"
-        ? response.content
-        : JSON.stringify(response.content);
-
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    const parsed = evaluateResponseSchema.parse(
-      JSON.parse(jsonMatch ? jsonMatch[0] : content),
-    );
-
-    if (body.sessionId) {
-      const saved = await saveReadinessReport(
-        body.sessionId,
-        parsed,
-        getAzureConfig().chatDeployment,
-      );
-
-      return NextResponse.json({
-        ...parsed,
-        shareToken: saved.shareToken,
-      });
-    }
-
-    return NextResponse.json(parsed);
-  } catch (error) {
-    console.error("Evaluate API error:", error);
-    return NextResponse.json(
-      { error: "Failed to generate readiness report." },
-      { status: 500 },
+function normalizeImprovements(improvements: string[]) {
+  const unique = improvements.filter(Boolean).slice(0, 3);
+  while (unique.length < 2) {
+    unique.push(
+      "Lead with a concrete example, metric, and tradeoff in your next answer.",
     );
   }
+  return unique;
 }
+
+export const POST = withApiHandler(async (request: Request) => {
+  const body = evaluateRequestSchema.parse(await request.json());
+  const role = await resolveRole(body);
+  const transcript = body.messages
+    .map((message) => `${message.role}: ${message.content}`)
+    .join("\n");
+
+  let sessionWeakSignals = body.weakSignals ?? [];
+
+  if (body.sessionId && (await isDbReady())) {
+    const dbSession = await getInterviewSessionById(body.sessionId);
+    if (dbSession) {
+      sessionWeakSignals = dbSession.weakSignals;
+      const unsynced = body.messages.slice(dbSession.messages.length);
+      if (unsynced.length > 0) {
+        await appendInterviewMessages(body.sessionId, unsynced);
+      }
+    }
+  }
+
+  const model = getAzureEvaluatorModel();
+  const response = await withRetry(() =>
+    model.invoke([
+      new SystemMessage(buildEvaluatorPrompt(role.title, transcript)),
+      new HumanMessage("Return the readiness report JSON."),
+    ]),
+  );
+
+  const content =
+    typeof response.content === "string"
+      ? response.content
+      : JSON.stringify(response.content);
+
+  const jsonMatch = content.match(/\{[\s\S]*\}/);
+  const parsed = evaluateResponseSchema.parse(
+    JSON.parse(jsonMatch ? jsonMatch[0] : content),
+  );
+  parsed.improvements = normalizeImprovements(parsed.improvements);
+
+  if (body.sessionId && (await isDbReady())) {
+    const saved = await saveReadinessReport(
+      body.sessionId,
+      parsed,
+      getAzureConfig().chatDeployment,
+      sessionWeakSignals,
+    );
+
+    return NextResponse.json({
+      ...parsed,
+      shareToken: saved.shareToken,
+      weakTopics: saved.weakTopicTags.map((tag) => ({
+        label: tag.label,
+        weight: tag.weight,
+      })),
+    });
+  }
+
+  return NextResponse.json(parsed);
+}, { timeoutMs: API_TIMEOUTS.evaluate });

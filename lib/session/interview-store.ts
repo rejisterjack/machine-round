@@ -5,12 +5,22 @@ export const interviewMessageSchema = z.object({
   content: z.string(),
 });
 
-export const interviewRequestSchema = z.object({
-  role: z.string(),
-  messages: z.array(interviewMessageSchema),
-  questionCount: z.number().int().min(0),
-  sessionId: z.string().optional(),
-});
+const roleFields = {
+  roleId: z.string().optional(),
+  roleTitle: z.string().optional(),
+  role: z.string().optional(),
+};
+
+export const interviewRequestSchema = z
+  .object({
+    ...roleFields,
+    messages: z.array(interviewMessageSchema),
+    questionCount: z.number().int().min(0),
+    sessionId: z.string().optional(),
+  })
+  .refine((data) => Boolean(data.roleId || data.roleTitle || data.role), {
+    message: "roleId, roleTitle, or role is required.",
+  });
 
 export const interviewResponseSchema = z.object({
   message: z.string(),
@@ -20,10 +30,25 @@ export const interviewResponseSchema = z.object({
   weakSignals: z.array(z.string()).optional(),
 });
 
-export const evaluateRequestSchema = z.object({
-  role: z.string(),
-  messages: z.array(interviewMessageSchema),
-  sessionId: z.string().optional(),
+export const transcriptRequestSchema = z.object({
+  sessionId: z.string(),
+  content: z.string().min(1),
+});
+
+export const evaluateRequestSchema = z
+  .object({
+    ...roleFields,
+    messages: z.array(interviewMessageSchema),
+    sessionId: z.string().optional(),
+    weakSignals: z.array(z.string()).optional(),
+  })
+  .refine((data) => Boolean(data.roleId || data.roleTitle || data.role), {
+    message: "roleId, roleTitle, or role is required.",
+  });
+
+export const weakTopicSchema = z.object({
+  label: z.string(),
+  weight: z.number().optional(),
 });
 
 export const evaluateResponseSchema = z.object({
@@ -40,11 +65,13 @@ export const evaluateResponseSchema = z.object({
     }),
   ),
   improvements: z.array(z.string()),
+  weakTopics: z.array(weakTopicSchema).optional(),
 });
 
 export type InterviewMessage = z.infer<typeof interviewMessageSchema>;
 export type InterviewResponse = z.infer<typeof interviewResponseSchema>;
 export type EvaluateResponse = z.infer<typeof evaluateResponseSchema>;
+export type WeakTopic = z.infer<typeof weakTopicSchema>;
 
 export type InterviewSession = {
   roleId: string;
@@ -55,7 +82,7 @@ export type InterviewSession = {
   weakSignals: string[];
   status: "idle" | "thinking" | "listening" | "error" | "complete";
   error?: string;
-  report?: EvaluateResponse;
+  report?: EvaluateResponse & { shareToken?: string | null };
   dbSessionId?: string;
   publicId?: string;
 };

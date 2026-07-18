@@ -1,29 +1,33 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import type { SessionStatus } from "@/generated/client";
+import type { InputMode, SessionStatus } from "@/generated/client";
+import { withApiHandler } from "@/lib/api/handler";
+import { ApiError } from "@/lib/api/errors";
+import { isDbReady } from "@/lib/db/ready";
 import { getInterviewSessionById } from "@/lib/session/persistence";
+import { reportToEvaluateResponse } from "@/lib/session/report-queries";
 import { prisma } from "@/lib/prisma";
 
 const patchSessionSchema = z.object({
   status: z
     .enum(["active", "thinking", "completed", "abandoned", "error"])
     .optional(),
+  inputMode: z.enum(["text", "voice", "mixed"]).optional(),
   questionCount: z.number().int().min(0).optional(),
   topicsCovered: z.array(z.string()).optional(),
   weakSignals: z.array(z.string()).optional(),
   lastError: z.string().nullable().optional(),
 });
 
-export async function GET(
-  _request: Request,
-  context: { params: Promise<{ id: string }> },
-) {
-  const { id } = await context.params;
-
-  try {
+export const GET = withApiHandler(
+  async (
+    _request: Request,
+    context?: { params: Promise<{ id: string }> },
+  ) => {
+    const { id } = await context!.params;
     const session = await getInterviewSessionById(id);
     if (!session) {
-      return NextResponse.json({ error: "Session not found." }, { status: 404 });
+      throw new ApiError("NOT_FOUND", "Session not found.", 404);
     }
 
     return NextResponse.json({
@@ -31,6 +35,7 @@ export async function GET(
       publicId: session.publicId,
       roleTitle: session.role.title,
       status: session.status,
+      inputMode: session.inputMode,
       questionCount: session.questionCount,
       topicsCovered: session.topicsCovered,
       weakSignals: session.weakSignals,
@@ -38,28 +43,26 @@ export async function GET(
         role: message.role,
         content: message.content,
       })),
+      report: reportToEvaluateResponse(session.report),
+      shareToken: session.report?.shareToken ?? null,
     });
-  } catch (error) {
-    console.error("Get session error:", error);
-    return NextResponse.json(
-      { error: "Failed to load interview session." },
-      { status: 500 },
-    );
-  }
-}
+  },
+);
 
-export async function PATCH(
-  request: Request,
-  context: { params: Promise<{ id: string }> },
-) {
-  const { id } = await context.params;
+export const PATCH = withApiHandler(
+  async (request: Request, context?: { params: Promise<{ id: string }> }) => {
+    const { id } = await context!.params;
 
-  try {
+    if (!(await isDbReady())) {
+      return NextResponse.json({ persisted: false });
+    }
+
     const body = patchSessionSchema.parse(await request.json());
     const session = await prisma.interviewSession.update({
       where: { id },
       data: {
         status: body.status as SessionStatus | undefined,
+        inputMode: body.inputMode as InputMode | undefined,
         questionCount: body.questionCount,
         topicsCovered: body.topicsCovered,
         weakSignals: body.weakSignals,
@@ -70,13 +73,8 @@ export async function PATCH(
     return NextResponse.json({
       id: session.id,
       status: session.status,
+      inputMode: session.inputMode,
       questionCount: session.questionCount,
     });
-  } catch (error) {
-    console.error("Patch session error:", error);
-    return NextResponse.json(
-      { error: "Failed to update interview session." },
-      { status: 500 },
-    );
-  }
-}
+  },
+);

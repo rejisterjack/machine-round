@@ -32,11 +32,14 @@ export default function InterviewRolePage() {
 
       if (response.ok) {
         const data = (await response.json()) as {
-          id: string;
-          publicId: string;
+          persisted?: boolean;
+          id?: string;
+          publicId?: string;
         };
-        session.dbSessionId = data.id;
-        session.publicId = data.publicId;
+        if (data.persisted !== false && data.id && data.publicId) {
+          session.dbSessionId = data.id;
+          session.publicId = data.publicId;
+        }
       }
     } catch {
       // Keep client-only session as fallback when persistence is unavailable.
