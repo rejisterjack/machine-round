@@ -5,6 +5,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Breadcrumb } from "@/components/layout/breadcrumb";
 import { PageShell } from "@/components/layout/page-shell";
+import { ShareActions } from "@/components/report/share-actions";
+import { WeakTopicsCloud } from "@/components/report/weak-topics-cloud";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -50,8 +52,17 @@ export default function ReportPage() {
         throw new Error("Failed to generate report.");
       }
 
-      const report = (await response.json()) as EvaluateResponse;
-      const updated = { ...current, report, status: "complete" as const };
+      const report = (await response.json()) as EvaluateResponse & {
+        shareToken?: string | null;
+      };
+      const updated = {
+        ...current,
+        report: {
+          ...report,
+          shareToken: report.shareToken ?? null,
+        },
+        status: "complete" as const,
+      };
       setSession(updated);
       saveSession(updated);
     } catch {
@@ -129,6 +140,9 @@ export default function ReportPage() {
                 <Progress value={session.report.overallScore} />
               </div>
             </div>
+
+            <WeakTopicsCloud topics={session.report.weakTopics ?? []} />
+            <ShareActions shareToken={session.report.shareToken} />
 
             <div className="grid gap-4 sm:grid-cols-3">
               {session.report.answers.map((answer, index) => (
