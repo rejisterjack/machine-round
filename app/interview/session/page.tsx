@@ -45,6 +45,7 @@ export default function InterviewSessionPage() {
           role: current.roleTitle,
           messages,
           questionCount: current.questionCount,
+          sessionId: current.dbSessionId,
         }),
       });
 

@@ -84,17 +84,20 @@ cp .env.example .env
 | `AZURE_OPENAI_CHAT_DEPLOYMENT` | Chat deployment for interviewer and evaluator |
 | `AZURE_OPENAI_REALTIME_DEPLOYMENT` | Realtime deployment for voice |
 | `AZURE_OPENAI_EMBEDDING_DEPLOYMENT` | Embeddings deployment for RAG |
-| `DATABASE_URL` | Neon PostgreSQL connection string (use pooler URL) |
+| `DATABASE_URL` | Neon PostgreSQL pooler URL (used by the app at runtime) |
+| `DIRECT_DATABASE_URL` | Optional Neon direct URL for Prisma migrations (recommended) |
 
 **Only Azure OpenAI is supported for inference.** Do not set `OPENAI_API_KEY`.
 
-### Database setup (RAG stretch goal)
+### Database setup (Prisma + pgvector)
 
-Enable pgvector on your Neon database before seeding the question bank:
-
-```sql
-CREATE EXTENSION IF NOT EXISTS vector;
+```bash
+bun run db:migrate   # local dev: apply migrations
+bun run db:deploy    # CI/production: apply pending migrations
+bun run db:seed      # seeds roles + RAG question bank
 ```
+
+`db:migrate` prefers `DIRECT_DATABASE_URL` when set; otherwise it uses `DATABASE_URL`.
 
 ## Getting started
 
@@ -125,13 +128,20 @@ const realtime = getAzureRealtimeConfig();
 // realtime.callsUrl — browser WebRTC call endpoint
 ```
 
-### Database (Neon)
+### Database (Prisma + Neon)
+
+```typescript
+import { prisma } from "@/lib/prisma";
+
+const roles = await prisma.role.findMany();
+```
+
+For raw SQL (e.g. LangChain pgvector), use the pooler connection:
 
 ```typescript
 import { getSql } from "@/lib/db";
 
 const sql = getSql();
-const rows = await sql`SELECT * FROM questions LIMIT 10`;
 ```
 
 ### RAG (stretch goal)

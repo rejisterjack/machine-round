@@ -2,6 +2,7 @@ import { PGVectorStore } from "@langchain/community/vectorstores/pgvector";
 import { getAzureEmbeddings } from "@/lib/ai";
 import { getDatabaseUrl } from "@/lib/db";
 
+/** LangChain reads the Prisma-managed `interview_questions` table directly. */
 let vectorStorePromise: Promise<PGVectorStore> | null = null;
 
 export async function getQuestionVectorStore() {

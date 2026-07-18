@@ -13,12 +13,35 @@ import { createSession, saveSession } from "@/lib/session/interview-store";
 export default function InterviewRolePage() {
   const router = useRouter();
   const [selectedRole, setSelectedRole] = useState<RoleId | null>(null);
+  const [starting, setStarting] = useState(false);
 
-  function handleBegin() {
-    if (!selectedRole) return;
+  async function handleBegin() {
+    if (!selectedRole || starting) return;
     const role = roles.find((item) => item.id === selectedRole);
     if (!role) return;
+
+    setStarting(true);
     const session = createSession(role.id, role.title);
+
+    try {
+      const response = await fetch("/api/sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ roleId: role.id }),
+      });
+
+      if (response.ok) {
+        const data = (await response.json()) as {
+          id: string;
+          publicId: string;
+        };
+        session.dbSessionId = data.id;
+        session.publicId = data.publicId;
+      }
+    } catch {
+      // Keep client-only session as fallback when persistence is unavailable.
+    }
+
     saveSession(session);
     router.push("/interview/session");
   }
@@ -55,10 +78,10 @@ export default function InterviewRolePage() {
           <Button
             variant="ndFilled"
             size="lg"
-            disabled={!selectedRole}
-            onClick={handleBegin}
+            disabled={!selectedRole || starting}
+            onClick={() => void handleBegin()}
           >
-            Begin Round
+            {starting ? "Starting..." : "Begin Round"}
           </Button>
           <Button variant="ndGhost" size="lg" render={<Link href="/" />}>
             Back
