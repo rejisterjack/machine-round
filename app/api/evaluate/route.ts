@@ -1,11 +1,16 @@
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { NextResponse } from "next/server";
-import { getAzureEvaluatorModel } from "@/lib/ai";
+import { getAzureEvaluatorModel, getAzureConfig } from "@/lib/ai";
 import { buildEvaluatorPrompt } from "@/lib/ai/prompts/evaluator";
 import {
   evaluateRequestSchema,
   evaluateResponseSchema,
 } from "@/lib/session/interview-store";
+import {
+  appendInterviewMessages,
+  getInterviewSessionById,
+  saveReadinessReport,
+} from "@/lib/session/persistence";
 
 export async function POST(request: Request) {
   try {
@@ -13,6 +18,16 @@ export async function POST(request: Request) {
     const transcript = body.messages
       .map((message) => `${message.role}: ${message.content}`)
       .join("\n");
+
+    if (body.sessionId) {
+      const dbSession = await getInterviewSessionById(body.sessionId);
+      if (dbSession) {
+        const unsynced = body.messages.slice(dbSession.messages.length);
+        if (unsynced.length > 0) {
+          await appendInterviewMessages(body.sessionId, unsynced);
+        }
+      }
+    }
 
     const model = getAzureEvaluatorModel();
     const response = await model.invoke([
@@ -29,6 +44,19 @@ export async function POST(request: Request) {
     const parsed = evaluateResponseSchema.parse(
       JSON.parse(jsonMatch ? jsonMatch[0] : content),
     );
+
+    if (body.sessionId) {
+      const saved = await saveReadinessReport(
+        body.sessionId,
+        parsed,
+        getAzureConfig().chatDeployment,
+      );
+
+      return NextResponse.json({
+        ...parsed,
+        shareToken: saved.shareToken,
+      });
+    }
 
     return NextResponse.json(parsed);
   } catch (error) {

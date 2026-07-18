@@ -7,7 +7,22 @@ import {
   interviewRequestSchema,
   interviewResponseSchema,
 } from "@/lib/session/interview-store";
+import {
+  appendInterviewMessages,
+  getInterviewSessionById,
+} from "@/lib/session/persistence";
 import { MAX_QUESTIONS } from "@/lib/design/tokens";
+import { prisma } from "@/lib/prisma";
+
+async function syncUnsyncedMessages(sessionId: string, messages: { role: "user" | "assistant"; content: string }[]) {
+  const dbSession = await getInterviewSessionById(sessionId);
+  if (!dbSession) return;
+
+  const unsynced = messages.slice(dbSession.messages.length);
+  if (unsynced.length === 0) return;
+
+  await appendInterviewMessages(sessionId, unsynced, { status: "thinking" });
+}
 
 export async function POST(request: Request) {
   try {
@@ -18,6 +33,14 @@ export async function POST(request: Request) {
         message:
           "That wraps our machine round. Let's generate your readiness report.",
         done: true,
+      });
+    }
+
+    if (body.sessionId) {
+      await syncUnsyncedMessages(body.sessionId, body.messages);
+      await prisma.interviewSession.update({
+        where: { id: body.sessionId },
+        data: { status: "thinking", lastError: null },
       });
     }
 
@@ -52,6 +75,21 @@ export async function POST(request: Request) {
 
     if (body.questionCount + 1 >= MAX_QUESTIONS) {
       parsed.done = true;
+    }
+
+    if (body.sessionId) {
+      await appendInterviewMessages(
+        body.sessionId,
+        [{ role: "assistant", content: parsed.message }],
+        {
+          referencedAnswer: parsed.referencedAnswer,
+          questionCount: body.questionCount + 1,
+          topicsCovered: parsed.topicsCovered,
+          weakSignals: parsed.weakSignals,
+          status: parsed.done ? "completed" : "active",
+          completedAt: parsed.done ? new Date() : null,
+        },
+      );
     }
 
     return NextResponse.json(parsed);

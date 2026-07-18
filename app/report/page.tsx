@@ -40,6 +40,7 @@ export default function ReportPage() {
         body: JSON.stringify({
           role: current.roleTitle,
           messages: current.messages,
+          sessionId: current.dbSessionId,
         }),
       });
 

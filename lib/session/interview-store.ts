@@ -9,6 +9,7 @@ export const interviewRequestSchema = z.object({
   role: z.string(),
   messages: z.array(interviewMessageSchema),
   questionCount: z.number().int().min(0),
+  sessionId: z.string().optional(),
 });
 
 export const interviewResponseSchema = z.object({
@@ -22,6 +23,7 @@ export const interviewResponseSchema = z.object({
 export const evaluateRequestSchema = z.object({
   role: z.string(),
   messages: z.array(interviewMessageSchema),
+  sessionId: z.string().optional(),
 });
 
 export const evaluateResponseSchema = z.object({
@@ -54,6 +56,8 @@ export type InterviewSession = {
   status: "idle" | "thinking" | "listening" | "error" | "complete";
   error?: string;
   report?: EvaluateResponse;
+  dbSessionId?: string;
+  publicId?: string;
 };
 
 export const SESSION_STORAGE_KEY = "namaste-machine-round-session";

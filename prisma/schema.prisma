@@ -1,0 +1,289 @@
+generator client {
+  provider        = "prisma-client"
+  output          = "../generated"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  extensions = [vector]
+}
+
+enum RoleSlug {
+  full_stack
+  backend
+  frontend
+  product_minded
+}
+
+enum QuestionCategory {
+  behavioral
+  technical
+  system_design
+  mixed
+}
+
+enum MessageRole {
+  user
+  assistant
+}
+
+enum SessionStatus {
+  active
+  thinking
+  completed
+  abandoned
+  error
+}
+
+enum InputMode {
+  text
+  voice
+  mixed
+}
+
+enum WeakSignalType {
+  rambling
+  vague_claim
+  no_example
+  off_topic
+  other
+}
+
+model Role {
+  id          String   @id @default(cuid())
+  slug        RoleSlug @unique
+  title       String
+  description String   @db.Text
+  icon        String
+  imageUrl    String
+  rating      Float    @default(4.9)
+  language    String   @default("English")
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  questions InterviewQuestion[]
+  sessions  InterviewSession[]
+
+  @@index([isActive, sortOrder])
+  @@map("roles")
+}
+
+model InterviewQuestion {
+  id         String                       @id @default(cuid())
+  roleId     String?
+  role       Role?                        @relation(fields: [roleId], references: [id], onDelete: SetNull)
+  content    String                       @db.Text
+  category   QuestionCategory             @default(mixed)
+  difficulty Int?
+  metadata   Json?
+  embedding  Unsupported("vector(1536)")?
+  isActive   Boolean                      @default(true)
+  createdAt  DateTime                     @default(now())
+  updatedAt  DateTime                     @updatedAt
+
+  @@index([roleId])
+  @@index([isActive])
+  @@map("interview_questions")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String?   @unique
+  name          String?
+  image         String?
+  emailVerified DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts          Account[]
+  authSessions      AuthSession[]
+  interviewSessions InterviewSession[]
+  newsletterLeads   NewsletterLead[]
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("accounts")
+}
+
+model AuthSession {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("auth_sessions")
+}
+
+model InterviewSession {
+  id            String        @id @default(cuid())
+  publicId      String        @unique @default(cuid())
+  userId        String?
+  roleId        String
+  status        SessionStatus @default(active)
+  inputMode     InputMode     @default(text)
+  questionCount Int           @default(0)
+  topicsCovered String[]      @default([])
+  weakSignals   String[]      @default([])
+  lastError     String?       @db.Text
+  startedAt     DateTime      @default(now())
+  completedAt   DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  user                User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
+  role                Role                 @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  messages            InterviewMessage[]
+  report              ReadinessReport?
+  realtimeSessionLogs RealtimeSessionLog[]
+
+  @@index([userId])
+  @@index([roleId])
+  @@index([status])
+  @@index([publicId])
+  @@map("interview_sessions")
+}
+
+model InterviewMessage {
+  id               String      @id @default(cuid())
+  sessionId        String
+  role             MessageRole
+  content          String      @db.Text
+  sequence         Int
+  referencedAnswer String?     @db.Text
+  createdAt        DateTime    @default(now())
+
+  session InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, sequence])
+  @@index([sessionId])
+  @@map("interview_messages")
+}
+
+model ReadinessReport {
+  id              String   @id @default(cuid())
+  sessionId       String   @unique
+  overallScore    Int
+  summary         String   @db.Text
+  shareToken      String?  @unique
+  pdfUrl          String?
+  modelDeployment String?
+  generatedAt     DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  session           InterviewSession    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  answerEvaluations AnswerEvaluation[]
+  improvements      ReportImprovement[]
+  weakTopicTags     WeakTopicTag[]
+
+  @@index([shareToken])
+  @@map("readiness_reports")
+}
+
+model AnswerEvaluation {
+  id              String @id @default(cuid())
+  reportId        String
+  sequence        Int
+  question        String @db.Text
+  answer          String @db.Text
+  clarity         Int
+  structure       Int
+  technicalSignal Int
+
+  report   ReadinessReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  redFlags AnswerRedFlag[]
+
+  @@unique([reportId, sequence])
+  @@index([reportId])
+  @@map("answer_evaluations")
+}
+
+model AnswerRedFlag {
+  id                 String         @id @default(cuid())
+  answerEvaluationId String
+  label              String
+  signalType         WeakSignalType @default(other)
+
+  answerEvaluation AnswerEvaluation @relation(fields: [answerEvaluationId], references: [id], onDelete: Cascade)
+
+  @@index([answerEvaluationId])
+  @@map("answer_red_flags")
+}
+
+model ReportImprovement {
+  id       String @id @default(cuid())
+  reportId String
+  sequence Int
+  content  String @db.Text
+
+  report ReadinessReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@unique([reportId, sequence])
+  @@index([reportId])
+  @@map("report_improvements")
+}
+
+model WeakTopicTag {
+  id       String @id @default(cuid())
+  reportId String
+  label    String
+  weight   Float?
+
+  report ReadinessReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+  @@map("weak_topic_tags")
+}
+
+model NewsletterLead {
+  id                 String    @id @default(cuid())
+  email              String    @unique
+  resourcePreference String
+  userId             String?
+  subscribedAt       DateTime  @default(now())
+  unsubscribedAt     DateTime?
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@map("newsletter_leads")
+}
+
+model RealtimeSessionLog {
+  id                   String    @id @default(cuid())
+  interviewSessionId   String
+  clientSecretIssuedAt DateTime  @default(now())
+  deployment           String?
+  endedAt              DateTime?
+  error                String?   @db.Text
+
+  interviewSession InterviewSession @relation(fields: [interviewSessionId], references: [id], onDelete: Cascade)
+
+  @@index([interviewSessionId])
+  @@map("realtime_session_logs")
+}
