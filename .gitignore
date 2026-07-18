@@ -25,6 +25,9 @@
 .memsearch
 *.pem
 
+# local scratch (pixel audits, screenshots — not served by Next.js)
+.temp/
+
 # debug
 npm-debug.log*
 yarn-debug.log*
