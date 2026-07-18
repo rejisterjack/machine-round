@@ -377,4 +377,16 @@
   .nd-description {
     @apply text-sm text-nd-muted-text lg:text-base;
   }
+
+  .nd-report-hero {
+    @apply border-primary/20 bg-gradient-to-br from-card via-card to-primary/5;
+  }
+
+  .nd-report-score-ring {
+    @apply flex size-36 items-center justify-center rounded-full p-1 shadow-[0_0_40px_rgba(229,140,51,0.25)];
+  }
+
+  .nd-report-score-inner {
+    @apply flex size-full flex-col items-center justify-center gap-1 rounded-full bg-card;
+  }
 }
