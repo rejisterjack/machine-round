@@ -34,6 +34,9 @@ export function useRealtimeVoice(options: RealtimeVoiceOptions = {}) {
     typeof RTCPeerConnection !== "undefined" &&
     typeof navigator.mediaDevices?.getUserMedia === "function";
 
+  const onEventRef = useRef(options.onEvent);
+  onEventRef.current = options.onEvent;
+
   const stop = useCallback(() => {
     connectionRef.current?.close();
     connectionRef.current = null;
@@ -78,7 +81,7 @@ export function useRealtimeVoice(options: RealtimeVoiceOptions = {}) {
       connectionRef.current = await createRealtimeConnection({
         ephemeralKey,
         callsUrl,
-        onEvent: options.onEvent,
+        onEvent: (event) => onEventRef.current?.(event),
         onStateChange: setConnectionState,
         onVoiceStateChange: setVoiceState,
         onError: (message) => setError(message),
@@ -96,7 +99,6 @@ export function useRealtimeVoice(options: RealtimeVoiceOptions = {}) {
       return null;
     }
   }, [
-    options.onEvent,
     options.questionCount,
     options.roleId,
     options.roleTitle,
