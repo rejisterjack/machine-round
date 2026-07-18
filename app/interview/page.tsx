@@ -4,15 +4,17 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { NdCourseCard } from "@/components/brand/nd-course-card";
+import { RoleCardSkeleton } from "@/components/brand/role-card-skeleton";
 import { Breadcrumb } from "@/components/layout/breadcrumb";
 import { PageShell } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
-import { roles, type RoleId } from "@/lib/design/tokens";
+import { useRoles } from "@/hooks/use-roles";
 import { createSession, saveSession } from "@/lib/session/interview-store";
 
 export default function InterviewRolePage() {
   const router = useRouter();
-  const [selectedRole, setSelectedRole] = useState<RoleId | null>(null);
+  const { roles, loading } = useRoles();
+  const [selectedRole, setSelectedRole] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
 
   async function handleBegin() {
@@ -63,18 +65,22 @@ export default function InterviewRolePage() {
         </p>
 
         <div className="nd-card-grid mt-10">
-          {roles.map((role) => (
-            <NdCourseCard
-              key={role.id}
-              title={`Namaste ${role.title}`}
-              description={role.description}
-              imageUrl={role.imageUrl}
-              rating={role.rating}
-              language={role.language}
-              selected={selectedRole === role.id}
-              onSelect={() => setSelectedRole(role.id)}
-            />
-          ))}
+          {loading
+            ? Array.from({ length: 4 }).map((_, index) => (
+                <RoleCardSkeleton key={index} />
+              ))
+            : roles.map((role) => (
+                <NdCourseCard
+                  key={role.id}
+                  title={`Namaste ${role.title}`}
+                  description={role.description}
+                  imageUrl={role.imageUrl}
+                  rating={role.rating}
+                  language={role.language}
+                  selected={selectedRole === role.id}
+                  onSelect={() => setSelectedRole(role.id)}
+                />
+              ))}
         </div>
 
         <div className="mt-10 flex flex-col gap-3 sm:flex-row sm:items-center">
