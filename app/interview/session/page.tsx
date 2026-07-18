@@ -252,6 +252,8 @@ export default function InterviewSessionPage() {
 
         <VoiceControls
           active={voice.active}
+          connecting={voice.connecting}
+          voiceState={voice.voiceState}
           supported={voice.supported}
           error={voice.error}
           onToggle={() => void voice.toggle()}

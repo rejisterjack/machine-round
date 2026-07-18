@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  createRealtimeConnection,
+  type RealtimeConnection,
+  type RealtimeConnectionState,
+  type RealtimeEvent,
+  type RealtimeVoiceState,
+} from "@/lib/voice/realtime-webrtc";
 
 type RealtimeSession = {
   client_secret?: { value?: string };
@@ -13,17 +20,36 @@ type RealtimeVoiceOptions = {
   roleId?: string;
   roleTitle?: string;
   questionCount?: number;
+  onEvent?: (event: RealtimeEvent) => void;
 };
 
 export function useRealtimeVoice(options: RealtimeVoiceOptions = {}) {
-  const [active, setActive] = useState(false);
+  const [connectionState, setConnectionState] =
+    useState<RealtimeConnectionState>("idle");
+  const [voiceState, setVoiceState] = useState<RealtimeVoiceState>("idle");
   const [error, setError] = useState<string>();
+  const connectionRef = useRef<RealtimeConnection | null>(null);
   const supported =
     typeof window !== "undefined" &&
-    typeof RTCPeerConnection !== "undefined";
+    typeof RTCPeerConnection !== "undefined" &&
+    typeof navigator.mediaDevices?.getUserMedia === "function";
+
+  const stop = useCallback(() => {
+    connectionRef.current?.close();
+    connectionRef.current = null;
+    setConnectionState("idle");
+    setVoiceState("idle");
+  }, []);
 
   const start = useCallback(async () => {
+    if (!supported) {
+      setError("Voice is not supported in this browser.");
+      return null;
+    }
+
     setError(undefined);
+    setConnectionState("connecting");
+
     try {
       const response = await fetch("/api/realtime/session", {
         method: "POST",
@@ -35,14 +61,29 @@ export function useRealtimeVoice(options: RealtimeVoiceOptions = {}) {
           questionCount: options.questionCount,
         }),
       });
+
       if (!response.ok) {
         throw new Error("Could not start voice session.");
       }
+
       const session = (await response.json()) as RealtimeSession;
-      if (!session.client_secret?.value) {
+      const ephemeralKey = session.client_secret?.value;
+      const callsUrl = session.callsUrl;
+
+      if (!ephemeralKey || !callsUrl) {
         throw new Error("Realtime session token missing.");
       }
-      setActive(true);
+
+      connectionRef.current?.close();
+      connectionRef.current = await createRealtimeConnection({
+        ephemeralKey,
+        callsUrl,
+        onEvent: options.onEvent,
+        onStateChange: setConnectionState,
+        onVoiceStateChange: setVoiceState,
+        onError: (message) => setError(message),
+      });
+
       return session;
     } catch (startError) {
       const message =
@@ -50,34 +91,47 @@ export function useRealtimeVoice(options: RealtimeVoiceOptions = {}) {
           ? startError.message
           : "Voice session failed.";
       setError(message);
-      setActive(false);
+      setConnectionState("error");
+      stop();
       return null;
     }
   }, [
+    options.onEvent,
     options.questionCount,
     options.roleId,
     options.roleTitle,
     options.sessionId,
+    stop,
+    supported,
   ]);
 
-  const stop = useCallback(() => {
-    setActive(false);
-  }, []);
-
   const toggle = useCallback(async () => {
-    if (active) {
+    if (connectionState === "active" || connectionState === "connecting") {
       stop();
       return;
     }
     await start();
-  }, [active, start, stop]);
+  }, [connectionState, start, stop]);
+
+  useEffect(() => {
+    return () => {
+      connectionRef.current?.close();
+      connectionRef.current = null;
+    };
+  }, []);
 
   return {
-    active,
+    active: connectionState === "active" || connectionState === "connecting",
+    connecting: connectionState === "connecting",
+    connectionState,
+    voiceState,
     error,
     supported,
     start,
     stop,
     toggle,
+    sendEvent: (event: Record<string, unknown>) => {
+      connectionRef.current?.sendEvent(event);
+    },
   };
 }
