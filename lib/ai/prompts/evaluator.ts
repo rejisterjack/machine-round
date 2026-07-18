@@ -16,8 +16,15 @@ Respond in JSON only:
       "redFlags": ["..."]
     }
   ],
-  "improvements": ["specific action 1", "specific action 2", "specific action 3"]
-}`;
+  "improvements": ["specific action 1", "specific action 2", "specific action 3"],
+  "weakTopics": [
+    { "label": "system design tradeoffs", "weight": 0.8 }
+  ]
+}
+
+Rules:
+- Provide exactly 2 or 3 improvements.
+- weakTopics should summarize recurring weak areas for a tag cloud (3-6 items, weight 0-1).`;
 
 export function buildEvaluatorPrompt(role: string, transcript: string) {
   return `${EVALUATOR_SYSTEM_PROMPT}

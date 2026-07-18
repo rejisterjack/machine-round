@@ -5,7 +5,7 @@ export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: {
     path: "prisma/migrations",
-    seed: "bun run prisma/seed.ts",
+    seed: "bun run scripts/seed-questions.ts",
   },
   datasource: {
     // Use a direct Neon URL for migrations when available; fall back to DATABASE_URL.

@@ -7,9 +7,14 @@ import type {
 import type {
   EvaluateResponse,
   InterviewMessage,
+  WeakTopic,
 } from "@/lib/session/interview-store";
+import { isDbReady } from "@/lib/db/ready";
 import { prisma } from "@/lib/prisma";
+import { reportToEvaluateResponse } from "@/lib/session/report-queries";
 import { roleIdToSlug } from "@/lib/session/role-slug";
+
+export { reportToEvaluateResponse };
 
 function mapWeakSignalType(label: string): WeakSignalType {
   const normalized = label.toLowerCase();
@@ -20,10 +25,38 @@ function mapWeakSignalType(label: string): WeakSignalType {
   return "other";
 }
 
+function buildWeakTopics(
+  report: EvaluateResponse,
+  sessionWeakSignals: string[] = [],
+): WeakTopic[] {
+  if (report.weakTopics?.length) {
+    return report.weakTopics;
+  }
+
+  const labels = new Set<string>();
+  for (const signal of sessionWeakSignals) {
+    if (signal.trim()) labels.add(signal.trim());
+  }
+  for (const answer of report.answers) {
+    for (const flag of answer.redFlags) {
+      if (flag.trim()) labels.add(flag.trim());
+    }
+  }
+
+  return Array.from(labels).map((label, index) => ({
+    label,
+    weight: Math.max(0.3, 1 - index * 0.15),
+  }));
+}
+
 export async function createInterviewSession(input: {
   roleId: string;
   inputMode?: InputMode;
 }) {
+  if (!(await isDbReady())) {
+    return null;
+  }
+
   const slug = roleIdToSlug(input.roleId);
   if (!slug) {
     throw new Error(`Unknown role: ${input.roleId}`);
@@ -45,6 +78,8 @@ export async function createInterviewSession(input: {
 }
 
 export async function getInterviewSessionById(sessionId: string) {
+  if (!(await isDbReady())) return null;
+
   return prisma.interviewSession.findUnique({
     where: { id: sessionId },
     include: {
@@ -75,8 +110,11 @@ export async function appendInterviewMessages(
     status?: SessionStatus;
     lastError?: string | null;
     completedAt?: Date | null;
+    inputMode?: InputMode;
   },
 ) {
+  if (!(await isDbReady())) return;
+
   const session = await prisma.interviewSession.findUnique({
     where: { id: sessionId },
     select: {
@@ -111,6 +149,7 @@ export async function appendInterviewMessages(
     status?: SessionStatus;
     lastError?: string | null;
     completedAt?: Date | null;
+    inputMode?: InputMode;
   } = {};
 
   if (options?.questionCount !== undefined) {
@@ -131,6 +170,9 @@ export async function appendInterviewMessages(
   if (options?.completedAt !== undefined) {
     updateData.completedAt = options.completedAt;
   }
+  if (options?.inputMode !== undefined) {
+    updateData.inputMode = options.inputMode;
+  }
 
   await prisma.$transaction([
     prisma.interviewMessage.createMany({ data }),
@@ -145,22 +187,26 @@ export async function saveReadinessReport(
   sessionId: string,
   report: EvaluateResponse,
   modelDeployment?: string,
+  sessionWeakSignals: string[] = [],
 ) {
+  if (!(await isDbReady())) {
+    throw new Error("Database not ready.");
+  }
+
   const existing = await prisma.readinessReport.findUnique({
     where: { sessionId },
-    select: { id: true },
+    include: {
+      answerEvaluations: { include: { redFlags: true } },
+      improvements: true,
+      weakTopicTags: true,
+    },
   });
 
   if (existing) {
-    return prisma.readinessReport.findUniqueOrThrow({
-      where: { id: existing.id },
-      include: {
-        answerEvaluations: { include: { redFlags: true } },
-        improvements: true,
-        weakTopicTags: true,
-      },
-    });
+    return existing;
   }
+
+  const weakTopics = buildWeakTopics(report, sessionWeakSignals);
 
   return prisma.$transaction(async (tx) => {
     const saved = await tx.readinessReport.create({
@@ -192,6 +238,12 @@ export async function saveReadinessReport(
             content,
           })),
         },
+        weakTopicTags: {
+          create: weakTopics.map((topic) => ({
+            label: topic.label,
+            weight: topic.weight ?? null,
+          })),
+        },
       },
       include: {
         answerEvaluations: { include: { redFlags: true } },
@@ -210,26 +262,4 @@ export async function saveReadinessReport(
 
     return saved;
   });
-}
-
-export function reportToEvaluateResponse(
-  report: NonNullable<
-    Awaited<ReturnType<typeof getInterviewSessionById>>
-  >["report"],
-): EvaluateResponse | undefined {
-  if (!report) return undefined;
-
-  return {
-    overallScore: report.overallScore,
-    summary: report.summary,
-    answers: report.answerEvaluations.map((answer) => ({
-      question: answer.question,
-      answer: answer.answer,
-      clarity: answer.clarity,
-      structure: answer.structure,
-      technicalSignal: answer.technicalSignal,
-      redFlags: answer.redFlags.map((flag) => flag.label),
-    })),
-    improvements: report.improvements.map((item) => item.content),
-  };
 }

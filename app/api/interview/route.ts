@@ -1,20 +1,19 @@
-import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { NextResponse } from "next/server";
-import { getAzureChatModel } from "@/lib/ai";
-import { buildInterviewerPrompt } from "@/lib/ai/prompts/interviewer";
-import { getGroundedQuestions } from "@/lib/rag/vector-store";
-import {
-  interviewRequestSchema,
-  interviewResponseSchema,
-} from "@/lib/session/interview-store";
+import { API_TIMEOUTS, withApiHandler, withRetry } from "@/lib/api/handler";
+import { runInterviewTurn } from "@/lib/ai/interview-turn";
+import { isDbReady } from "@/lib/db/ready";
 import {
   appendInterviewMessages,
   getInterviewSessionById,
 } from "@/lib/session/persistence";
-import { MAX_QUESTIONS } from "@/lib/design/tokens";
+import { interviewRequestSchema } from "@/lib/session/interview-store";
+import { resolveRole } from "@/lib/session/roles";
 import { prisma } from "@/lib/prisma";
 
-async function syncUnsyncedMessages(sessionId: string, messages: { role: "user" | "assistant"; content: string }[]) {
+async function syncUnsyncedMessages(
+  sessionId: string,
+  messages: { role: "user" | "assistant"; content: string }[],
+) {
   const dbSession = await getInterviewSessionById(sessionId);
   if (!dbSession) return;
 
@@ -24,80 +23,41 @@ async function syncUnsyncedMessages(sessionId: string, messages: { role: "user" 
   await appendInterviewMessages(sessionId, unsynced, { status: "thinking" });
 }
 
-export async function POST(request: Request) {
-  try {
-    const body = interviewRequestSchema.parse(await request.json());
+export const POST = withApiHandler(async (request: Request) => {
+  const body = interviewRequestSchema.parse(await request.json());
+  const role = await resolveRole(body);
 
-    if (body.questionCount >= MAX_QUESTIONS) {
-      return NextResponse.json({
-        message:
-          "That wraps our machine round. Let's generate your readiness report.",
-        done: true,
-      });
-    }
+  if (body.sessionId && (await isDbReady())) {
+    await syncUnsyncedMessages(body.sessionId, body.messages);
+    await prisma.interviewSession.update({
+      where: { id: body.sessionId },
+      data: { status: "thinking", lastError: null },
+    });
+  }
 
-    if (body.sessionId) {
-      await syncUnsyncedMessages(body.sessionId, body.messages);
-      await prisma.interviewSession.update({
-        where: { id: body.sessionId },
-        data: { status: "thinking", lastError: null },
-      });
-    }
+  const parsed = await withRetry(() =>
+    runInterviewTurn({
+      roleTitle: role.title,
+      roleId: role.id,
+      messages: body.messages,
+      questionCount: body.questionCount,
+    }),
+  );
 
-    const model = getAzureChatModel();
-    const grounded = await getGroundedQuestions(body.role, 2);
-    const transcript = body.messages
-      .map((message) => `${message.role}: ${message.content}`)
-      .join("\n");
-
-    const response = await model.invoke([
-      new SystemMessage(buildInterviewerPrompt(body.role, body.questionCount)),
-      new HumanMessage(
-        body.messages.length === 0
-          ? `Start the interview with your first question.${
-              grounded.length
-                ? ` Ground one question in this bank if useful: ${grounded.join(" | ")}`
-                : ""
-            }`
-          : `Continue the interview based on this transcript:\n${transcript}`,
-      ),
-    ]);
-
-    const content =
-      typeof response.content === "string"
-        ? response.content
-        : JSON.stringify(response.content);
-
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    const parsed = interviewResponseSchema.parse(
-      JSON.parse(jsonMatch ? jsonMatch[0] : content),
-    );
-
-    if (body.questionCount + 1 >= MAX_QUESTIONS) {
-      parsed.done = true;
-    }
-
-    if (body.sessionId) {
-      await appendInterviewMessages(
-        body.sessionId,
-        [{ role: "assistant", content: parsed.message }],
-        {
-          referencedAnswer: parsed.referencedAnswer,
-          questionCount: body.questionCount + 1,
-          topicsCovered: parsed.topicsCovered,
-          weakSignals: parsed.weakSignals,
-          status: parsed.done ? "completed" : "active",
-          completedAt: parsed.done ? new Date() : null,
-        },
-      );
-    }
-
-    return NextResponse.json(parsed);
-  } catch (error) {
-    console.error("Interview API error:", error);
-    return NextResponse.json(
-      { error: "Failed to generate the next interview question." },
-      { status: 500 },
+  if (body.sessionId && (await isDbReady())) {
+    await appendInterviewMessages(
+      body.sessionId,
+      [{ role: "assistant", content: parsed.message }],
+      {
+        referencedAnswer: parsed.referencedAnswer,
+        questionCount: body.questionCount + 1,
+        topicsCovered: parsed.topicsCovered,
+        weakSignals: parsed.weakSignals,
+        status: parsed.done ? "completed" : "active",
+        completedAt: parsed.done ? new Date() : null,
+      },
     );
   }
-}
+
+  return NextResponse.json(parsed);
+}, { timeoutMs: API_TIMEOUTS.interview });

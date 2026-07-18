@@ -26,7 +26,12 @@ export default function InterviewSessionPage() {
   );
   const [input, setInput] = useState("");
   const [referencedAnswer, setReferencedAnswer] = useState<string>();
-  const voice = useRealtimeVoice();
+  const voice = useRealtimeVoice({
+    sessionId: session?.dbSessionId,
+    roleId: session?.roleId,
+    roleTitle: session?.roleTitle,
+    questionCount: session?.questionCount,
+  });
   const bootstrapped = useRef(false);
 
   const requestNextQuestion = useCallback(async (
@@ -42,7 +47,8 @@ export default function InterviewSessionPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          role: current.roleTitle,
+          roleId: current.roleId,
+          roleTitle: current.roleTitle,
           messages,
           questionCount: current.questionCount,
           sessionId: current.dbSessionId,
@@ -85,6 +91,23 @@ export default function InterviewSessionPage() {
       saveSession(errored);
     }
   }, [router]);
+
+  useEffect(() => {
+    if (!session?.dbSessionId) return;
+
+    const markAbandoned = () => {
+      if (session.status === "complete") return;
+      void fetch(`/api/sessions/${session.dbSessionId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "abandoned" }),
+        keepalive: true,
+      });
+    };
+
+    window.addEventListener("beforeunload", markAbandoned);
+    return () => window.removeEventListener("beforeunload", markAbandoned);
+  }, [session?.dbSessionId, session?.status]);
 
   useEffect(() => {
     if (session === null) {

@@ -202,14 +202,3 @@ async function main() {
 export async function seedQuestionBank() {
   await main();
 }
-
-if (import.meta.main) {
-  main()
-    .catch((error) => {
-      console.error(error);
-      process.exit(1);
-    })
-    .finally(async () => {
-      await prisma.$disconnect();
-    });
-}

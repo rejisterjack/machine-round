@@ -8,11 +8,12 @@
     "postinstall": "prisma generate",
     "start": "next start",
     "lint": "eslint",
-    "seed:questions": "bun run prisma/seed.ts",
+    "seed:questions": "bun run scripts/seed-questions.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
-    "db:seed": "prisma db seed"
+    "db:seed": "prisma db seed",
+    "smoke:api": "bun run scripts/smoke-api.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
@@ -60,6 +61,6 @@
     "unrs-resolver"
   ],
   "prisma": {
-    "seed": "bun run prisma/seed.ts"
+    "seed": "bun run scripts/seed-questions.ts"
   }
 }

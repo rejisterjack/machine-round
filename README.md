@@ -99,6 +99,28 @@ bun run db:seed      # seeds roles + RAG question bank
 
 `db:migrate` prefers `DIRECT_DATABASE_URL` when set; otherwise it uses `DATABASE_URL`.
 
+### API smoke checks (PRD §6.4)
+
+```bash
+bun run dev
+bun run smoke:api
+```
+
+Acceptance checklist before submission:
+1. Cold start: incognito session completes interview + report in under 3 minutes
+2. Five consecutive runs without manual intervention
+3. App works when database is unavailable (client sessionStorage fallback)
+4. Evaluate request fails gracefully within the 10s budget
+5. At least one adaptive follow-up includes `referencedAnswer`
+6. Share token URL returns the same report JSON
+7. Realtime route returns `client_secret` when Azure is configured
+
+Optional admin reseed (requires `ADMIN_SECRET`):
+
+```bash
+curl -X POST http://localhost:3000/api/admin/reseed-questions -H "x-admin-secret: $ADMIN_SECRET"
+```
+
 ## Getting started
 
 ```bash

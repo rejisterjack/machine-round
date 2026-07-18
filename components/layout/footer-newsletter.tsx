@@ -15,9 +15,29 @@ const resources = [
 export function FooterNewsletter() {
   const [email, setEmail] = useState("");
   const [resource, setResource] = useState<string>(resources[0]);
+  const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">(
+    "idle",
+  );
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!email.trim()) return;
+
+    setStatus("loading");
+    try {
+      const response = await fetch("/api/newsletter", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: email.trim(),
+          resourcePreference: resource,
+        }),
+      });
+      if (!response.ok) throw new Error("Newsletter signup failed.");
+      setStatus("done");
+    } catch {
+      setStatus("error");
+    }
   }
 
   return (
@@ -112,10 +132,19 @@ export function FooterNewsletter() {
             </div>
             <button
               type="submit"
-              className="relative w-full overflow-hidden rounded-xl bg-primary py-3 text-base font-semibold text-primary-foreground shadow-lg transition-all hover:bg-primary/90"
+              disabled={status === "loading"}
+              className="relative w-full overflow-hidden rounded-xl bg-primary py-3 text-base font-semibold text-primary-foreground shadow-lg transition-all hover:bg-primary/90 disabled:opacity-60"
             >
-              Get Resource for FREE
+              {status === "loading" ? "Submitting..." : "Get Resource for FREE"}
             </button>
+            {status === "done" ? (
+              <p className="text-sm text-primary">You are on the list.</p>
+            ) : null}
+            {status === "error" ? (
+              <p className="text-sm text-destructive">
+                Could not subscribe right now. Try again.
+              </p>
+            ) : null}
           </form>
         </div>
       </div>

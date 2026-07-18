@@ -8,7 +8,14 @@ type RealtimeSession = {
   deployment?: string;
 };
 
-export function useRealtimeVoice() {
+type RealtimeVoiceOptions = {
+  sessionId?: string;
+  roleId?: string;
+  roleTitle?: string;
+  questionCount?: number;
+};
+
+export function useRealtimeVoice(options: RealtimeVoiceOptions = {}) {
   const [active, setActive] = useState(false);
   const [error, setError] = useState<string>();
   const supported =
@@ -18,7 +25,16 @@ export function useRealtimeVoice() {
   const start = useCallback(async () => {
     setError(undefined);
     try {
-      const response = await fetch("/api/realtime/session", { method: "POST" });
+      const response = await fetch("/api/realtime/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId: options.sessionId,
+          roleId: options.roleId,
+          roleTitle: options.roleTitle,
+          questionCount: options.questionCount,
+        }),
+      });
       if (!response.ok) {
         throw new Error("Could not start voice session.");
       }
@@ -37,7 +53,12 @@ export function useRealtimeVoice() {
       setActive(false);
       return null;
     }
-  }, []);
+  }, [
+    options.questionCount,
+    options.roleId,
+    options.roleTitle,
+    options.sessionId,
+  ]);
 
   const stop = useCallback(() => {
     setActive(false);

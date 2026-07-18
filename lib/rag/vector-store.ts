@@ -24,14 +24,33 @@ export async function getQuestionVectorStore() {
   return vectorStorePromise;
 }
 
-export async function getGroundedQuestions(role: string, limit = 2) {
+export async function getGroundedQuestions(
+  role: string,
+  limit = 2,
+  roleId?: string,
+) {
   try {
     const store = await getQuestionVectorStore();
+    const metadataFilter = roleId ? { role: roleId } : undefined;
     const results = await store.similaritySearch(
       `screening interview questions for ${role}`,
       limit,
+      metadataFilter,
     );
-    return results.map((result) => result.pageContent);
+
+    if (results.length > 0) {
+      return results.map((result) => result.pageContent);
+    }
+
+    if (metadataFilter) {
+      const fallback = await store.similaritySearch(
+        `screening interview questions for ${role}`,
+        limit,
+      );
+      return fallback.map((result) => result.pageContent);
+    }
+
+    return [];
   } catch (error) {
     console.warn("RAG grounding unavailable:", error);
     return [];
