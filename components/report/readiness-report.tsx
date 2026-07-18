@@ -80,7 +80,11 @@ export function ReadinessReport({
 
       <WeakTopicsCloud topics={report.weakTopics ?? []} />
       {showShareActions ? (
-        <ShareActions shareToken={report.shareToken} />
+        <ShareActions
+          shareToken={report.shareToken}
+          report={report}
+          roleTitle={roleTitle}
+        />
       ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
