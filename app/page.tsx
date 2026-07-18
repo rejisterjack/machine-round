@@ -1,65 +1,176 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import Link from "next/link";
+import { CodexTerminal } from "@/components/brand/codex-terminal";
+import { NdCourseCard } from "@/components/brand/nd-course-card";
+import { NdHero } from "@/components/brand/nd-hero";
+import { PageShell } from "@/components/layout/page-shell";
+import { roles } from "@/lib/design/tokens";
+
+const steps = [
+  {
+    number: "01",
+    title: "Select your role",
+    description: "Pick a generic engineering track to ground the interview.",
+  },
+  {
+    number: "02",
+    title: "Run a machine round",
+    description: "Answer 5–7 adaptive questions by voice or text.",
+  },
+  {
+    number: "03",
+    title: "Get your readiness report",
+    description: "See scores, red flags, and concrete improvement actions.",
+  },
+];
+
+const benefits = [
+  {
+    title: "Adaptive follow-ups",
+    description:
+      "Every question references your actual answers — not a static script.",
+  },
+  {
+    title: "Voice or text",
+    description:
+      "Practice the way real AI screens work, with voice and text input.",
+  },
+  {
+    title: "Readiness report",
+    description:
+      "Get scores, red flags, and concrete actions to improve before the real screen.",
+  },
+];
+
+export default function HomePage() {
+  function scrollToHowItWorks() {
+    document.getElementById("how-it-works")?.scrollIntoView({ behavior: "smooth" });
+  }
+
+  function scrollToTracks() {
+    document.getElementById("choose-track")?.scrollIntoView({ behavior: "smooth" });
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <>
+      <NdHero
+        eyebrow="Practice. Adapt. Improve."
+        tagline="Interview Preparation"
+        title="Train for the Machine Round"
+        accentWord="Machine Round"
+        description="A realistic AI-style screening interview that adapts its follow-ups based on your actual answers and returns a structured readiness report — so you walk in knowing what the screener is listening for."
+        checklist={[
+          "Adaptive follow-ups that reference your actual answers",
+          "Voice and text input — practice like a real AI screen",
+          "Structured readiness report with concrete improvement actions",
+        ]}
+        ctaLabel="Start a Machine Round"
+        ctaHref="/interview"
+        scrollTargetId="choose-track"
+        secondaryLabel="View how it works"
+        onSecondaryClick={scrollToHowItWorks}
+      />
+
+      <PageShell glow>
+      <section id="choose-track" className="nd-section-gap">
+        <div className="mb-6 flex justify-center">
+          <span className="nd-section-pill">Explore our best tracks</span>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+        <h2 className="text-center font-heading text-2xl font-medium sm:text-3xl lg:text-4xl">
+          Choose Your Path To{" "}
+          <span className="nd-gradient-text">Success</span>
+        </h2>
+        <p className="mx-auto mt-3 max-w-2xl text-center text-sm text-muted-foreground sm:text-base">
+          Transform your prep with adaptive AI interviews, crafted to mirror
+          how real engineering screens actually work.
+        </p>
+        <div className="nd-card-grid mt-10">
+          {roles.map((role) => (
+            <NdCourseCard
+              key={role.id}
+              title={`Namaste ${role.title}`}
+              description={role.description}
+              imageUrl={role.imageUrl}
+              rating={role.rating}
+              language={role.language}
+              href="/interview"
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+          ))}
         </div>
-      </main>
-    </div>
+      </section>
+
+      <section id="how-it-works" className="nd-section-gap">
+        <p className="nd-section-heading text-center">How it works</p>
+        <h2 className="mt-3 text-center font-heading text-2xl font-medium sm:text-3xl lg:text-4xl">
+          Three steps to interview readiness
+        </h2>
+        <div className="mt-10 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+          {steps.map((step) => (
+            <div key={step.number} className="nd-course-card p-6">
+              <p className="nd-section-label mb-3">{step.number}</p>
+              <h3 className="font-heading text-xl font-medium">{step.title}</h3>
+              <p className="mt-3 text-sm text-muted-foreground">
+                {step.description}
+              </p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="nd-section-gap">
+        <p className="nd-section-heading text-center">
+          Why Namaste Machine Round
+        </p>
+        <h2 className="mt-3 text-center font-heading text-2xl font-medium sm:text-3xl lg:text-4xl">
+          Built for how AI screens actually work
+        </h2>
+        <div className="mt-10 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+          {benefits.map((benefit) => (
+            <div key={benefit.title} className="nd-course-card p-6">
+              <h3 className="font-heading text-lg font-medium">
+                {benefit.title}
+              </h3>
+              <p className="mt-3 text-sm text-muted-foreground">
+                {benefit.description}
+              </p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="nd-section-gap">
+        <p className="nd-section-heading mb-4">Preview</p>
+        <h2 className="mb-6 font-heading text-xl font-medium sm:text-2xl lg:text-3xl">
+          See adaptive follow-ups in action
+        </h2>
+        <CodexTerminal title="Namaste Machine Round · adaptive follow-up">
+          <div className="space-y-4 text-left text-sm">
+            <div className="nd-message-user">
+              I led a migration from a monolith to services, but we kept the
+              checkout flow on the legacy path for two releases.
+            </div>
+            <div className="nd-message-assistant">
+              You mentioned keeping checkout on the legacy path — what metric
+              told you that was the right rollback boundary?
+            </div>
+            <p className="text-xs text-primary">Adaptive follow-up detected</p>
+          </div>
+        </CodexTerminal>
+        <div className="mt-8 text-center">
+          <Link
+            href="/interview"
+            className="text-sm text-primary underline-offset-4 hover:underline"
+            onClick={(event) => {
+              event.preventDefault();
+              scrollToTracks();
+            }}
+          >
+            Browse all tracks →
+          </Link>
+        </div>
+      </section>
+      </PageShell>
+    </>
   );
 }
