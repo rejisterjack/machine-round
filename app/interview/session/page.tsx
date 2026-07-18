@@ -18,6 +18,12 @@ import {
   type InterviewSession,
 } from "@/lib/session/interview-store";
 import { useRealtimeVoice } from "@/hooks/use-realtime-voice";
+import type { RealtimeEvent } from "@/lib/voice/realtime-webrtc";
+import {
+  extractMessageFromRealtimeEvent,
+  extractPartialDelta,
+  syncVoiceTranscript,
+} from "@/lib/voice/realtime-transcript";
 
 export default function InterviewSessionPage() {
   const router = useRouter();
@@ -26,12 +32,72 @@ export default function InterviewSessionPage() {
   );
   const [input, setInput] = useState("");
   const [referencedAnswer, setReferencedAnswer] = useState<string>();
+  const [partialTranscript, setPartialTranscript] = useState<{
+    role: "user" | "assistant";
+    content: string;
+  }>();
+  const sessionRef = useRef(session);
+  sessionRef.current = session;
+  const voiceStopRef = useRef<() => void>(() => {});
+
+  const handleRealtimeEvent = useCallback((event: RealtimeEvent) => {
+    const partial = extractPartialDelta(event);
+    if (partial) {
+      setPartialTranscript((previous) => {
+        if (previous && previous.role === partial.role) {
+          return {
+            role: partial.role,
+            content: previous.content + partial.content,
+          };
+        }
+        return partial;
+      });
+    }
+
+    const message = extractMessageFromRealtimeEvent(event);
+    if (!message) return;
+
+    setPartialTranscript(undefined);
+
+    const current = sessionRef.current;
+    if (!current) return;
+
+    const last = current.messages[current.messages.length - 1];
+    if (last?.role === message.role && last.content === message.content) {
+      return;
+    }
+
+    const messages = [...current.messages, message];
+    const questionCount =
+      message.role === "assistant"
+        ? current.questionCount + 1
+        : current.questionCount;
+
+    const updated: InterviewSession = {
+      ...current,
+      messages,
+      questionCount,
+      inputMode: "voice",
+      status: message.role === "assistant" ? "idle" : "listening",
+    };
+
+    sessionRef.current = updated;
+    setSession(updated);
+    saveSession(updated);
+
+    if (message.role === "user" && current.dbSessionId) {
+      void syncVoiceTranscript(current.dbSessionId, message.content);
+    }
+  }, []);
+
   const voice = useRealtimeVoice({
     sessionId: session?.dbSessionId,
     roleId: session?.roleId,
     roleTitle: session?.roleTitle,
     questionCount: session?.questionCount,
+    onEvent: handleRealtimeEvent,
   });
+  voiceStopRef.current = voice.stop;
   const bootstrapped = useRef(false);
   const hydrating = useRef(false);
 
@@ -39,9 +105,11 @@ export default function InterviewSessionPage() {
     (current?: InterviewSession) => {
       const base = current ?? session;
       if (!base) return;
+      voiceStopRef.current();
       const completed: InterviewSession = {
         ...base,
         status: "complete",
+        inputMode: voice.active ? "voice" : base.inputMode,
       };
       setSession(completed);
       saveSession(completed);
@@ -182,9 +250,10 @@ export default function InterviewSessionPage() {
       return;
     }
     if (bootstrapped.current || session.messages.length > 0) return;
+    if (session.inputMode === "voice" || voice.active) return;
     bootstrapped.current = true;
     void requestNextQuestion(session, []);
-  }, [router, session, requestNextQuestion]);
+  }, [router, session, requestNextQuestion, voice.active]);
 
   async function handleSend() {
     if (!session || !input.trim() || session.status === "thinking") return;
@@ -217,10 +286,19 @@ export default function InterviewSessionPage() {
 
   const progressValue = (session.questionCount / MAX_QUESTIONS) * 100;
   const atQuestionCap = session.questionCount >= MAX_QUESTIONS;
+  const voiceModeActive = voice.active;
   const canSend =
+    !voiceModeActive &&
     !atQuestionCap &&
     session.status !== "thinking" &&
     session.status !== "complete";
+  const avatarStatus = voiceModeActive
+    ? voice.voiceState === "speaking"
+      ? "thinking"
+      : voice.voiceState === "listening"
+        ? "listening"
+        : session.status
+    : session.status;
 
   return (
     <PageShell>
@@ -233,7 +311,7 @@ export default function InterviewSessionPage() {
         />
         <p className="nd-section-heading">Live session</p>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <InterviewerAvatar status={session.status} />
+          <InterviewerAvatar status={avatarStatus} />
           <div className="min-w-0 flex-1 sm:min-w-48">
             <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
               <span>{session.roleTitle}</span>
@@ -248,6 +326,7 @@ export default function InterviewSessionPage() {
         <TranscriptPanel
           messages={session.messages}
           referencedAnswer={referencedAnswer}
+          partialTranscript={partialTranscript}
         />
 
         <VoiceControls
@@ -278,9 +357,11 @@ export default function InterviewSessionPage() {
             value={input}
             onChange={(event) => setInput(event.target.value)}
             placeholder={
-              atQuestionCap
-                ? "Question limit reached. End the round to view your report."
-                : "Type your answer. Voice is optional."
+              voiceModeActive
+                ? "Voice mode is active. Speak your answer, or toggle voice off to type."
+                : atQuestionCap
+                  ? "Question limit reached. End the round to view your report."
+                  : "Type your answer. Voice is optional."
             }
             className="min-h-24 resize-none"
             disabled={!canSend}

@@ -9,9 +9,17 @@ import type { InterviewMessage } from "@/lib/session/interview-store";
 type TranscriptPanelProps = {
   messages: InterviewMessage[];
   referencedAnswer?: string;
+  partialTranscript?: {
+    role: "user" | "assistant";
+    content: string;
+  };
 };
 
-export function TranscriptPanel({ messages, referencedAnswer }: TranscriptPanelProps) {
+export function TranscriptPanel({
+  messages,
+  referencedAnswer,
+  partialTranscript,
+}: TranscriptPanelProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -49,6 +57,18 @@ export function TranscriptPanel({ messages, referencedAnswer }: TranscriptPanelP
               </div>
             ))
           )}
+          {partialTranscript?.content ? (
+            <div
+              className={
+                partialTranscript.role === "assistant"
+                  ? "nd-message-assistant opacity-70"
+                  : "nd-message-user opacity-70"
+              }
+            >
+              {partialTranscript.content}
+              <span className="ml-1 text-xs text-primary">…</span>
+            </div>
+          ) : null}
           <div ref={bottomRef} />
         </div>
       </div>
