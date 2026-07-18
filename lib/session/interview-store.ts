@@ -81,6 +81,7 @@ export type InterviewSession = {
   topicsCovered: string[];
   weakSignals: string[];
   status: "idle" | "thinking" | "listening" | "error" | "complete";
+  inputMode?: "text" | "voice" | "mixed";
   error?: string;
   report?: EvaluateResponse & { shareToken?: string | null };
   dbSessionId?: string;

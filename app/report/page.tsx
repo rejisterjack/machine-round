@@ -66,6 +66,10 @@ export default function ReportPage() {
       router.replace("/interview");
       return;
     }
+    if (!session.messages.length) {
+      router.replace("/interview");
+      return;
+    }
     if (session.report || reportRequested.current) return;
     reportRequested.current = true;
     void generateReport(session);
