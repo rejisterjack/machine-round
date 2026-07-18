@@ -7,6 +7,7 @@ import { Breadcrumb } from "@/components/layout/breadcrumb";
 import { PageShell } from "@/components/layout/page-shell";
 import { SessionReplay } from "@/components/replay/session-replay";
 import { Button } from "@/components/ui/button";
+import { ApiErrorCard } from "@/components/ui/api-error-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import type {
   EvaluateResponse,
@@ -72,17 +73,11 @@ export default function ReplayPage() {
             <Skeleton className="h-64 w-full rounded-lg" />
           </div>
         ) : error ? (
-          <div className="nd-course-card mt-10 p-6">
-            <p className="text-sm text-destructive">{error}</p>
-            <div className="mt-4 flex gap-3">
-              <Button variant="ndPrimary" onClick={() => void loadReplay()}>
-                Retry
-              </Button>
-              <Button variant="ndGhost" render={<Link href="/interview" />}>
-                Start a round
-              </Button>
-            </div>
-          </div>
+          <ApiErrorCard
+            className="mt-10"
+            message={error}
+            onRetry={() => void loadReplay()}
+          />
         ) : payload ? (
           <div className="mt-10">
             <SessionReplay

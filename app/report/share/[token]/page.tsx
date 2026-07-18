@@ -7,6 +7,7 @@ import { Breadcrumb } from "@/components/layout/breadcrumb";
 import { PageShell } from "@/components/layout/page-shell";
 import { ReadinessReport } from "@/components/report/readiness-report";
 import { Button } from "@/components/ui/button";
+import { ApiErrorCard } from "@/components/ui/api-error-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { EvaluateResponse } from "@/lib/session/interview-store";
 
@@ -68,17 +69,12 @@ export default function SharedReportPage() {
             <Skeleton className="h-28 w-full rounded-lg" />
           </div>
         ) : error ? (
-          <div className="nd-course-card mt-10 p-6">
-            <p className="text-sm text-destructive">{error}</p>
-            <div className="mt-4 flex gap-3">
-              <Button variant="ndPrimary" onClick={() => void loadReport()}>
-                Retry
-              </Button>
-              <Button variant="ndGhost" render={<Link href="/interview" />}>
-                Start a round
-              </Button>
-            </div>
-          </div>
+          <ApiErrorCard
+            className="mt-10"
+            message={error}
+            onRetry={() => void loadReport()}
+            retryLabel="Retry"
+          />
         ) : report ? (
           <div className="mt-10">
             <ReadinessReport

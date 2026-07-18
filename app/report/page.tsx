@@ -7,6 +7,7 @@ import { Breadcrumb } from "@/components/layout/breadcrumb";
 import { PageShell } from "@/components/layout/page-shell";
 import { ReadinessReport } from "@/components/report/readiness-report";
 import { Button } from "@/components/ui/button";
+import { ApiErrorCard } from "@/components/ui/api-error-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   clearSession,
@@ -114,16 +115,12 @@ export default function ReportPage() {
             <Skeleton className="h-28 w-full rounded-lg" />
           </div>
         ) : error ? (
-          <div className="nd-course-card mt-10 p-6">
-            <p className="text-sm text-destructive">{error}</p>
-            <Button
-              className="mt-4"
-              variant="ndPrimary"
-              onClick={() => void generateReport(session)}
-            >
-              Retry report
-            </Button>
-          </div>
+          <ApiErrorCard
+            className="mt-10"
+            message={error}
+            onRetry={() => void generateReport(session)}
+            retryLabel="Retry report"
+          />
         ) : session.report ? (
           <div className="mt-10">
             {session.publicId ? (

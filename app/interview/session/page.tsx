@@ -8,6 +8,7 @@ import { VoiceControls } from "@/components/interview/voice-controls";
 import { Breadcrumb } from "@/components/layout/breadcrumb";
 import { PageShell } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
+import { ApiErrorCard } from "@/components/ui/api-error-card";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
 import { MAX_QUESTIONS } from "@/lib/design/tokens";
@@ -100,6 +101,7 @@ export default function InterviewSessionPage() {
   voiceStopRef.current = voice.stop;
   const bootstrapped = useRef(false);
   const hydrating = useRef(false);
+  const interviewRetryCount = useRef(0);
 
   const endRound = useCallback(
     (current?: InterviewSession) => {
@@ -165,11 +167,18 @@ export default function InterviewSessionPage() {
       setReferencedAnswer(data.referencedAnswer);
       setSession(updatedSession);
       saveSession(updatedSession);
+      interviewRetryCount.current = 0;
 
       if (data.done) {
         router.push("/report");
       }
     } catch {
+      if (interviewRetryCount.current < 1) {
+        interviewRetryCount.current += 1;
+        void requestNextQuestion(current, messages);
+        return;
+      }
+
       const errored: InterviewSession = {
         ...current,
         status: "error",
@@ -339,17 +348,14 @@ export default function InterviewSessionPage() {
         />
 
         {session.status === "error" ? (
-          <div className="nd-course-card border-destructive/40 p-4 text-sm text-destructive">
-            {session.error}
-            <div className="mt-3">
-              <Button
-                variant="outline"
-                onClick={() => void requestNextQuestion(session, session.messages)}
-              >
-                Retry
-              </Button>
-            </div>
-          </div>
+          <ApiErrorCard
+            message={session.error ?? "Could not reach the interviewer."}
+            onRetry={() => {
+              interviewRetryCount.current = 0;
+              void requestNextQuestion(session, session.messages);
+            }}
+            retryLabel="Retry"
+          />
         ) : null}
 
         <div className="nd-course-card p-4">
