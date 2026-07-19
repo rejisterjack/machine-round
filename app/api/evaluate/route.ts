@@ -6,6 +6,7 @@ import { requireAuth } from "@/lib/auth/require-auth";
 import { getAzureEvaluatorModel, getAzureConfig } from "@/lib/ai";
 import { formatMessageSpeaker } from "@/lib/ai/personas/panelists";
 import { buildEvaluatorPrompt } from "@/lib/ai/prompts/evaluator";
+import { buildInterviewScopeBlock } from "@/lib/courses/interview-scope";
 import { isDbReady } from "@/lib/db/ready";
 import { getScreenObservations } from "@/lib/session/media-queries";
 import { buildCachedEvaluatePayload } from "@/lib/session/evaluate-cache";
@@ -79,12 +80,18 @@ export const POST = withApiHandler(async (request: Request) => {
         }))
       : [];
 
+  const courseId = role.id !== "job-custom" ? role.id : undefined;
+  const scopeBlock = buildInterviewScopeBlock(
+    courseId,
+    dbSession?.promptContext ?? undefined,
+  );
+
   const model = getAzureEvaluatorModel();
   const screenNotes = screenObservations.map((o) => o.summary);
   const response = await withRetry(() =>
     model.invoke([
       new SystemMessage(
-        buildEvaluatorPrompt(role.title, transcript, screenNotes),
+        buildEvaluatorPrompt(role.title, transcript, screenNotes, scopeBlock),
       ),
       new HumanMessage("Return the readiness report JSON."),
     ]),

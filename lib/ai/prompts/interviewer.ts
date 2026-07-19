@@ -14,7 +14,11 @@ import {
   getDurationProfile,
   type InterviewDuration,
 } from "@/lib/interview/duration-profiles";
-import { getCoursePromptFocus } from "@/lib/courses/namaste-courses";
+import {
+  allowsBehavioral,
+  buildInterviewScopeBlock,
+  getCourseInterviewScope,
+} from "@/lib/courses/interview-scope";
 
 const JSON_RESPONSE_SHAPE = `Respond in JSON only with this shape:
 {
@@ -26,9 +30,9 @@ const JSON_RESPONSE_SHAPE = `Respond in JSON only with this shape:
   "weakSignals": ["optional weak signals noticed"]
 }`;
 
-function buildTextSharedRules(maxQuestions: number) {
+function buildTextSharedRules(maxQuestions: number, behavioral: boolean) {
   return `- Ask one question at a time (or a brief closing line when done).
-- Mix behavioral and technical questions appropriate to the candidate role.
+${behavioral ? "- Mix behavioral and technical questions appropriate to the candidate role." : "- Ask only technical questions within the strict interview scope. No behavioral, resume, or career questions."}
 - After the first question, every follow-up MUST reference something specific from the candidate's previous answer.
 - Evaluate clarity, specificity, structure, technical correctness signal, and conciseness internally.
 - Keep questions focused and interview-realistic. No coaching during the interview.
@@ -52,16 +56,24 @@ Voice rules:
 - On closing: thank them warmly; mention their readiness report is next.
 - Never end the interview without a clear goodbye — do not stop mid-question.
 - If a [System] message appears, speak the requested phrase naturally and briefly.
+- Stay on one question until the candidate has answered; use follow-ups on the same topic before moving on — do not stack multiple new questions in one turn.
 - Keep each turn under ~45 seconds of speech.
 - Vary your phrasing across interviews — do not repeat the same opener or filler every time.`;
 
-function buildFormatGuidance(interviewDuration: InterviewDuration): string {
+function buildFormatGuidance(
+  interviewDuration: InterviewDuration,
+  strictCourseMode: boolean,
+): string {
   const profile = getDurationProfile(interviewDuration);
+  const discussionFocus =
+    strictCourseMode ?
+      "syllabus-aligned technical discussion"
+    : "behavioral and technical discussion";
   switch (profile.format) {
     case "conversation":
       return `Session format (${profile.label} — ${profile.tagline}):
 - Keep this a voice conversation. Do not ask the candidate to write or share code.
-- Focus on behavioral and technical discussion appropriate to ${profile.minutes} minutes.`;
+- Focus on ${discussionFocus} appropriate to ${profile.minutes} minutes.`;
     case "light_coding":
       return `Session format (${profile.label} — ${profile.tagline}):
 - Mix discussion with at most one light coding or pseudo-code question.
@@ -76,22 +88,26 @@ function buildFormatGuidance(interviewDuration: InterviewDuration): string {
   }
 }
 
-function buildTextDualPanelRules(maxQuestions: number) {
+function buildTextDualPanelRules(maxQuestions: number, behavioral: boolean) {
   return `You are co-hosting Namaste Machine Round as a two-person panel with Akshay Saini and Archy Gupta from NamasteDev.
 
 Panel rules:
 - Only the ACTIVE panelist speaks this turn. Do not speak as the other panelist.
-${buildTextSharedRules(maxQuestions)}
+${buildTextSharedRules(maxQuestions, behavioral)}
 
 ${JSON_RESPONSE_SHAPE}`;
 }
 
-function textSoloPanelRules(panelistName: string, maxQuestions: number): string {
+function textSoloPanelRules(
+  panelistName: string,
+  maxQuestions: number,
+  behavioral: boolean,
+): string {
   return `You are conducting Namaste Machine Round as ${panelistName} from NamasteDev.
 
 Interview rules:
 - You are the sole interviewer. Speak only as yourself.
-${buildTextSharedRules(maxQuestions)}
+${buildTextSharedRules(maxQuestions, behavioral)}
 
 ${JSON_RESPONSE_SHAPE}`;
 }
@@ -117,14 +133,14 @@ function buildTrackContext(input: {
   courseId?: string;
   promptContext?: string;
 }): string {
-  if (input.promptContext?.trim()) {
-    return `\n${input.promptContext.trim()}`;
-  }
-  if (input.courseId) {
-    const focus = getCoursePromptFocus(input.courseId);
-    if (focus) return `\nCourse-specific focus:\n${focus}`;
-  }
-  return "";
+  return buildInterviewScopeBlock(input.courseId, input.promptContext);
+}
+
+function resolveInterviewScope(input: {
+  courseId?: string;
+  promptContext?: string;
+}) {
+  return getCourseInterviewScope(input.courseId, input.promptContext);
 }
 
 function buildTextPrompt(input: {
@@ -139,6 +155,8 @@ function buildTextPrompt(input: {
   promptContext?: string;
 }) {
   const panelist = getPanelist(input.activePanelist);
+  const scope = resolveInterviewScope(input);
+  const behavioral = allowsBehavioral(scope);
   const phase = getConversationPhase(input.questionCount, input.maxQuestions);
   const phaseGuidance = getPhaseGuidance({
     phase,
@@ -149,12 +167,13 @@ function buildTextPrompt(input: {
     varietyStyle: input.sessionId
       ? getVarietyStyle(input.sessionId)
       : undefined,
+    interviewScope: scope,
   });
 
   const baseRules =
     input.panelistMode === "both"
-      ? buildTextDualPanelRules(input.maxQuestions)
-      : textSoloPanelRules(panelist.name, input.maxQuestions);
+      ? buildTextDualPanelRules(input.maxQuestions, behavioral)
+      : textSoloPanelRules(panelist.name, input.maxQuestions, behavioral);
 
   return `${baseRules}
 
@@ -166,7 +185,7 @@ Active panelist this turn: ${panelist.name} (${panelist.id})
 Phase: ${phase}
 Turn guidance: ${phaseGuidance}
 
-${buildFormatGuidance(input.interviewDuration)}
+${buildFormatGuidance(input.interviewDuration, scope?.strictCourseMode ?? false)}
 ${buildTrackContext(input)}
 
 ${panelist.persona}
@@ -189,6 +208,7 @@ function buildVoicePrompt(input: {
 }) {
   const panelist = getPanelist(input.activePanelist);
   const profile = getDurationProfile(input.interviewDuration);
+  const scope = resolveInterviewScope(input);
   const phase = getConversationPhase(input.questionCount, input.maxQuestions);
   const phaseGuidance = getPhaseGuidance({
     phase,
@@ -199,6 +219,7 @@ function buildVoicePrompt(input: {
     varietyStyle: input.sessionId
       ? getVarietyStyle(input.sessionId)
       : undefined,
+    interviewScope: scope,
   });
 
   const baseRules =
@@ -231,7 +252,7 @@ Active panelist this turn: ${panelist.name}
 Conversation phase: ${phase}
 Phase guidance: ${phaseGuidance}
 
-${buildFormatGuidance(input.interviewDuration)}
+${buildFormatGuidance(input.interviewDuration, scope?.strictCourseMode ?? false)}
 ${buildTrackContext(input)}
 
 ${panelist.persona}
@@ -291,4 +312,4 @@ export function buildInterviewerPrompt(input: {
 }
 
 /** @deprecated Use buildInterviewerPrompt with activePanelist */
-export const INTERVIEWER_SYSTEM_PROMPT = buildTextDualPanelRules(MAX_QUESTIONS);
+export const INTERVIEWER_SYSTEM_PROMPT = buildTextDualPanelRules(MAX_QUESTIONS, true);

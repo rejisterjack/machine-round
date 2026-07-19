@@ -5,6 +5,11 @@ import { getDatabaseUrl } from "@/lib/db";
 /** LangChain reads the Prisma-managed `interview_questions` table directly. */
 let vectorStorePromise: Promise<PGVectorStore> | null = null;
 
+export type GroundedQuestionOptions = {
+  topicAreas?: string[];
+  strictScope?: boolean;
+};
+
 export async function getQuestionVectorStore() {
   if (!vectorStorePromise) {
     vectorStorePromise = PGVectorStore.initialize(getAzureEmbeddings(), {
@@ -27,13 +32,19 @@ export async function getQuestionVectorStore() {
 export async function getGroundedQuestions(
   role: string,
   limit = 2,
-  roleId?: string,
+  courseId?: string,
+  options: GroundedQuestionOptions = {},
 ) {
   try {
     const store = await getQuestionVectorStore();
-    const metadataFilter = roleId ? { role: roleId } : undefined;
+    const topicHint = options.topicAreas?.join(", ");
+    const query =
+      topicHint ?
+        `${role} interview questions: ${topicHint}`
+      : `screening interview questions for ${role}`;
+    const metadataFilter = courseId ? { courseId } : undefined;
     const results = await store.similaritySearch(
-      `screening interview questions for ${role}`,
+      query,
       limit,
       metadataFilter,
     );
@@ -42,11 +53,8 @@ export async function getGroundedQuestions(
       return results.map((result) => result.pageContent);
     }
 
-    if (metadataFilter) {
-      const fallback = await store.similaritySearch(
-        `screening interview questions for ${role}`,
-        limit,
-      );
+    if (metadataFilter && !options.strictScope) {
+      const fallback = await store.similaritySearch(query, limit);
       return fallback.map((result) => result.pageContent);
     }
 

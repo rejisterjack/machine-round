@@ -24,6 +24,7 @@ import type { InterviewDuration } from "@/lib/interview/duration-profiles";
 type SessionApiResponse = {
   id: string;
   publicId: string;
+  roleId?: string;
   roleTitle: string;
   interviewDuration?: InterviewDuration;
   questionCount: number;
@@ -69,6 +70,18 @@ function ReportPageContent() {
   }, [sessionIdParam]);
 
   const generateReport = useCallback(async (current: InterviewSession) => {
+    if (!current.dbSessionId) {
+      setError(
+        "This session was not saved to the cloud. Sign in and start a new interview to generate a report.",
+      );
+      return;
+    }
+
+    if (!current.messages.length) {
+      setError("No interview transcript found for this session.");
+      return;
+    }
+
     setLoading(true);
     setError(undefined);
 
@@ -86,7 +99,10 @@ function ReportPageContent() {
       });
 
       if (!response.ok) {
-        throw new Error("Failed to generate report.");
+        const data = (await response.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        throw new Error(data.error ?? "Failed to generate report.");
       }
 
       const report = (await response.json()) as EvaluateResponse & {
@@ -102,8 +118,12 @@ function ReportPageContent() {
       };
       setSession(updated);
       saveSession(updated);
-    } catch {
-      setError("Could not generate your readiness report. Please retry.");
+    } catch (caught) {
+      const message =
+        caught instanceof Error
+          ? caught.message
+          : "Could not generate your readiness report. Please retry.";
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -115,8 +135,10 @@ function ReportPageContent() {
     async function hydrate() {
       const stored = loadSession();
       const dbId = sessionIdParam ?? stored?.dbSessionId;
+      const storedMatchesParam =
+        !sessionIdParam || stored?.dbSessionId === sessionIdParam;
 
-      if (canUseStoredReport(stored, sessionIdParam)) {
+      if (storedMatchesParam && canUseStoredReport(stored, sessionIdParam)) {
         if (!cancelled) {
           setSession(stored!);
           setHydrating(false);
@@ -129,27 +151,36 @@ function ReportPageContent() {
           const response = await fetch(`/api/sessions/${dbId}`);
           if (response.ok) {
             const data = (await response.json()) as SessionApiResponse;
-            if (data.report) {
+            const messages = data.messages?.length
+              ? data.messages
+              : storedMatchesParam
+                ? (stored?.messages ?? [])
+                : [];
+
+            if (messages.length > 0) {
               const hydrated: InterviewSession = {
-                roleId: stored?.roleId ?? "",
+                roleId:
+                  data.roleId ??
+                  (storedMatchesParam && stored?.roleId ? stored.roleId : ""),
                 roleTitle: data.roleTitle ?? stored?.roleTitle ?? "Interview",
+                trackMode: stored?.trackMode ?? "namaste_course",
                 panelistMode: stored?.panelistMode ?? "both",
                 interviewDuration:
                   data.interviewDuration ??
                   stored?.interviewDuration ??
                   "minutes_30",
-                messages: data.messages?.length
-                  ? data.messages
-                  : (stored?.messages ?? []),
+                messages,
                 questionCount: data.questionCount ?? stored?.questionCount ?? 0,
                 topicsCovered:
                   data.topicsCovered ?? stored?.topicsCovered ?? [],
                 weakSignals: data.weakSignals ?? stored?.weakSignals ?? [],
                 status: "complete",
-                report: {
-                  ...data.report,
-                  shareToken: data.shareToken ?? null,
-                },
+                report: data.report
+                  ? {
+                      ...data.report,
+                      shareToken: data.shareToken ?? null,
+                    }
+                  : undefined,
                 dbSessionId: dbId,
                 publicId: data.publicId ?? stored?.publicId,
               };
@@ -157,7 +188,9 @@ function ReportPageContent() {
                 setSession(hydrated);
                 saveSession(hydrated);
                 setHydrating(false);
-                reportRequested.current = true;
+                if (hydrated.report) {
+                  reportRequested.current = true;
+                }
               }
               return;
             }
@@ -167,7 +200,11 @@ function ReportPageContent() {
         }
       }
 
-      if (stored && canUseStoredReport(stored, sessionIdParam)) {
+      if (
+        storedMatchesParam &&
+        stored?.messages?.length &&
+        stored.dbSessionId === dbId
+      ) {
         if (!cancelled) {
           setSession(stored);
           setHydrating(false);
@@ -260,6 +297,9 @@ function ReportPageContent() {
             }}
           >
             Try another track
+          </Button>
+          <Button variant="ndPrimary" render={<Link href="/history" />}>
+            View all my rounds
           </Button>
           <Button variant="ndPrimary" render={<Link href="/" />}>
             Back to home

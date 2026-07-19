@@ -7,9 +7,11 @@ import { requireAuth } from "@/lib/auth/require-auth";
 import { isDbReady } from "@/lib/db/ready";
 import { getInterviewSessionById } from "@/lib/session/persistence";
 import { countScreenCaptures } from "@/lib/session/media-queries";
+import { roleSlugToId } from "@/lib/session/role-slug";
 import { reportToEvaluateResponse } from "@/lib/session/report-queries";
 import { assertSessionOwner } from "@/lib/session/session-access";
 import { interviewDurationSchema } from "@/lib/session/interview-store";
+import { deleteSessionCloudinaryAssets } from "@/lib/media/session-media-cleanup";
 import { prisma } from "@/lib/prisma";
 
 const patchSessionSchema = z.object({
@@ -46,6 +48,7 @@ export const GET = withApiHandler(
       id: session.id,
       publicId: session.publicId,
       roleTitle: session.role.title,
+      roleId: roleSlugToId(session.role.slug),
       status: session.status,
       inputMode: session.inputMode,
       panelistMode: session.panelistMode ?? "both",
@@ -140,6 +143,7 @@ export const DELETE = withApiHandler(
       throw new ApiError("NOT_FOUND", "Session not found.", 404);
     }
 
+    await deleteSessionCloudinaryAssets(id);
     await prisma.interviewSession.delete({ where: { id } });
 
     return NextResponse.json({ deleted: true, id });

@@ -19,6 +19,7 @@ type SessionHistoryCardProps = {
   status: string;
   questionCount: number;
   overallScore: number | null;
+  hasReport?: boolean;
   startedAt: string;
   completedAt: string | null;
   hasRecording: boolean;
@@ -45,6 +46,7 @@ export function SessionHistoryCard({
   status,
   questionCount,
   overallScore,
+  hasReport = overallScore !== null,
   startedAt,
   completedAt,
   hasRecording,
@@ -104,6 +106,10 @@ export function SessionHistoryCard({
           >
             {overallScore}
           </span>
+        ) : status === "completed" ? (
+          <span className="rounded-full bg-amber-500/15 px-3 py-1 text-xs text-amber-300">
+            Report pending
+          </span>
         ) : (
           <span className="rounded-full bg-secondary px-3 py-1 text-xs text-muted-foreground">
             {status}
@@ -135,13 +141,21 @@ export function SessionHistoryCard({
         <Button variant="ndPrimary" className="w-full sm:w-auto" render={<Link href={`/replay/${publicId}`} />}>
           Replay
         </Button>
-        {overallScore !== null ? (
+        {hasReport ? (
           <Button
             variant="ndGhost"
             className="w-full sm:w-auto"
             render={<Link href={`/report?session=${id}`} />}
           >
             Report
+          </Button>
+        ) : status === "completed" ? (
+          <Button
+            variant="ndGhost"
+            className="w-full sm:w-auto"
+            render={<Link href={`/report?session=${id}`} />}
+          >
+            {overallScore === null ? "Generate report" : "Retry report"}
           </Button>
         ) : null}
         {showRetry ? (

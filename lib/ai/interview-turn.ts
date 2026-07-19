@@ -9,6 +9,7 @@ import {
 } from "@/lib/ai/personas/panelists";
 import { buildInterviewerPrompt } from "@/lib/ai/prompts/interviewer";
 import { getConversationPhase } from "@/lib/ai/conversation-phases";
+import { getCourseInterviewScope } from "@/lib/courses/interview-scope";
 import { getGroundedQuestions } from "@/lib/rag/vector-store";
 import { withRetry } from "@/lib/api/handler";
 import { MAX_QUESTIONS } from "@/lib/design/tokens";
@@ -45,6 +46,7 @@ export async function runInterviewTurn(input: {
   messages: InterviewMessage[];
   questionCount: number;
   panelistMode?: PanelistMode;
+  promptContext?: string;
 }) {
   const panelistMode = input.panelistMode ?? "both";
   const activePanelist = getPanelistForQuestion(
@@ -62,11 +64,13 @@ export async function runInterviewTurn(input: {
   }
 
   const model = getAzureChatModel();
-  const grounded = await getGroundedQuestions(
-    input.roleTitle,
-    2,
-    input.roleId,
-  );
+  const courseId =
+    input.roleId && input.roleId !== "job-custom" ? input.roleId : undefined;
+  const interviewScope = getCourseInterviewScope(courseId, input.promptContext);
+  const grounded = await getGroundedQuestions(input.roleTitle, 2, courseId, {
+    topicAreas: interviewScope?.allowedTopics,
+    strictScope: interviewScope?.strictCourseMode,
+  });
   const transcript = input.messages.map(formatMessageSpeaker).join("\n");
 
   const phase = getConversationPhase(input.questionCount);
@@ -93,6 +97,8 @@ export async function runInterviewTurn(input: {
           questionCount: input.questionCount,
           activePanelist,
           panelistMode,
+          courseId,
+          promptContext: input.promptContext,
         }),
       ),
       new HumanMessage(
