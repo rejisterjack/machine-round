@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { withApiHandler } from "@/lib/api/handler";
 import { ApiError } from "@/lib/api/errors";
+import { parseJson } from "@/lib/api/validate";
 import { requireAuth } from "@/lib/auth/require-auth";
 import {
   buildMediaFolder,
@@ -26,7 +27,7 @@ export const POST = withApiHandler(async (request: Request) => {
     );
   }
 
-  const body = signatureSchema.parse(await request.json());
+  const body = await parseJson(request, signatureSchema);
   await assertSessionOwner(body.sessionId, authSession.user.id);
 
   const folder = buildMediaFolder(authSession.user.id, body.sessionId);

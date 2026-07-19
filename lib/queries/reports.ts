@@ -64,11 +64,13 @@ export async function loadSharedReportData(
   return loadSharedReportDataCached(token);
 }
 
-export async function loadSessionReport(
+async function loadSessionReportCached(
   sessionId: string,
-  userId: string,
 ): Promise<SessionReportData | null> {
-  await assertSessionOwner(sessionId, userId);
+  "use cache";
+  cacheLife("hours");
+  cacheTag(`session-report:${sessionId}`);
+
   const session = await getInterviewSessionById(sessionId);
   if (!session) return null;
 
@@ -96,6 +98,14 @@ export async function loadSessionReport(
     shareToken: session.report?.shareToken ?? null,
     lastError: session.lastError,
   };
+}
+
+export async function loadSessionReport(
+  sessionId: string,
+  userId: string,
+): Promise<SessionReportData | null> {
+  await assertSessionOwner(sessionId, userId);
+  return loadSessionReportCached(sessionId);
 }
 
 export function invalidateReportCache(input: {

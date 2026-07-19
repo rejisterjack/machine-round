@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { API_TIMEOUTS, withApiHandler } from "@/lib/api/handler";
+import { parseJson } from "@/lib/api/validate";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { planInterviewRoundsFromJd } from "@/lib/jd/plan-from-jd";
 import {
@@ -32,7 +33,7 @@ export const POST = withApiHandler(async (request: Request) => {
       jobDescription = normalizeJobDescriptionText(pasted);
     }
   } else {
-    const body = planJdBodySchema.parse(await request.json());
+    const body = await parseJson(request, planJdBodySchema);
     if (!body.text) {
       return NextResponse.json(
         { error: "Job description text is required." },

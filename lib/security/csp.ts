@@ -1,7 +1,7 @@
 export function buildCsp(nonce: string, isDev: boolean): string {
   const scriptSrc = isDev
     ? `'self' 'unsafe-eval' 'unsafe-inline' https://www.clarity.ms`
-    : `'self' 'nonce-${nonce}' https://www.clarity.ms`;
+    : `'self' 'nonce-${nonce}' 'strict-dynamic' https://www.clarity.ms`;
 
   const directives = [
     "default-src 'self'",
@@ -16,6 +16,7 @@ export function buildCsp(nonce: string, isDev: boolean): string {
     "base-uri 'self'",
     "form-action 'self'",
     "frame-ancestors 'none'",
+    ...(isDev ? [] : ["upgrade-insecure-requests"]),
   ];
 
   return directives.join("; ");

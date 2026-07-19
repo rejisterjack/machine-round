@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { withApiHandler } from "@/lib/api/handler";
 import { ApiError } from "@/lib/api/errors";
+import { parseJson } from "@/lib/api/validate";
 import { requireAuth } from "@/lib/auth/require-auth";
 import {
   assertRecordingUploadAllowed,
@@ -21,7 +22,7 @@ const confirmSchema = z.object({
 
 export const POST = withApiHandler(async (request: Request) => {
   const authSession = await requireAuth();
-  const body = confirmSchema.parse(await request.json());
+  const body = await parseJson(request, confirmSchema);
   await assertSessionOwner(body.sessionId, authSession.user.id);
 
   const uploadState = await assertRecordingUploadAllowed(body.sessionId);

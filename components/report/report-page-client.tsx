@@ -19,14 +19,12 @@ import {
   type InterviewSession,
 } from "@/lib/session/interview-store";
 import { canUseStoredReport } from "@/lib/session/report-hydration";
-import { computeQuestionCount } from "@/lib/interview/question-counter";
 import {
   canGenerateEvaluateReport,
   evaluateIneligibleMessage,
 } from "@/lib/session/evaluate-eligibility";
 import { scoreBadgeClass } from "@/lib/session/score-display";
 import type { SessionReportData } from "@/lib/queries/reports";
-import type { InterviewDuration } from "@/lib/interview/duration-profiles";
 import { cn } from "@/lib/utils";
 
 function normalizeMessages(
@@ -186,6 +184,7 @@ export function ReportPageClient({ initialSession }: ReportPageClientProps) {
           };
           setSession(updated);
           saveSession(updated);
+          router.refresh();
           return;
         }
 
@@ -209,6 +208,7 @@ export function ReportPageClient({ initialSession }: ReportPageClientProps) {
         };
         setSession(updated);
         saveSession(updated);
+        router.refresh();
       } catch (caught) {
         const message =
           caught instanceof Error
@@ -219,8 +219,14 @@ export function ReportPageClient({ initialSession }: ReportPageClientProps) {
         setLoading(false);
       }
     },
-    [pollEvaluateStatus],
+    [pollEvaluateStatus, router],
   );
+
+  useEffect(() => {
+    if (!sessionIdParam) return;
+    if (initialSession?.id === sessionIdParam) return;
+    router.refresh();
+  }, [initialSession, sessionIdParam, router]);
 
   useEffect(() => {
     if (initialSession) return;
@@ -233,70 +239,19 @@ export function ReportPageClient({ initialSession }: ReportPageClientProps) {
       const storedMatchesParam =
         !sessionIdParam || stored?.dbSessionId === sessionIdParam;
 
+      if (sessionIdParam) {
+        if (!cancelled) {
+          setHydrating(false);
+        }
+        return;
+      }
+
       if (storedMatchesParam && canUseStoredReport(stored, sessionIdParam)) {
         if (!cancelled) {
           setSession(stored!);
           setHydrating(false);
         }
         return;
-      }
-
-      if (dbId) {
-        try {
-          const response = await fetch(`/api/sessions/${dbId}`);
-          if (response.ok) {
-            const data = (await response.json()) as SessionReportData & {
-              interviewDuration?: InterviewDuration;
-            };
-            const rawMessages = data.messages?.length
-              ? data.messages
-              : storedMatchesParam
-                ? (stored?.messages ?? [])
-                : [];
-            const messages = normalizeMessages(rawMessages);
-
-            if (messages.length > 0) {
-              const hydrated: InterviewSession = {
-                roleId:
-                  data.roleId ??
-                  (storedMatchesParam && stored?.roleId ? stored.roleId : ""),
-                roleTitle: data.roleTitle ?? stored?.roleTitle ?? "Interview",
-                trackMode: stored?.trackMode ?? "namaste_course",
-                panelistMode: stored?.panelistMode ?? "both",
-                interviewDuration:
-                  data.interviewDuration ??
-                  stored?.interviewDuration ??
-                  "minutes_30",
-                messages,
-                questionCount: computeQuestionCount(messages),
-                topicsCovered:
-                  data.topicsCovered ?? stored?.topicsCovered ?? [],
-                weakSignals: data.weakSignals ?? stored?.weakSignals ?? [],
-                status: "complete",
-                report: data.report
-                  ? {
-                      ...data.report,
-                      shareToken: data.shareToken ?? null,
-                    }
-                  : undefined,
-                dbSessionId: dbId,
-                publicId: data.publicId ?? stored?.publicId,
-              };
-              if (!cancelled) {
-                setSession(hydrated);
-                setSessionLastError(data.lastError ?? undefined);
-                saveSession(hydrated);
-                setHydrating(false);
-                if (hydrated.report) {
-                  reportRequested.current = true;
-                }
-              }
-              return;
-            }
-          }
-        } catch {
-          // Fall through to sessionStorage or redirect.
-        }
       }
 
       if (

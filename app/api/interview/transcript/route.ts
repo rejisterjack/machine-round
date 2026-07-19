@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { withApiHandler } from "@/lib/api/handler";
+import { parseJson } from "@/lib/api/validate";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { isDbReady } from "@/lib/db/ready";
 import { appendInterviewMessages, recomputeSessionQuestionCount } from "@/lib/session/persistence";
@@ -44,7 +45,7 @@ async function applyTranscriptSessionMetadata(body: TranscriptBody) {
 
 export const POST = withApiHandler(async (request: Request) => {
   const authSession = await requireAuth();
-  const body = transcriptRequestSchema.parse(await request.json());
+  const body = await parseJson(request, transcriptRequestSchema);
   await assertSessionOwner(body.sessionId, authSession.user.id);
 
   if (await isDbReady()) {

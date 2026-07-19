@@ -3,6 +3,7 @@ import { after } from "next/server";
 import { assertRateLimit, rateLimitKey } from "@/lib/api/assert-rate-limit";
 import { API_TIMEOUTS, withApiHandler } from "@/lib/api/handler";
 import { ApiError } from "@/lib/api/errors";
+import { parseJson } from "@/lib/api/validate";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { isDbReady } from "@/lib/db/ready";
 import { prisma } from "@/lib/prisma";
@@ -27,7 +28,7 @@ export const POST = withApiHandler(async (request: Request) => {
     "Too many report generations. Please wait a minute.",
   );
 
-  const body = evaluateRequestSchema.parse(await request.json());
+  const body = await parseJson(request, evaluateRequestSchema);
   if (!body.sessionId) {
     throw new ApiError("VALIDATION_ERROR", "sessionId is required.", 400);
   }
