@@ -8,6 +8,7 @@ import { isDbReady } from "@/lib/db/ready";
 import { getInterviewSessionById } from "@/lib/session/persistence";
 import { countScreenCaptures } from "@/lib/session/media-queries";
 import { roleSlugToId } from "@/lib/session/role-slug";
+import { normalizeInterviewMessageSpeaker } from "@/lib/session/message-speaker";
 import { reportToEvaluateResponse } from "@/lib/session/report-queries";
 import { assertSessionOwner } from "@/lib/session/session-access";
 import { interviewDurationSchema } from "@/lib/session/interview-store";
@@ -56,11 +57,12 @@ export const GET = withApiHandler(
       questionCount: session.questionCount,
       topicsCovered: session.topicsCovered,
       weakSignals: session.weakSignals,
+      lastError: session.lastError,
       snapshotCount,
       messages: session.messages.map((message) => ({
         role: message.role,
         content: message.content,
-        speaker: message.speakerName ?? undefined,
+        speaker: normalizeInterviewMessageSpeaker(message.speakerName),
       })),
       report: reportToEvaluateResponse(session.report),
       shareToken: session.report?.shareToken ?? null,

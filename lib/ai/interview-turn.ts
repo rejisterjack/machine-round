@@ -12,7 +12,9 @@ import { getConversationPhase } from "@/lib/ai/conversation-phases";
 import { getCourseInterviewScope } from "@/lib/courses/interview-scope";
 import { getGroundedQuestions } from "@/lib/rag/vector-store";
 import { withRetry } from "@/lib/api/handler";
-import { MAX_QUESTIONS } from "@/lib/design/tokens";
+import { getMaxQuestionsForDuration } from "@/lib/interview/duration-profiles";
+import type { InterviewDuration } from "@/lib/interview/duration-profiles";
+import { resolveMaxQuestions } from "@/lib/ai/question-cap";
 import {
   interviewResponseSchema,
   type InterviewMessage,
@@ -47,14 +49,16 @@ export async function runInterviewTurn(input: {
   questionCount: number;
   panelistMode?: PanelistMode;
   promptContext?: string;
+  interviewDuration?: InterviewDuration;
 }) {
   const panelistMode = input.panelistMode ?? "both";
   const activePanelist = getPanelistForQuestion(
     input.questionCount,
     panelistMode,
   ).id;
+  const maxQuestions = resolveMaxQuestions(undefined, input.interviewDuration);
 
-  if (input.questionCount >= MAX_QUESTIONS) {
+  if (input.questionCount >= maxQuestions) {
     return {
       message:
         "That wraps us up — thanks so much for your time today. We'll pull up your readiness report next.",
@@ -73,7 +77,7 @@ export async function runInterviewTurn(input: {
   });
   const transcript = input.messages.map(formatMessageSpeaker).join("\n");
 
-  const phase = getConversationPhase(input.questionCount);
+  const phase = getConversationPhase(input.questionCount, maxQuestions);
   const openingHint =
     phase === "greeting"
       ? `Start the interview like a real video call — greet them warmly, introduce yourself${
@@ -99,6 +103,8 @@ export async function runInterviewTurn(input: {
           panelistMode,
           courseId,
           promptContext: input.promptContext,
+          interviewDuration: input.interviewDuration,
+          maxQuestions,
         }),
       ),
       new HumanMessage(
@@ -129,7 +135,7 @@ export async function runInterviewTurn(input: {
     parsed = await invokeModel(true);
   }
 
-  if (input.questionCount + 1 >= MAX_QUESTIONS) {
+  if (input.questionCount + 1 >= maxQuestions) {
     parsed.done = true;
   }
 

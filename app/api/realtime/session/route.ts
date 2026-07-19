@@ -20,7 +20,7 @@ import { getCourseInterviewScope } from "@/lib/courses/interview-scope";
 import { getGroundedQuestions } from "@/lib/rag/vector-store";
 import { isDbReady } from "@/lib/db/ready";
 import { prisma } from "@/lib/prisma";
-import { resolveRole } from "@/lib/session/roles";
+import { resolveRoleFromSession } from "@/lib/session/session-role-binding";
 import { assertSessionOwnerIfPresent } from "@/lib/session/session-access";
 import { interviewDurationSchema, interviewMessageSchema } from "@/lib/session/interview-store";
 import { getMaxQuestionsForDuration } from "@/lib/interview/duration-profiles";
@@ -107,10 +107,24 @@ export const POST = withApiHandler(async (request: Request) => {
     await request.json().catch(() => ({})),
   );
   await assertSessionOwnerIfPresent(body.sessionId, authSession.user.id);
-  const role = await resolveRole(body);
+
+  const { role, bound } = await resolveRoleFromSession(
+    body.sessionId,
+    authSession.user.id,
+    body,
+  );
+
   const questionCount = body.questionCount ?? 0;
-  const panelistMode = body.panelistMode ?? "both";
-  const interviewDuration = body.interviewDuration ?? "minutes_30";
+  const panelistMode = bound?.panelistMode ?? body.panelistMode ?? "both";
+  const interviewDuration =
+    bound?.interviewDuration ?? body.interviewDuration ?? "minutes_30";
+  const promptContext = bound?.promptContext ?? body.promptContext;
+  const courseId =
+    role.id !== "job-custom"
+      ? role.id
+      : body.courseId && body.courseId !== role.id
+        ? undefined
+        : body.courseId;
   const maxQuestions = getMaxQuestionsForDuration(interviewDuration);
   const activePanelist =
     body.activePanelist ?? getPanelistForQuestion(questionCount, panelistMode).id;
@@ -119,15 +133,13 @@ export const POST = withApiHandler(async (request: Request) => {
   );
   const messages = body.messages ?? [];
   const transcript = messages.map(formatMessageSpeaker).join("\n");
-  const courseId =
-    body.courseId ??
-    (body.roleId && body.roleId !== "job-custom" ? body.roleId : undefined);
-  const interviewScope = getCourseInterviewScope(courseId, body.promptContext);
+  const courseIdResolved = courseId ?? undefined;
+  const interviewScope = getCourseInterviewScope(courseIdResolved, promptContext);
   const priorAssistant = getPriorAssistantSpeaker(messages);
   const threadComplete = isThreadComplete(messages, priorAssistant);
   const includeRagHints = questionCount <= 1 || threadComplete;
   const grounded = includeRagHints
-    ? await getGroundedQuestions(role.title, 4, courseId, {
+    ? await getGroundedQuestions(role.title, 4, courseIdResolved, {
         topicAreas: interviewScope?.allowedTopics,
         strictScope: interviewScope?.strictCourseMode,
       })
@@ -146,8 +158,8 @@ export const POST = withApiHandler(async (request: Request) => {
     sessionId: body.sessionId,
     interviewDuration,
     maxQuestions,
-    courseId,
-    promptContext: body.promptContext,
+    courseId: courseIdResolved,
+    promptContext,
   });
   const fullInstructions = transcript
     ? `${instructions}\n\n${buildContinuationPrompt({
@@ -158,8 +170,8 @@ export const POST = withApiHandler(async (request: Request) => {
         transcript,
         messages,
         routerReason: body.routerReason,
-        courseId,
-        promptContext: body.promptContext,
+        courseId: courseIdResolved,
+        promptContext,
       })}${ragHint}`
     : `${instructions}${ragHint}`;
   const realtimeCreds = getAzureRealtimeCredentials();

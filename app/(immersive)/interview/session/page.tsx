@@ -40,6 +40,7 @@ import {
 } from "@/lib/interview/duration-profiles";
 import { logInterviewDebug } from "@/lib/interview/debug-log";
 import { computeQuestionCount } from "@/lib/interview/question-counter";
+import { mapDbSessionStatusToClient } from "@/lib/session/client-session-status";
 import {
   CAMERA_REALTIME_INTERVAL_MS,
   INTERVIEW_COMPLETE_BANNER_MS,
@@ -61,6 +62,8 @@ import {
   syncVoiceTranscript,
 } from "@/lib/voice/realtime-transcript";
 import { onTranscriptSyncStatus } from "@/lib/voice/transcript-sync";
+import { isTranscriptSyncFailing } from "@/lib/voice/transcript-sync";
+import { reconcileTranscriptWithServer } from "@/lib/voice/transcript-reconcile-client";
 import {
   detectWeakSignalsFromAnswer,
   mergeWeakSignals,
@@ -140,6 +143,7 @@ export default function InterviewSessionPage() {
   const recorderRef = useRef<ReturnType<typeof useSessionRecorder> | null>(null);
   const hydrating = useRef(false);
   const completingRef = useRef(false);
+  const abandoningRef = useRef(false);
   const pendingCompleteRef = useRef<InterviewSession | null>(null);
   const pendingCompleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
@@ -721,6 +725,17 @@ export default function InterviewSessionPage() {
   voiceRequestClosingGoodbyeRef.current = voice.requestClosingGoodbye;
   voiceSpeakAnnouncementRef.current = voice.speakAnnouncement;
 
+  useEffect(() => {
+    const base = sessionRef.current;
+    if (!voice.error || !base?.dbSessionId || base.status === "complete") return;
+    void fetch(`/api/sessions/${base.dbSessionId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "error", lastError: voice.error }),
+      keepalive: true,
+    });
+  }, [voice.error]);
+
   const recorder = useSessionRecorder({
     sessionId: session?.dbSessionId,
     micStream: media.micStream,
@@ -758,6 +773,18 @@ export default function InterviewSessionPage() {
         await flushTranscriptQueue();
         const latest = sessionRef.current ?? completed;
         const questionCount = computeQuestionCount(latest.messages);
+
+        const reconcileResult = await reconcileTranscriptWithServer(
+          base.dbSessionId,
+          latest.messages,
+        );
+        if (!reconcileResult.ok || isTranscriptSyncFailing()) {
+          setSaveError(
+            (!reconcileResult.ok ? reconcileResult.error : undefined) ??
+              "Cloud transcript sync is incomplete. Your report may use this device's copy of the interview.",
+          );
+        }
+
         if (questionCount !== latest.questionCount) {
           const reconciled = { ...latest, questionCount };
           sessionRef.current = reconciled;
@@ -786,9 +813,24 @@ export default function InterviewSessionPage() {
 
       let recordingFailed = false;
       if (base.dbSessionId && recorderRef.current?.supported) {
+        if (recorderRef.current?.error) {
+          recordingFailed = true;
+          void fetch(`/api/sessions/${base.dbSessionId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ recordingStatus: "failed" }),
+            keepalive: true,
+          });
+        }
         const uploadResult = await recorderRef.current.stopAndUpload();
         if (uploadResult.kind === "failed") {
           recordingFailed = true;
+          void fetch(`/api/sessions/${base.dbSessionId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ recordingStatus: "failed" }),
+            keepalive: true,
+          });
           setSaveError(
             "Your recording could not be uploaded. Your transcript and report are still saved.",
           );
@@ -880,7 +922,8 @@ export default function InterviewSessionPage() {
   completeSessionRef.current = completeSession;
 
   const abandonSession = useCallback(async () => {
-    if (completingRef.current) return;
+    if (completingRef.current || abandoningRef.current) return;
+    abandoningRef.current = true;
     clearPendingComplete();
     stopScreenRealtime();
     stopCameraRealtime();
@@ -1070,6 +1113,7 @@ export default function InterviewSessionPage() {
           topicsCovered?: string[];
           weakSignals?: string[];
           status?: string;
+          lastError?: string | null;
           publicId?: string;
           panelistMode?: PanelistMode;
           interviewDuration?: InterviewDuration;
@@ -1097,6 +1141,7 @@ export default function InterviewSessionPage() {
         hydrating.current = true;
         setSession((current) => {
           if (!current) return current;
+          const clientStatus = mapDbSessionStatusToClient(data.status);
           const hydrated: InterviewSession = {
             ...current,
             messages: data.messages!,
@@ -1106,7 +1151,13 @@ export default function InterviewSessionPage() {
             panelistMode: data.panelistMode ?? current.panelistMode,
             interviewDuration:
               data.interviewDuration ?? current.interviewDuration,
-            status: data.status === "completed" ? "complete" : "idle",
+            status: clientStatus,
+            error:
+              clientStatus === "error" && data.lastError
+                ? data.lastError
+                : clientStatus === "error"
+                  ? current.error
+                  : undefined,
             publicId: data.publicId ?? current.publicId,
           };
           saveSession(hydrated);
@@ -1122,6 +1173,24 @@ export default function InterviewSessionPage() {
 
   useEffect(() => {
     return onTranscriptSyncStatus(setCloudSyncFailed);
+  }, []);
+
+  useEffect(() => {
+    const onPageHide = () => {
+      if (completingRef.current || abandoningRef.current) return;
+      const base = sessionRef.current;
+      if (!base?.dbSessionId || base.status === "complete") return;
+      abandoningRef.current = true;
+      void fetch(`/api/sessions/${base.dbSessionId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "abandoned" }),
+        keepalive: true,
+      });
+    };
+
+    window.addEventListener("pagehide", onPageHide);
+    return () => window.removeEventListener("pagehide", onPageHide);
   }, []);
 
   useEffect(() => {
@@ -1304,6 +1373,7 @@ export default function InterviewSessionPage() {
         screenAnalyzePaused ||
         cameraVisionPaused ||
         session.status === "error" ||
+        session.status === "abandoned" ||
         voice.error ||
         recorder.error ? (
           <div className="space-y-2">
@@ -1320,6 +1390,12 @@ export default function InterviewSessionPage() {
             {cameraVisionPaused ? (
               <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
                 {cameraVisionPaused}
+              </p>
+            ) : null}
+            {session.status === "abandoned" ? (
+              <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                This session was abandoned. Start a new Machine Round from the
+                interview page.
               </p>
             ) : null}
             {session.status === "error" || voice.error || recorder.error ? (

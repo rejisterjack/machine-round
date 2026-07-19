@@ -109,6 +109,15 @@ export type ScreenObservation = z.infer<typeof screenObservationSchema>;
 
 export type TrackMode = "namaste_course" | "job_description";
 
+export type InterviewSessionStatus =
+  | "idle"
+  | "thinking"
+  | "listening"
+  | "error"
+  | "complete"
+  | "active"
+  | "abandoned";
+
 export type InterviewSession = {
   roleId: string;
   roleTitle: string;
@@ -125,7 +134,7 @@ export type InterviewSession = {
   weakSignals: string[];
   screenSharing?: boolean;
   screenObservations?: ScreenObservation[];
-  status: "idle" | "thinking" | "listening" | "error" | "complete";
+  status: InterviewSessionStatus;
   inputMode?: "text" | "voice" | "mixed";
   error?: string;
   report?: EvaluateResponse & { shareToken?: string | null };

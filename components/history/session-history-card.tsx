@@ -8,6 +8,7 @@ import {
   formatDurationLabel,
   type InterviewDuration,
 } from "@/lib/interview/duration-profiles";
+import { countScoredQuestions } from "@/lib/ai/question-cap";
 import { useFailedRecordingRetry } from "@/hooks/use-failed-recording-retry";
 
 type SessionHistoryCardProps = {
@@ -20,6 +21,7 @@ type SessionHistoryCardProps = {
   questionCount: number;
   overallScore: number | null;
   hasReport?: boolean;
+  lastError?: string | null;
   startedAt: string;
   completedAt: string | null;
   hasRecording: boolean;
@@ -47,6 +49,7 @@ export function SessionHistoryCard({
   questionCount,
   overallScore,
   hasReport = overallScore !== null,
+  lastError,
   startedAt,
   completedAt,
   hasRecording,
@@ -118,7 +121,7 @@ export function SessionHistoryCard({
       </div>
 
       <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-        <span>{questionCount} questions</span>
+        <span>{countScoredQuestions(questionCount)} scored questions</span>
         {snapshotCount > 0 ? <span>· {snapshotCount} snapshots</span> : null}
         {hasRecording ? (
           <span>· Recording</span>
@@ -128,6 +131,10 @@ export function SessionHistoryCard({
           <span>· Transcript only</span>
         )}
       </div>
+
+      {lastError && status === "completed" && !hasReport ? (
+        <p className="text-xs text-amber-300">{lastError}</p>
+      ) : null}
 
       {retryError ? (
         <p className="text-xs text-red-400">{retryError}</p>

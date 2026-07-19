@@ -3,6 +3,7 @@ import type { SessionStatus } from "@/generated/client";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { withApiHandler } from "@/lib/api/handler";
 import { getUserSessions } from "@/lib/session/media-queries";
+import { countPendingReports, resetStaleThinkingSessions } from "@/lib/session/session-maintenance";
 import { roleIdToSlug, roleSlugToId } from "@/lib/session/role-slug";
 
 const SESSION_STATUSES = new Set<SessionStatus>([
@@ -26,6 +27,8 @@ export const GET = withApiHandler(async (request: Request) => {
   const safeLimit = Number.isNaN(limit) ? 20 : Math.min(Math.max(limit, 1), 50);
   const safeOffset = Number.isNaN(offset) ? 0 : Math.max(offset, 0);
 
+  await resetStaleThinkingSessions(authSession.user.id);
+
   const status =
     statusParam && SESSION_STATUSES.has(statusParam as SessionStatus)
       ? (statusParam as SessionStatus)
@@ -44,6 +47,8 @@ export const GET = withApiHandler(async (request: Request) => {
     q,
   });
 
+  const pendingReportCount = await countPendingReports(authSession.user.id);
+
   return NextResponse.json({
     sessions: sessions.map((session) => ({
       id: session.id,
@@ -56,6 +61,7 @@ export const GET = withApiHandler(async (request: Request) => {
       questionCount: session.questionCount,
       overallScore: session.report?.overallScore ?? null,
       hasReport: Boolean(session.report),
+      lastError: session.lastError,
       startedAt: session.startedAt.toISOString(),
       completedAt: session.completedAt?.toISOString() ?? null,
       hasRecording: session.recordingStatus === "uploaded" && Boolean(session.audioRecordingUrl),
@@ -63,6 +69,7 @@ export const GET = withApiHandler(async (request: Request) => {
       snapshotCount: session._count.screenCaptures,
     })),
     total,
+    pendingReportCount,
     limit: safeLimit,
     offset: safeOffset,
   });

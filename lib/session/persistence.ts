@@ -13,6 +13,8 @@ import type {
   InterviewMessage,
   WeakTopic,
 } from "@/lib/session/interview-store";
+import { computeQuestionCount } from "@/lib/interview/question-counter";
+import { normalizeInterviewMessageSpeaker } from "@/lib/session/message-speaker";
 import { ApiError } from "@/lib/api/errors";
 import { isDbReady } from "@/lib/db/ready";
 import { prisma } from "@/lib/prisma";
@@ -253,6 +255,31 @@ export async function appendInterviewMessages(
       data: updateData,
     }),
   ]);
+}
+
+export async function recomputeSessionQuestionCount(sessionId: string) {
+  if (!(await isDbReady())) return 0;
+
+  const messages = await prisma.interviewMessage.findMany({
+    where: { sessionId },
+    orderBy: { sequence: "asc" },
+    select: { role: true, content: true, speakerName: true },
+  });
+
+  const questionCount = computeQuestionCount(
+    messages.map((message) => ({
+      role: message.role as InterviewMessage["role"],
+      content: message.content,
+      speaker: normalizeInterviewMessageSpeaker(message.speakerName),
+    })),
+  );
+
+  await prisma.interviewSession.update({
+    where: { id: sessionId },
+    data: { questionCount },
+  });
+
+  return questionCount;
 }
 
 export async function saveReadinessReport(

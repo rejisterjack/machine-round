@@ -38,6 +38,7 @@ type SessionApiResponse = {
   messages: InterviewSession["messages"];
   report?: EvaluateResponse;
   shareToken?: string | null;
+  lastError?: string | null;
 };
 
 export default function ReportPage() {
@@ -64,6 +65,7 @@ function ReportPageContent() {
   const [hydrating, setHydrating] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();
+  const [sessionLastError, setSessionLastError] = useState<string>();
   const reportRequested = useRef(false);
   const lastSessionParam = useRef<string | null>(null);
 
@@ -196,6 +198,7 @@ function ReportPageContent() {
               };
               if (!cancelled) {
                 setSession(hydrated);
+                setSessionLastError(data.lastError ?? undefined);
                 saveSession(hydrated);
                 setHydrating(false);
                 if (hydrated.report) {
@@ -277,7 +280,7 @@ function ReportPageContent() {
         ) : error ? (
           <ApiErrorCard
             className="mt-10"
-            message={error}
+            message={sessionLastError ? `${error} ${sessionLastError}` : error}
             onRetry={() => void generateReport(session)}
             retryLabel="Retry report"
           />
@@ -294,7 +297,11 @@ function ReportPageContent() {
                 </Link>
               </p>
             ) : null}
-            <ReadinessReport report={session.report} />
+            <ReadinessReport
+              report={session.report}
+              roleTitle={session.roleTitle}
+              sessionId={session.dbSessionId}
+            />
           </div>
         ) : null}
 
