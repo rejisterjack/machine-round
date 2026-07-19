@@ -3,6 +3,7 @@ import { LazyShareActions } from "@/components/report/lazy-share-actions";
 import { WeakTopicsCloud } from "@/components/report/weak-topics-cloud";
 import { Progress } from "@/components/ui/progress";
 import type { EvaluateResponse } from "@/lib/session/interview-store";
+import { scoreRingGradient } from "@/lib/session/score-display";
 import { cn } from "@/lib/utils";
 
 type ReadinessReportProps = {
@@ -29,12 +30,6 @@ function MetricBar({
       <Progress value={value} className="h-2" />
     </div>
   );
-}
-
-function scoreTone(score: number) {
-  if (score >= 80) return "from-primary to-amber-300";
-  if (score >= 60) return "from-primary/90 to-orange-400";
-  return "from-orange-500 to-red-400";
 }
 
 export function ReadinessReport({
@@ -65,7 +60,7 @@ export function ReadinessReport({
           <div
             className={cn(
               "nd-report-score-ring shrink-0 bg-gradient-to-br",
-              scoreTone(report.overallScore),
+              scoreRingGradient(report.overallScore),
             )}
           >
             <div className="nd-report-score-inner">

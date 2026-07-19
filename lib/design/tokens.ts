@@ -115,12 +115,22 @@ export const heroContent = {
     "Solve hands-on coding challenges",
     "Get job-ready and land your dream offers",
   ],
-  ctaLabel: "Explore Courses",
-  ctaHref: "https://namastedev.com/learn",
-  ctaExternal: true,
+  ctaLabel: "Explore Interviews",
+  ctaHref: "#choose-track",
+  ctaExternal: false,
   imageSrc: "/brand/hero-interview.jpeg",
   imageAlt: "Akshay Saini with YouTube Silver Play Button",
 } as const;
+
+export const footerInterviewLinks = [
+  { label: "Interview Practice", href: "/interview" },
+  { label: "My Machine Rounds", href: "/history" },
+  ...footerCourseLinks.filter((link) =>
+    ["Namaste JavaScript", "Namaste Interview", "Namaste React", "Namaste DSA"].includes(
+      link.label,
+    ),
+  ),
+] as const;
 
 export const footerNav = {
   navigation: [

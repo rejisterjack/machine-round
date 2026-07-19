@@ -176,11 +176,11 @@ export function HistoryPageClient({
           Replay past interviews with transcripts, reports, and session media.
         </p>
 
-        <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
-          <label className="flex flex-col gap-1 text-sm">
-            <span className="text-muted-foreground">Status</span>
+        <div className="nd-filter-bar">
+          <label className="nd-filter-field">
+            <span className="nd-filter-label">Status</span>
             <select
-              className="nd-input min-w-[10rem] rounded-md border border-border bg-secondary px-3 py-2"
+              className="nd-filter-control"
               value={statusFilter}
               onChange={(event) => {
                 setStatusFilter(event.target.value);
@@ -193,10 +193,10 @@ export function HistoryPageClient({
               ))}
             </select>
           </label>
-          <label className="flex flex-col gap-1 text-sm">
-            <span className="text-muted-foreground">Role</span>
+          <label className="nd-filter-field">
+            <span className="nd-filter-label">Role</span>
             <select
-              className="nd-input min-w-[12rem] rounded-md border border-border bg-secondary px-3 py-2"
+              className="nd-filter-control"
               value={roleFilter}
               onChange={(event) => {
                 setRoleFilter(event.target.value);
@@ -210,10 +210,10 @@ export function HistoryPageClient({
               ))}
             </select>
           </label>
-          <label className="flex min-w-[14rem] flex-1 flex-col gap-1 text-sm">
-            <span className="text-muted-foreground">Search role</span>
+          <label className="nd-filter-field nd-filter-field-grow">
+            <span className="nd-filter-label">Search role</span>
             <input
-              className="nd-input rounded-md border border-border bg-secondary px-3 py-2"
+              className="nd-filter-control"
               placeholder="e.g. Backend"
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
@@ -224,9 +224,14 @@ export function HistoryPageClient({
               }}
             />
           </label>
-          <Button variant="ndPrimary" onClick={applyFilters}>
-            Apply filters
-          </Button>
+          <div className="nd-filter-field">
+            <span className="nd-filter-label select-none text-transparent" aria-hidden>
+              Apply
+            </span>
+            <Button variant="ndPrimary" className="h-10 w-full sm:w-auto" onClick={applyFilters}>
+              Apply filters
+            </Button>
+          </div>
         </div>
 
         {loading ? (
@@ -281,7 +286,7 @@ export function HistoryPageClient({
             <p className="mt-6 text-sm text-muted-foreground">
               Showing {sessions.length} of {total} sessions
             </p>
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <div className="mt-4 flex flex-col gap-4">
               {sessions.map((session) => (
                 <SessionHistoryCard
                   key={session.id}

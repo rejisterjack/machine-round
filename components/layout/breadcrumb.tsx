@@ -10,14 +10,16 @@ type BreadcrumbProps = {
 };
 
 export function Breadcrumb({ items }: BreadcrumbProps) {
+  const crumbs =
+    items[0]?.label === "Home"
+      ? items
+      : [{ label: "Home", href: "/" }, ...items];
+
   return (
     <nav aria-label="Breadcrumb" className="text-xs text-muted-foreground">
-      <Link href="/" className="hover:text-primary">
-        Home
-      </Link>
-      {items.map((item, index) => (
+      {crumbs.map((item, index) => (
         <span key={`${item.label}-${index}`}>
-          <span className="mx-2 text-border">/</span>
+          {index > 0 ? <span className="mx-2 text-border">/</span> : null}
           {item.href ? (
             <Link href={item.href} className="hover:text-primary">
               {item.label}

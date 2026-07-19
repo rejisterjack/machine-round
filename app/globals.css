@@ -398,6 +398,30 @@
     @apply text-xs text-nd-muted-text transition hover:text-foreground;
   }
 
+  .nd-filter-bar {
+    @apply mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(10rem,auto)_minmax(12rem,auto)_minmax(0,1fr)_auto] lg:items-end;
+  }
+
+  .nd-filter-field {
+    @apply flex min-w-0 flex-col gap-1.5;
+  }
+
+  .nd-filter-field-grow {
+    @apply sm:col-span-2 lg:col-span-1;
+  }
+
+  .nd-filter-label {
+    @apply text-sm text-muted-foreground;
+  }
+
+  .nd-filter-control {
+    @apply h-10 w-full rounded-md border border-border bg-secondary px-3 text-sm text-foreground outline-none transition-colors focus-visible:border-primary/50 focus-visible:ring-2 focus-visible:ring-primary/20;
+  }
+
+  .nd-header-link-active {
+    @apply text-primary;
+  }
+
   .nd-message-assistant {
     @apply max-w-[85%] rounded-xl bg-nd-assistant-bubble px-4 py-3 text-sm text-foreground;
   }
