@@ -191,6 +191,6 @@ Co-brand footer: **OpenAI × NamasteDev Codex Hackathon**.
 - [x] Hosted URL — https://nmr.rejisterjack.com (deployed, health OK)
 - [x] Public GitHub repo with a README that ships (setup steps + architecture summary)
 - [ ] 3-minute demo video — public link ([script](docs/DEMO_VIDEO_SCRIPT.md))
-- [ ] Pitch deck (optional, 5–7 slides) — [pitch-deck.html](docs/pitch-deck.html) or [outline](docs/PITCH_DECK.md)
+- [x] Pitch deck (optional, 5–7 slides) — https://nmr.rejisterjack.com/pitch-deck.html ([source](docs/pitch-deck.html))
 - [x] Confirm build used OpenAI Codex per hackathon toolkit requirement (see README)
 - [ ] Final live smoke test within 1 hour of the 23:59 IST deadline ([GO_LIVE_QA.md](docs/GO_LIVE_QA.md))

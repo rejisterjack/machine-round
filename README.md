@@ -277,7 +277,7 @@ Manual steps:
 4. Configure Google OAuth redirect URIs for your production domain
 5. Deploy — see `docs/GO_LIVE_QA.md` for the full go-live checklist
 
-**Pitch deck:** open [`docs/pitch-deck.html`](docs/pitch-deck.html) in a browser (arrow keys to navigate, Print → PDF).
+**Pitch deck:** https://nmr.rejisterjack.com/pitch-deck.html (arrow keys to navigate, Print → PDF). Source: [`docs/pitch-deck.html`](docs/pitch-deck.html) → deployed as [`public/pitch-deck.html`](public/pitch-deck.html).
 
 **Demo video:** timed script in [`docs/DEMO_VIDEO_SCRIPT.md`](docs/DEMO_VIDEO_SCRIPT.md).
 

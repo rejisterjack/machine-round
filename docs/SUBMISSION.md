@@ -7,7 +7,7 @@
 - [x] CI workflow (lint, test, build, smoke)
 - [x] Go-live QA script — see [GO_LIVE_QA.md](./GO_LIVE_QA.md)
 - [x] OpenAI Codex credit in README
-- [x] Pitch deck — [pitch-deck.html](./pitch-deck.html) (present in browser or Print → PDF)
+- [x] Pitch deck — https://nmr.rejisterjack.com/pitch-deck.html (source: [`docs/pitch-deck.html`](./pitch-deck.html), deployed copy: `public/pitch-deck.html`)
 - [x] Demo video script — [DEMO_VIDEO_SCRIPT.md](./DEMO_VIDEO_SCRIPT.md)
 - [x] Production deploy script — `bash scripts/deploy-production.sh`
 
@@ -25,7 +25,7 @@
 | **Live app** | https://nmr.rejisterjack.com |
 | **GitHub** | https://github.com/rejisterjack/machine-round |
 | Demo video | _paste public link after recording_ |
-| Pitch deck | _optional: attach PDF or Drive link_ |
+| Pitch deck | https://nmr.rejisterjack.com/pitch-deck.html |
 
 ## Verified on production (2026-07-19)
 

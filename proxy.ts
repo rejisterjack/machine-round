@@ -25,7 +25,7 @@ export const proxy = auth((request) => {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|brand/|favicon.ico).*)",
+    "/((?!_next/static|_next/image|brand/|favicon.ico|pitch-deck.html).*)",
     "/interview/:path*",
     "/history/:path*",
     "/report",
