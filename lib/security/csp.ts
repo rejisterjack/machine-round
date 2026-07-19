@@ -1,7 +1,9 @@
 export function buildCsp(nonce: string, isDev: boolean): string {
+  // Avoid strict-dynamic: it disables host allowlists ('self') and blocks Next.js
+  // chunk scripts that are not emitted with a matching nonce.
   const scriptSrc = isDev
     ? `'self' 'unsafe-eval' 'unsafe-inline' https://www.clarity.ms`
-    : `'self' 'nonce-${nonce}' 'strict-dynamic' https://www.clarity.ms`;
+    : `'self' 'nonce-${nonce}' 'unsafe-inline' https://www.clarity.ms`;
 
   const directives = [
     "default-src 'self'",
