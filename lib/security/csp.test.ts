@@ -1,16 +1,17 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { buildCsp } from "@/lib/security/csp";
 
 describe("buildCsp", () => {
-  it("includes nonce in production policy", () => {
-    const policy = buildCsp("test-nonce", false);
-    expect(policy).toContain("'nonce-test-nonce'");
-    expect(policy).toContain("https://www.clarity.ms");
-    expect(policy).toContain("wss://*.openai.azure.com");
+  test("includes strict-dynamic and upgrade-insecure-requests in production", () => {
+    const csp = buildCsp("test-nonce", false);
+    expect(csp).toContain("'strict-dynamic'");
+    expect(csp).toContain("upgrade-insecure-requests");
+    expect(csp).toContain("'nonce-test-nonce'");
   });
 
-  it("relaxes script-src in development", () => {
-    const policy = buildCsp("test-nonce", true);
-    expect(policy).toContain("'unsafe-eval'");
+  test("allows unsafe-eval in development", () => {
+    const csp = buildCsp("test-nonce", true);
+    expect(csp).toContain("'unsafe-eval'");
+    expect(csp).not.toContain("upgrade-insecure-requests");
   });
 });

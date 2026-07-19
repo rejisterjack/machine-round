@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { InputMode, InterviewDuration, RecordingStatus, SessionStatus } from "@/generated/client";
 import { withApiHandler } from "@/lib/api/handler";
 import { ApiError } from "@/lib/api/errors";
+import { parseJson } from "@/lib/api/validate";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { isDbReady } from "@/lib/db/ready";
 import { getInterviewSessionById } from "@/lib/session/persistence";
@@ -80,7 +81,7 @@ export const PATCH = withApiHandler(
       return NextResponse.json({ persisted: false });
     }
 
-    const body = patchSessionSchema.parse(await request.json());
+    const body = await parseJson(request, patchSessionSchema);
 
     const existing = await prisma.interviewSession.findUnique({
       where: { id },

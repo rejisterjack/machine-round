@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { API_TIMEOUTS, withApiHandler } from "@/lib/api/handler";
 import { ApiError } from "@/lib/api/errors";
+import { parseJson } from "@/lib/api/validate";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { getAzureChatModel } from "@/lib/ai";
 import {
@@ -80,7 +81,7 @@ function buildImageContent(
 
 export const POST = withApiHandler(async (request: Request) => {
   const authSession = await requireAuth();
-  const body = screenAnalyzeSchema.parse(await request.json());
+  const body = await parseJson(request, screenAnalyzeSchema);
   const purpose = body.purpose ?? "archive";
   const isRealtime = purpose === "realtime";
   const isPrecision = purpose === "precision";

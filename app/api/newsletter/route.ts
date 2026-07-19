@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { withApiHandler } from "@/lib/api/handler";
+import { parseJson } from "@/lib/api/validate";
 import { isDbReady } from "@/lib/db/ready";
 import { prisma } from "@/lib/prisma";
 
@@ -10,7 +11,7 @@ const newsletterSchema = z.object({
 });
 
 export const POST = withApiHandler(async (request: Request) => {
-  const body = newsletterSchema.parse(await request.json());
+  const body = await parseJson(request, newsletterSchema);
 
   if (!(await isDbReady())) {
     return NextResponse.json({ ok: true, persisted: false });
