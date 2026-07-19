@@ -19,7 +19,7 @@ const fieldClassName =
 export function StayInformedModal() {
   const pathname = usePathname();
   const { status: authStatus } = useSession();
-  const [open, setOpen] = useState(false);
+  const [promoOpen, setPromoOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [formStatus, setFormStatus] = useState<
     "idle" | "loading" | "done" | "error"
@@ -30,9 +30,10 @@ export function StayInformedModal() {
     authStatus !== "loading" &&
     authStatus !== "authenticated";
 
+  const open = canPromote && promoOpen;
+
   useEffect(() => {
     if (!canPromote) {
-      setOpen(false);
       return;
     }
 
@@ -40,7 +41,7 @@ export function StayInformedModal() {
       return;
     }
 
-    const timer = window.setTimeout(() => setOpen(true), SHOW_DELAY_MS);
+    const timer = window.setTimeout(() => setPromoOpen(true), SHOW_DELAY_MS);
     return () => window.clearTimeout(timer);
   }, [canPromote]);
 
@@ -57,13 +58,13 @@ export function StayInformedModal() {
 
   function dismissSession() {
     sessionStorage.setItem(SESSION_KEY, "1");
-    setOpen(false);
+    setPromoOpen(false);
   }
 
   function dismissPermanent() {
     localStorage.setItem(DISMISS_KEY, "1");
     sessionStorage.setItem(SESSION_KEY, "1");
-    setOpen(false);
+    setPromoOpen(false);
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
