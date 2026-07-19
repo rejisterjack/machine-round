@@ -1,6 +1,7 @@
 import type {
   InputMode,
   MessageRole,
+  PanelistMode,
   SessionStatus,
   WeakSignalType,
 } from "@/generated/client";
@@ -52,6 +53,7 @@ function buildWeakTopics(
 export async function createInterviewSession(input: {
   roleId: string;
   inputMode?: InputMode;
+  panelistMode?: PanelistMode;
   userId?: string;
 }) {
   if (!(await isDbReady())) {
@@ -71,7 +73,8 @@ export async function createInterviewSession(input: {
   return prisma.interviewSession.create({
     data: {
       roleId: role.id,
-      inputMode: input.inputMode ?? "text",
+      inputMode: input.inputMode ?? "voice",
+      panelistMode: input.panelistMode ?? "both",
       status: "active",
       userId: input.userId,
     },
@@ -191,6 +194,7 @@ export async function saveReadinessReport(
   report: EvaluateResponse,
   modelDeployment?: string,
   sessionWeakSignals: string[] = [],
+  screenReviewNotes: string[] = [],
 ) {
   if (!(await isDbReady())) {
     throw new Error("Database not ready.");
@@ -219,6 +223,10 @@ export async function saveReadinessReport(
         summary: report.summary,
         modelDeployment,
         shareToken: crypto.randomUUID().replace(/-/g, "").slice(0, 16),
+        screenReviewNotes:
+          screenReviewNotes.length > 0
+            ? screenReviewNotes
+            : (report.screenReviewNotes ?? []),
         answerEvaluations: {
           create: report.answers.map((answer, sequence) => ({
             sequence,

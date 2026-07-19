@@ -3,9 +3,12 @@ import { z } from "zod";
 import type { InputMode, SessionStatus } from "@/generated/client";
 import { withApiHandler } from "@/lib/api/handler";
 import { ApiError } from "@/lib/api/errors";
+import { requireAuth } from "@/lib/auth/require-auth";
 import { isDbReady } from "@/lib/db/ready";
 import { getInterviewSessionById } from "@/lib/session/persistence";
+import { countScreenCaptures } from "@/lib/session/media-queries";
 import { reportToEvaluateResponse } from "@/lib/session/report-queries";
+import { assertSessionOwner } from "@/lib/session/session-access";
 import { prisma } from "@/lib/prisma";
 
 const patchSessionSchema = z.object({
@@ -24,11 +27,16 @@ export const GET = withApiHandler(
     _request: Request,
     context?: { params: Promise<{ id: string }> },
   ) => {
+    const authSession = await requireAuth();
     const { id } = await context!.params;
+    await assertSessionOwner(id, authSession.user.id);
+
     const session = await getInterviewSessionById(id);
     if (!session) {
       throw new ApiError("NOT_FOUND", "Session not found.", 404);
     }
+
+    const snapshotCount = await countScreenCaptures(id);
 
     return NextResponse.json({
       id: session.id,
@@ -36,9 +44,11 @@ export const GET = withApiHandler(
       roleTitle: session.role.title,
       status: session.status,
       inputMode: session.inputMode,
+      panelistMode: session.panelistMode ?? "both",
       questionCount: session.questionCount,
       topicsCovered: session.topicsCovered,
       weakSignals: session.weakSignals,
+      snapshotCount,
       messages: session.messages.map((message) => ({
         role: message.role,
         content: message.content,
@@ -52,13 +62,36 @@ export const GET = withApiHandler(
 
 export const PATCH = withApiHandler(
   async (request: Request, context?: { params: Promise<{ id: string }> }) => {
+    const authSession = await requireAuth();
     const { id } = await context!.params;
+    await assertSessionOwner(id, authSession.user.id);
 
     if (!(await isDbReady())) {
       return NextResponse.json({ persisted: false });
     }
 
     const body = patchSessionSchema.parse(await request.json());
+
+    const existing = await prisma.interviewSession.findUnique({
+      where: { id },
+      select: { status: true },
+    });
+
+    if (!existing) {
+      throw new ApiError("NOT_FOUND", "Session not found.", 404);
+    }
+
+    if (
+      body.status === "abandoned" &&
+      (existing.status === "completed" || existing.status === "abandoned")
+    ) {
+      throw new ApiError(
+        "VALIDATION_ERROR",
+        "Cannot abandon a session that is already finished.",
+        400,
+      );
+    }
+
     const session = await prisma.interviewSession.update({
       where: { id },
       data: {

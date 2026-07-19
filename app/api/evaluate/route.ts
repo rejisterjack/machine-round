@@ -1,10 +1,13 @@
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { NextResponse } from "next/server";
 import { API_TIMEOUTS, withApiHandler, withRetry } from "@/lib/api/handler";
+import { ApiError } from "@/lib/api/errors";
+import { requireAuth } from "@/lib/auth/require-auth";
 import { getAzureEvaluatorModel, getAzureConfig } from "@/lib/ai";
 import { formatMessageSpeaker } from "@/lib/ai/personas/panelists";
 import { buildEvaluatorPrompt } from "@/lib/ai/prompts/evaluator";
 import { isDbReady } from "@/lib/db/ready";
+import { getScreenObservations } from "@/lib/session/media-queries";
 import {
   appendInterviewMessages,
   getInterviewSessionById,
@@ -15,6 +18,7 @@ import {
   evaluateResponseSchema,
 } from "@/lib/session/interview-store";
 import { resolveRole } from "@/lib/session/roles";
+import { assertSessionOwnerIfPresent } from "@/lib/session/session-access";
 
 function normalizeImprovements(improvements: string[]) {
   const unique = improvements.filter(Boolean).slice(0, 3);
@@ -27,7 +31,12 @@ function normalizeImprovements(improvements: string[]) {
 }
 
 export const POST = withApiHandler(async (request: Request) => {
+  const authSession = await requireAuth();
   const body = evaluateRequestSchema.parse(await request.json());
+  if (!body.sessionId) {
+    throw new ApiError("VALIDATION_ERROR", "sessionId is required.", 400);
+  }
+  await assertSessionOwnerIfPresent(body.sessionId, authSession.user.id);
   const role = await resolveRole(body);
   const transcript = body.messages.map(formatMessageSpeaker).join("\n");
 
@@ -44,10 +53,21 @@ export const POST = withApiHandler(async (request: Request) => {
     }
   }
 
+  const screenObservations =
+    body.sessionId && (await isDbReady())
+      ? (await getScreenObservations(body.sessionId)).map((observation) => ({
+          timestamp: observation.timestamp.toISOString(),
+          summary: observation.summary,
+        }))
+      : [];
+
   const model = getAzureEvaluatorModel();
+  const screenNotes = screenObservations.map((o) => o.summary);
   const response = await withRetry(() =>
     model.invoke([
-      new SystemMessage(buildEvaluatorPrompt(role.title, transcript)),
+      new SystemMessage(
+        buildEvaluatorPrompt(role.title, transcript, screenNotes),
+      ),
       new HumanMessage("Return the readiness report JSON."),
     ]),
   );
@@ -69,6 +89,7 @@ export const POST = withApiHandler(async (request: Request) => {
       parsed,
       getAzureConfig().chatDeployment,
       sessionWeakSignals,
+      parsed.screenReviewNotes ?? [],
     );
 
     return NextResponse.json({
