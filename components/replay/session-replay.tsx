@@ -48,6 +48,15 @@ function countQuestions(messages: InterviewMessage[]) {
   return messages.filter((message) => message.role === "assistant").length;
 }
 
+function buildAssistantTurnNumbers(messages: InterviewMessage[]) {
+  let turn = 0;
+  return messages.map((message) => {
+    if (message.role !== "assistant") return null;
+    turn += 1;
+    return turn;
+  });
+}
+
 export function SessionReplay({
   sessionId,
   roleTitle,
@@ -84,7 +93,7 @@ export function SessionReplay({
     : undefined;
 
   const scoredQuestions = questionCount ?? countQuestions(messages);
-  let questionTurn = 0;
+  const assistantTurnNumbers = buildAssistantTurnNumbers(messages);
 
   return (
     <div className="space-y-8">
@@ -177,9 +186,7 @@ export function SessionReplay({
         <CodexTerminal title="Namaste Machine Round · transcript">
           <div className="space-y-4">
             {messages.map((message, index) => {
-              if (message.role === "assistant") {
-                questionTurn += 1;
-              }
+              const questionTurn = assistantTurnNumbers[index];
 
               return message.role === "assistant" ? (
                 <div
