@@ -3,7 +3,6 @@ import { CircleCheck, Quote } from "lucide-react";
 import { HeroFeaturedCard } from "@/components/brand/hero-featured-card";
 import { HeroGridBackground } from "@/components/brand/hero-grid-background";
 import { HeroScrollChevron } from "@/components/brand/hero-scroll-chevron";
-import { FloatingTechIcons } from "@/components/brand/floating-tech-icons";
 import { ProductEyebrow } from "@/components/brand/product-eyebrow";
 import { buttonVariants } from "@/components/ui/button";
 import { heroContent } from "@/lib/design/tokens";
@@ -58,7 +57,6 @@ export function NdHero({ scrollTargetId = "choose-track" }: NdHeroProps) {
         </div>
 
         <div className="nd-hero-media">
-          <FloatingTechIcons />
           <HeroFeaturedCard />
         </div>
       </div>
