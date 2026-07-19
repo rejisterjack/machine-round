@@ -34,6 +34,7 @@ export const authConfig = {
       const isPublicPage =
         pathname === "/" ||
         pathname === "/login" ||
+        pathname === "/demo-video" ||
         pathname.startsWith("/report/share/") ||
         (pathname.startsWith("/replay/") &&
           nextUrl.searchParams.has("shareToken"));

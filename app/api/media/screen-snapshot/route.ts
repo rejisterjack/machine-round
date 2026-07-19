@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { withApiHandler } from "@/lib/api/handler";
 import { ApiError } from "@/lib/api/errors";
+import { parseJson } from "@/lib/api/validate";
 import {
   buildMediaFolder,
   deleteAsset,
@@ -39,7 +40,7 @@ export const POST = withApiHandler(async (request: Request) => {
     );
   }
 
-  const body = bodySchema.parse(await request.json());
+  const body = await parseJson(request, bodySchema);
 
   if (!isArchiveImageWithinLimit(body.imageBase64)) {
     throw new ApiError(

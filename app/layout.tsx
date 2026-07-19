@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Plus_Jakarta_Sans } from "next/font/google";
 import { AnalyticsScripts } from "@/components/analytics/analytics-scripts";
+import { WebVitals } from "@/components/analytics/web-vitals";
 import { SessionProvider } from "@/components/auth/session-provider";
 import "./globals.css";
 
@@ -8,12 +9,14 @@ const inter = Inter({
   variable: "--font-sans",
   subsets: ["latin"],
   weight: ["400", "500", "600"],
+  display: "swap",
 });
 
 const plusJakarta = Plus_Jakarta_Sans({
   variable: "--font-heading",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -58,6 +61,7 @@ export default function RootLayout({
       <body className="flex min-h-full flex-col overflow-x-hidden bg-background font-sans text-foreground">
         <SessionProvider>{children}</SessionProvider>
         <AnalyticsScripts />
+        <WebVitals />
       </body>
     </html>
   );

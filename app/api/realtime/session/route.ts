@@ -3,6 +3,7 @@ import { z } from "zod";
 import { assertRateLimit, rateLimitKey } from "@/lib/api/assert-rate-limit";
 import { API_TIMEOUTS, withApiHandler } from "@/lib/api/handler";
 import { ApiError } from "@/lib/api/errors";
+import { parseJson } from "@/lib/api/validate";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { buildContinuationPrompt } from "@/lib/ai/conversation-phases";
 import {
@@ -112,9 +113,7 @@ export const POST = withApiHandler(async (request: Request) => {
     { limit: 30, windowMs: 60_000 },
   );
 
-  const body = realtimeSessionSchema.parse(
-    await request.json().catch(() => ({})),
-  );
+  const body = await parseJson(request, realtimeSessionSchema);
   await assertSessionOwnerIfPresent(body.sessionId, authSession.user.id);
 
   const { role, bound } = await resolveRoleFromSession(

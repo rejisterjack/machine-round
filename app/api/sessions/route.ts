@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { withApiHandler } from "@/lib/api/handler";
 import { ApiError } from "@/lib/api/errors";
+import { parseJson } from "@/lib/api/validate";
 import {
   createInterviewSession,
   getInterviewSessionById,
@@ -66,7 +67,7 @@ function serializeSession(
 export const POST = withApiHandler(async (request: Request) => {
   const session = await requireAuth();
 
-  const body = createSessionSchema.parse(await request.json());
+  const body = await parseJson(request, createSessionSchema);
   await resolveRole({ roleId: body.roleId });
 
   const interviewSession = await createInterviewSession({

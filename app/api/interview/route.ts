@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
+import { assertRateLimit, rateLimitKey } from "@/lib/api/assert-rate-limit";
 import { API_TIMEOUTS, withApiHandler, withRetry } from "@/lib/api/handler";
+import { parseJson } from "@/lib/api/validate";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { runInterviewTurn } from "@/lib/ai/interview-turn";
 import { computeQuestionCount } from "@/lib/interview/question-counter";
@@ -17,7 +19,14 @@ import { prisma } from "@/lib/prisma";
 
 export const POST = withApiHandler(async (request: Request) => {
   const authSession = await requireAuth();
-  const body = interviewRequestSchema.parse(await request.json());
+  assertRateLimit(
+    request,
+    rateLimitKey(request, ["interview", authSession.user.id]),
+    { limit: 60, windowMs: 60_000 },
+    "Too many interview turns. Please wait a minute.",
+  );
+
+  const body = await parseJson(request, interviewRequestSchema);
 
   const { role, bound } = await resolveRoleFromSession(
     body.sessionId,
