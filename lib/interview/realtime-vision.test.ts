@@ -2,7 +2,9 @@ import { describe, expect, test } from "bun:test";
 import {
   buildScreenFrameImageUrl,
   formatVisionContextPrefix,
+  framePushIntervalMs,
   initialRealtimeVisionMode,
+  isFramePushFailure,
   isRealtimeVisionEnabled,
   shouldRateLimitFramePush,
 } from "@/lib/interview/realtime-vision";
@@ -62,5 +64,26 @@ describe("formatVisionContextPrefix", () => {
   test("labels screen and camera context", () => {
     expect(formatVisionContextPrefix("screen")).toBe("[Screen context]");
     expect(formatVisionContextPrefix("camera")).toBe("[Camera context]");
+  });
+});
+
+describe("framePushIntervalMs", () => {
+  test("uses a slower interval for camera than screen", () => {
+    expect(framePushIntervalMs("camera")).toBeGreaterThan(
+      framePushIntervalMs("screen"),
+    );
+  });
+});
+
+describe("isFramePushFailure", () => {
+  test("treats rate limits and channel busy as non-failures", () => {
+    expect(isFramePushFailure("rate_limited")).toBe(false);
+    expect(isFramePushFailure("channel_unavailable")).toBe(false);
+    expect(isFramePushFailure("sent")).toBe(false);
+  });
+
+  test("flags disabled and oversized payloads as failures", () => {
+    expect(isFramePushFailure("too_large")).toBe(true);
+    expect(isFramePushFailure("disabled")).toBe(true);
   });
 });

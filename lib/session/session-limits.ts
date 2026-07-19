@@ -3,6 +3,9 @@ export const MAX_SCREEN_OBSERVATIONS = 50;
 export const SCREEN_ANALYZE_INTERVAL_MS = 4000;
 export const SCREEN_REALTIME_INTERVAL_MS = 800;
 export const SCREEN_FRAME_PUSH_INTERVAL_MS = 800;
+/** Camera frames change slowly — avoid competing with screen pushes on the same channel. */
+export const CAMERA_REALTIME_INTERVAL_MS = 1200;
+export const CAMERA_FRAME_PUSH_INTERVAL_MS = 1200;
 export const SCREEN_FRAME_CHANGE_THRESHOLD = 0.012;
 export const SCREEN_FRAME_STALE_REPUSH_MS = 1500;
 export const SCREEN_ARCHIVE_INTERVAL_MS = 10000;

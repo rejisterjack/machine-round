@@ -189,8 +189,11 @@ function encodeVisionCanvasForChannel(
     768,
     640,
     480,
+    384,
+    320,
+    256,
   ];
-  const qualitySteps = [0.88, 0.78, 0.68, 0.58, 0.48] as const;
+  const qualitySteps = [0.88, 0.78, 0.68, 0.58, 0.48, 0.4, 0.32] as const;
 
   for (const maxWidth of widthSteps) {
     const { width, height } = scaledDimensions(
@@ -230,9 +233,14 @@ function encodeVisionCanvas(
   canvas: HTMLCanvasElement,
   preferPng: boolean,
   jpegQuality: number,
+  forRealtimeChannel = false,
 ): { base64: string; mimeType: VisionMimeType; changeSample: Uint8Array | null } | null {
   const channel = encodeVisionCanvasForChannel(canvas);
   if (channel) return channel;
+
+  if (forRealtimeChannel) {
+    return null;
+  }
 
   const enhanced = enhanceFrameForVision(canvas);
   const changeSample = sampleLuminanceGridFromCanvas(enhanced);
@@ -250,11 +258,17 @@ async function captureVisionFrameFromTrack(
   maxWidth: number,
   jpegQuality: number,
   preferPng: boolean,
+  forRealtimeChannel = false,
 ): Promise<VisionFrameCapture | null> {
   const drawn = await drawTrackFrame(track, maxWidth);
   if (!drawn) return null;
   try {
-    const encoded = encodeVisionCanvas(drawn.canvas, preferPng, jpegQuality);
+    const encoded = encodeVisionCanvas(
+      drawn.canvas,
+      preferPng,
+      jpegQuality,
+      forRealtimeChannel,
+    );
     if (!encoded) return null;
     return {
       analysisBase64: encoded.base64,
@@ -271,10 +285,16 @@ function captureVisionFrameFromVideo(
   maxWidth: number,
   jpegQuality: number,
   preferPng: boolean,
+  forRealtimeChannel = false,
 ): VisionFrameCapture | null {
   const drawn = drawVideoFrame(videoEl, maxWidth);
   if (!drawn) return null;
-  const encoded = encodeVisionCanvas(drawn.canvas, preferPng, jpegQuality);
+  const encoded = encodeVisionCanvas(
+    drawn.canvas,
+    preferPng,
+    jpegQuality,
+    forRealtimeChannel,
+  );
   if (!encoded) return null;
   return {
     analysisBase64: encoded.base64,
@@ -288,6 +308,7 @@ async function captureVisionFrameFromSource(
   maxWidth: number,
   jpegQuality: number,
   preferPng: boolean,
+  forRealtimeChannel = false,
 ): Promise<VisionFrameCapture | null> {
   if (source.track?.readyState === "live") {
     const fromTrack = await captureVisionFrameFromTrack(
@@ -295,6 +316,7 @@ async function captureVisionFrameFromSource(
       maxWidth,
       jpegQuality,
       preferPng,
+      forRealtimeChannel,
     );
     if (fromTrack) return fromTrack;
   }
@@ -305,6 +327,7 @@ async function captureVisionFrameFromSource(
       maxWidth,
       jpegQuality,
       preferPng,
+      forRealtimeChannel,
     );
   }
 
@@ -579,6 +602,7 @@ export async function captureRealtimeFrameFromSource(
     REALTIME_MAX_WIDTH,
     REALTIME_JPEG_QUALITY,
     false,
+    true,
   );
 }
 
@@ -590,6 +614,7 @@ export async function capturePrecisionFrameFromSource(
     PRECISION_MAX_WIDTH,
     PRECISION_JPEG_QUALITY,
     false,
+    true,
   );
 }
 
@@ -601,6 +626,7 @@ export async function captureCameraFrameFromSource(
     CAMERA_MAX_WIDTH,
     CAMERA_JPEG_QUALITY,
     false,
+    true,
   );
 }
 
@@ -612,6 +638,7 @@ export async function captureCameraPrecisionFrameFromSource(
     CAMERA_PRECISION_MAX_WIDTH,
     CAMERA_PRECISION_JPEG_QUALITY,
     false,
+    true,
   );
 }
 

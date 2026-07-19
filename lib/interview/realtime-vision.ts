@@ -1,4 +1,7 @@
-import { SCREEN_FRAME_PUSH_INTERVAL_MS } from "@/lib/session/session-limits";
+import {
+  CAMERA_FRAME_PUSH_INTERVAL_MS,
+  SCREEN_FRAME_PUSH_INTERVAL_MS,
+} from "@/lib/session/session-limits";
 
 export type RealtimeVisionMode = "unknown" | "image" | "text";
 export type VisionContextSource = "screen" | "camera";
@@ -17,6 +20,25 @@ export function isRealtimeVisionEnabled(): boolean {
 
 export function initialRealtimeVisionMode(): RealtimeVisionMode {
   return isRealtimeVisionEnabled() ? "unknown" : "text";
+}
+
+export type FramePushResult =
+  | "sent"
+  | "rate_limited"
+  | "channel_unavailable"
+  | "too_large"
+  | "disabled";
+
+export function isFramePushFailure(result: FramePushResult): boolean {
+  return result === "too_large" || result === "disabled";
+}
+
+export function framePushIntervalMs(
+  source: VisionContextSource = "screen",
+): number {
+  return source === "camera"
+    ? CAMERA_FRAME_PUSH_INTERVAL_MS
+    : SCREEN_FRAME_PUSH_INTERVAL_MS;
 }
 
 export function shouldRateLimitFramePush(

@@ -24,7 +24,8 @@ import {
 } from "@/lib/interview/screen-realtime";
 import { captureCameraFrameFromSource, captureCameraPrecisionFrameFromSource } from "@/lib/interview/screen-capture";
 import { buildVisualFocusQuestion } from "@/lib/interview/screen-intent";
-import type { ScreenContextMeta } from "@/hooks/use-realtime-voice";
+import type { ScreenContextMeta, FramePushResult } from "@/hooks/use-realtime-voice";
+import { isFramePushFailure } from "@/lib/interview/realtime-vision";
 import {
   needsClosingGoodbye,
   needsClosingGoodbyeByTime,
@@ -39,6 +40,7 @@ import {
 } from "@/lib/interview/duration-profiles";
 import { logInterviewDebug } from "@/lib/interview/debug-log";
 import {
+  CAMERA_REALTIME_INTERVAL_MS,
   INTERVIEW_COMPLETE_BANNER_MS,
   INTERVIEW_COMPLETE_FALLBACK_MS,
   MAX_SCREEN_SNAPSHOTS,
@@ -104,9 +106,9 @@ export default function InterviewSessionPage() {
     (
       imageBase64: string,
       mimeType?: "image/jpeg" | "image/png" | "image/webp",
-      options?: { force?: boolean },
-    ) => boolean
-  >(() => false);
+      options?: { force?: boolean; source?: "screen" | "camera" },
+    ) => FramePushResult
+  >(() => "channel_unavailable");
   const realtimeVisionModeRef = useRef<"unknown" | "image" | "text">("unknown");
   const notifyScreenShareActiveRef = useRef<() => void>(() => {});
   const notifyScreenShareEndedRef = useRef<() => void>(() => {});
@@ -210,15 +212,21 @@ export default function InterviewSessionPage() {
       imageBase64?: string,
       meta?: ScreenContextMeta,
     ): boolean => {
-      let imageSent = true;
+      let imageOk = true;
       if (imageBase64) {
-        imageSent = sendScreenFrameRef.current(
+        const source = meta?.contextLabel ?? "screen";
+        const pushResult = sendScreenFrameRef.current(
           imageBase64,
           meta?.mimeType ?? "image/jpeg",
           {
             force: meta?.forceImage ?? !meta?.imageOnly,
+            source,
           },
         );
+        imageOk = !isFramePushFailure(pushResult);
+        if (pushResult === "sent" && source === "camera") {
+          setCameraVisionPaused(undefined);
+        }
       }
       if (summary?.trim()) {
         if (meta?.contextLabel === "camera") {
@@ -231,7 +239,7 @@ export default function InterviewSessionPage() {
           contextLabel: meta?.contextLabel ?? "screen",
         });
       }
-      return imageSent;
+      return imageOk;
     },
     [],
   );
@@ -346,9 +354,11 @@ export default function InterviewSessionPage() {
         isPaused: () => !voiceConnectionActiveRef.current,
         enableArchive: false,
         visionSource: "camera",
+        reportSkippedFrames: false,
         onHotError: (message) => setCameraVisionPaused(message),
         captureRealtimeFrame: captureCameraFrameFromSource,
         capturePrecisionFrame: captureCameraPrecisionFrameFromSource,
+        intervalMs: CAMERA_REALTIME_INTERVAL_MS,
       });
 
       cameraRealtimeRef.current = pusher;
