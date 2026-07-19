@@ -54,22 +54,40 @@ export function getAzureConfig(): AzureOpenAIConfig {
   };
 }
 
-export function getAzureRealtimeConfig(): AzureRealtimeConfig {
+function optionalEnv(name: string): string | undefined {
+  const value = process.env[name]?.trim();
+  return value || undefined;
+}
+
+export function getAzureRealtimeCredentials(): {
+  endpoint: string;
+  apiKey: string;
+  deployment: string;
+} {
   const config = getAzureConfig();
+  return {
+    endpoint: optionalEnv("AZURE_OPENAI_REALTIME_ENDPOINT") ?? config.endpoint,
+    apiKey: optionalEnv("AZURE_OPENAI_REALTIME_API_KEY") ?? config.apiKey,
+    deployment: config.realtimeDeployment,
+  };
+}
+
+export function getAzureRealtimeConfig(): AzureRealtimeConfig {
+  const { endpoint, deployment } = getAzureRealtimeCredentials();
   const webSocketUrl = new URL(
-    `/openai/v1/realtime?model=${encodeURIComponent(config.realtimeDeployment)}`,
-    config.endpoint,
+    `/openai/v1/realtime?model=${encodeURIComponent(deployment)}`,
+    endpoint,
   );
   webSocketUrl.protocol = "wss:";
 
   return {
-    deployment: config.realtimeDeployment,
+    deployment,
     webSocketUrl: webSocketUrl.toString(),
     clientSecretsUrl: buildAzureUrl(
-      config.endpoint,
+      endpoint,
       "/openai/v1/realtime/client_secrets",
     ),
-    callsUrl: buildAzureUrl(config.endpoint, "/openai/v1/realtime/calls"),
+    callsUrl: buildAzureUrl(endpoint, "/openai/v1/realtime/calls"),
   };
 }
 
