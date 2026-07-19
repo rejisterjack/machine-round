@@ -181,6 +181,7 @@ export async function createRealtimeConnection(
     }
     stopClientVad?.();
     stopClientVad = null;
+    audioElement.pause();
     dataChannel?.close();
     peerConnection.close();
     ownedStream?.getTracks().forEach((track) => track.stop());
