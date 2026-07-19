@@ -3,6 +3,9 @@ import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
 
+const ndPillBase =
+  "inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-medium sm:px-6";
+
 const buttonVariants = cva(
   "group/button inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
@@ -18,12 +21,16 @@ const buttonVariants = cva(
         destructive:
           "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
         link: "text-primary underline-offset-4 hover:underline",
-        ndPrimary:
-          "h-auto min-h-11 rounded-full border border-primary bg-transparent px-6 py-3 text-base font-medium text-primary hover:bg-primary/10 focus-visible:ring-primary/40 sm:px-8 sm:py-4",
+        ndPrimary: cn(
+          ndPillBase,
+          "border border-primary bg-transparent text-primary hover:bg-primary/10 focus-visible:ring-primary/40",
+        ),
         ndHeroCta:
           "h-auto min-h-11 gap-2 rounded-full border border-primary bg-black px-6 py-3 text-base font-medium text-foreground hover:bg-primary/10 focus-visible:ring-primary/40 sm:min-h-[3.6875rem] sm:min-w-[14.8125rem] sm:px-8 sm:py-4",
-        ndFilled:
-          "rounded-full border-2 border-transparent bg-primary px-6 py-3 text-xs font-semibold text-white hover:bg-primary/90 focus-visible:ring-primary/40",
+        ndFilled: cn(
+          ndPillBase,
+          "border border-primary bg-primary font-semibold text-white hover:bg-primary/90 focus-visible:ring-primary/40",
+        ),
         ndNav:
           "rounded-lg border-transparent bg-transparent px-3 text-foreground hover:bg-white/5 hover:text-primary",
         ndGhost:
