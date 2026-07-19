@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { API_TIMEOUTS, withApiHandler } from "@/lib/api/handler";
 import { ApiError } from "@/lib/api/errors";
-import { getAzureConfig, getAzureRealtimeConfig } from "@/lib/ai";
+import { getAzureRealtimeConfig, getAzureRealtimeCredentials } from "@/lib/ai";
 import { buildInterviewerPrompt } from "@/lib/ai/prompts/interviewer";
 import { isDbReady } from "@/lib/db/ready";
 import { prisma } from "@/lib/prisma";
@@ -22,13 +22,13 @@ export const POST = withApiHandler(async (request: Request) => {
   );
   const role = await resolveRole(body);
   const questionCount = body.questionCount ?? 0;
-  const config = getAzureConfig();
+  const realtimeCreds = getAzureRealtimeCredentials();
   const realtime = getAzureRealtimeConfig();
 
   const response = await fetch(realtime.clientSecretsUrl, {
     method: "POST",
     headers: {
-      "api-key": config.apiKey,
+      "api-key": realtimeCreds.apiKey,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
@@ -36,8 +36,11 @@ export const POST = withApiHandler(async (request: Request) => {
         type: "realtime",
         model: realtime.deployment,
         instructions: buildInterviewerPrompt(role.title, questionCount),
-        modalities: ["text", "audio"],
-        voice: "alloy",
+        audio: {
+          output: {
+            voice: "alloy",
+          },
+        },
       },
     }),
   });
@@ -63,7 +66,12 @@ export const POST = withApiHandler(async (request: Request) => {
     );
   }
 
-  const data = await response.json();
+  const data = (await response.json()) as {
+    value?: string;
+    expires_at?: number;
+    client_secret?: { value?: string; expires_at?: number };
+    session?: unknown;
+  };
 
   if (body.sessionId && (await isDbReady())) {
     await prisma.realtimeSessionLog.create({
@@ -81,6 +89,10 @@ export const POST = withApiHandler(async (request: Request) => {
 
   return NextResponse.json({
     ...data,
+    client_secret: data.client_secret ?? {
+      value: data.value,
+      expires_at: data.expires_at,
+    },
     callsUrl: realtime.callsUrl,
     deployment: realtime.deployment,
   });

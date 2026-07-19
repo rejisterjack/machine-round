@@ -70,7 +70,9 @@ export function useRealtimeVoice(options: RealtimeVoiceOptions = {}) {
       }
 
       const session = (await response.json()) as RealtimeSession;
-      const ephemeralKey = session.client_secret?.value;
+      const ephemeralKey =
+        session.client_secret?.value ??
+        (session as RealtimeSession & { value?: string }).value;
       const callsUrl = session.callsUrl;
 
       if (!ephemeralKey || !callsUrl) {
