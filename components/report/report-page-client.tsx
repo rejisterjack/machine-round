@@ -328,7 +328,6 @@ export function ReportPageClient({ initialSession }: ReportPageClientProps) {
 
     if (session.report) {
       reportRequested.current = true;
-      setError(undefined);
       return;
     }
 
@@ -340,7 +339,10 @@ export function ReportPageClient({ initialSession }: ReportPageClientProps) {
     }
 
     reportRequested.current = true;
-    void generateReport(session);
+    const timer = window.setTimeout(() => {
+      void generateReport(session);
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [router, session, hydrating, generateReport]);
 
   if (hydrating || !session) {
@@ -356,6 +358,7 @@ export function ReportPageClient({ initialSession }: ReportPageClientProps) {
   }
 
   const score = session.report?.overallScore;
+  const displayError = session.report ? undefined : error;
 
   return (
     <PageShell glow>
@@ -429,13 +432,13 @@ export function ReportPageClient({ initialSession }: ReportPageClientProps) {
             </div>
             <ReportLoadingSkeleton />
           </div>
-        ) : error ? (
+        ) : displayError ? (
           <ApiErrorCard
             className="mt-10"
             message={
-              sessionLastError && sessionLastError !== error
-                ? `${error} ${sessionLastError}`
-                : error
+              sessionLastError && sessionLastError !== displayError
+                ? `${displayError} ${sessionLastError}`
+                : displayError
             }
             onRetry={() => void generateReport(session)}
             retryLabel="Retry report"
