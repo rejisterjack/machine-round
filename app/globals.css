@@ -99,7 +99,6 @@
   --nd-whatsapp: #25d366;
   --nd-star: #d4af37;
   --nd-heart: #ff333c;
-  --nd-orbit-size: clamp(16rem, 38vw, 25rem);
   --nd-hero-min-height: clamp(28rem, 72vh, 40rem);
   --sidebar: #111111;
   --sidebar-foreground: #f7f4ee;
@@ -188,20 +187,6 @@
     @apply relative z-20 aspect-[448/432] h-auto w-full rounded-[1.75rem] object-cover shadow-[0_24px_60px_rgba(0,0,0,0.45)];
   }
 
-  .nd-hero-float-icon {
-    animation: nd-float 4.5s ease-in-out infinite;
-  }
-
-  @keyframes nd-float {
-    0%,
-    100% {
-      transform: translateY(0);
-    }
-    50% {
-      transform: translateY(-8px);
-    }
-  }
-
   .nd-pill-badge {
     @apply inline-flex items-center rounded-full border border-border bg-card px-3 py-1 text-xs text-muted-foreground;
   }
@@ -268,22 +253,6 @@
 
   .nd-hero-scroll-chevron {
     animation: nd-bounce 2s ease-in-out infinite;
-  }
-
-  .nd-animate-orbit {
-    animation: nd-orbit calc(var(--duration) * 1s) linear infinite;
-  }
-
-  @keyframes nd-orbit {
-    0% {
-      transform: rotate(calc(var(--angle) * 1deg)) translateY(var(--orbit-radius))
-        rotate(calc(var(--angle) * -1deg));
-    }
-    100% {
-      transform: rotate(calc(var(--angle) * 1deg + 360deg))
-        translateY(var(--orbit-radius))
-        rotate(calc((var(--angle) * -1deg) - 360deg));
-    }
   }
 
   @keyframes nd-bounce {
@@ -438,7 +407,7 @@
   }
 
   .nd-hero {
-    @apply relative w-full overflow-hidden;
+    @apply relative w-full overflow-visible;
     min-height: var(--nd-hero-min-height);
   }
 
@@ -448,12 +417,6 @@
 
   .nd-hero-media {
     @apply relative mx-auto hidden w-full max-w-md lg:block xl:max-w-lg;
-  }
-
-  .nd-orbit {
-    width: var(--nd-orbit-size);
-    height: var(--nd-orbit-size);
-    --orbit-radius: calc(var(--nd-orbit-size) * 0.46);
   }
 
   .nd-whatsapp-fab {
