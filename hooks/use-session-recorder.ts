@@ -61,6 +61,9 @@ export function useSessionRecorder(options: SessionRecorderOptions) {
   const audioContextRef = useRef<AudioContext | null>(null);
   const startedAtRef = useRef<number | null>(null);
   const stopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const attachRecorderRef = useRef<
+    ((stream: MediaStream, resetChunks: boolean) => void) | null
+  >(null);
   const optionsRef = useRef(options);
   useEffect(() => {
     optionsRef.current = options;
@@ -176,7 +179,7 @@ export function useSessionRecorder(options: SessionRecorderOptions) {
           recorderRef.current = null;
           try {
             const nextStream = await buildCompositeStream();
-            attachRecorder(nextStream, false);
+            attachRecorderRef.current?.(nextStream, false);
           } catch {
             // Segment restart failed — recording stops until next refresh.
           }
@@ -185,6 +188,10 @@ export function useSessionRecorder(options: SessionRecorderOptions) {
     },
     [buildCompositeStream],
   );
+
+  useEffect(() => {
+    attachRecorderRef.current = attachRecorder;
+  }, [attachRecorder]);
 
   const start = useCallback(async () => {
     if (!supported) return;

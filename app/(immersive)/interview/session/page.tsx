@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useLatestRef } from "@/hooks/use-latest-ref";
 import { LiveCaptions } from "@/components/interview/room/live-captions";
 import { MediaControlBar } from "@/components/interview/room/media-control-bar";
 import { PreJoinLobby } from "@/components/interview/room/pre-join-lobby";
@@ -113,8 +114,7 @@ export default function InterviewSessionPage() {
   const [completeBanner, setCompleteBanner] = useState(false);
   const [canResumeSession, setCanResumeSession] = useState(false);
 
-  const sessionRef = useRef(session);
-  sessionRef.current = session;
+  const sessionRef = useLatestRef(session);
   const voiceStopRef = useRef<() => void>(() => {});
   const voiceReconnectRef = useRef<
     (panelist: PanelistId, messages?: InterviewMessage[]) => Promise<unknown>
@@ -402,8 +402,7 @@ export default function InterviewSessionPage() {
   const media = useMediaDevices({
     onScreenShareEnd: clearPersistedScreenSharing,
   });
-  const micStreamRef = useRef<MediaStream | null>(null);
-  micStreamRef.current = media.micStream;
+  const micStreamRef = useLatestRef(media.micStream);
 
   const panelistMode: PanelistMode = session?.panelistMode ?? "both";
   const joinPanelist = getPanelistForQuestion(
@@ -713,33 +712,25 @@ export default function InterviewSessionPage() {
     },
   });
 
-  voiceStopRef.current = voice.stop;
-  voiceReconnectRef.current = voice.reconnect;
-  sendScreenContextRef.current = voice.sendScreenContext;
-  sendScreenFrameRef.current = voice.sendScreenFrame;
-  notifyScreenShareActiveRef.current = voice.notifyScreenShareActive;
-  notifyScreenShareEndedRef.current = voice.notifyScreenShareEnded;
-  notifyCameraActiveRef.current = voice.notifyCameraActive;
-  notifyCameraInactiveRef.current = voice.notifyCameraInactive;
-  realtimeVisionModeRef.current = voice.realtimeVisionMode;
-  voiceConnectionActiveRef.current = voice.connectionStatus === "active";
-
   useEffect(() => {
+    voiceStopRef.current = voice.stop;
+    voiceReconnectRef.current = voice.reconnect;
+    sendScreenContextRef.current = voice.sendScreenContext;
+    sendScreenFrameRef.current = voice.sendScreenFrame;
+    notifyScreenShareActiveRef.current = voice.notifyScreenShareActive;
+    notifyScreenShareEndedRef.current = voice.notifyScreenShareEnded;
+    notifyCameraActiveRef.current = voice.notifyCameraActive;
+    notifyCameraInactiveRef.current = voice.notifyCameraInactive;
     realtimeVisionModeRef.current = voice.realtimeVisionMode;
     voiceConnectionActiveRef.current = voice.connectionStatus === "active";
-    if (media.sharingScreen && voice.realtimeVisionMode === "text") {
-      setScreenAnalyzePaused(
-        "Screen vision using text descriptions — image mode unavailable.",
-      );
-    }
-  }, [media.sharingScreen, voice.realtimeVisionMode, voice.connectionStatus]);
-  getRemoteAudioRef.current = voice.getRemoteAudioElement;
-  voicePrefetchBothRef.current = voice.prefetchBothSessions;
-  voiceWaitForSpeechEndRef.current = voice.waitForSpeechEnd;
-  voiceHandleUserTurnCompleteRef.current = voice.handleUserTurnComplete;
-  voiceGetConnectedPanelistRef.current = voice.getConnectedPanelist;
-  voiceRequestClosingGoodbyeRef.current = voice.requestClosingGoodbye;
-  voiceSpeakAnnouncementRef.current = voice.speakAnnouncement;
+    getRemoteAudioRef.current = voice.getRemoteAudioElement;
+    voicePrefetchBothRef.current = voice.prefetchBothSessions;
+    voiceWaitForSpeechEndRef.current = voice.waitForSpeechEnd;
+    voiceHandleUserTurnCompleteRef.current = voice.handleUserTurnComplete;
+    voiceGetConnectedPanelistRef.current = voice.getConnectedPanelist;
+    voiceRequestClosingGoodbyeRef.current = voice.requestClosingGoodbye;
+    voiceSpeakAnnouncementRef.current = voice.speakAnnouncement;
+  }, [voice]);
 
   useEffect(() => {
     const base = sessionRef.current;
@@ -759,7 +750,9 @@ export default function InterviewSessionPage() {
     screenStream: media.screenStream,
     cameraStream: media.cameraStream,
   });
-  recorderRef.current = recorder;
+  useEffect(() => {
+    recorderRef.current = recorder;
+  }, [recorder]);
 
   const completeSession = useCallback(
     async (base: InterviewSession) => {
@@ -935,7 +928,9 @@ export default function InterviewSessionPage() {
     },
     [clearPendingComplete, media, router, stopScreenRealtime, stopCameraRealtime],
   );
-  completeSessionRef.current = completeSession;
+  useEffect(() => {
+    completeSessionRef.current = completeSession;
+  }, [completeSession]);
 
   const abandonSession = useCallback(async () => {
     if (completingRef.current || abandoningRef.current) return;
@@ -1034,6 +1029,8 @@ export default function InterviewSessionPage() {
   useEffect(() => () => clearPendingComplete(), [clearPendingComplete]);
 
   useEffect(() => {
+    // Hydrate session from sessionStorage after client mount.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- SSR returns null until mount
     setSession(loadSession());
     setSessionReady(true);
   }, []);
@@ -1249,6 +1246,12 @@ export default function InterviewSessionPage() {
     await recorderRef.current?.start();
   }, [media]);
 
+  const screenAnalyzePausedMessage =
+    screenAnalyzePaused ??
+    (media.sharingScreen && voice.realtimeVisionMode === "text"
+      ? "Screen vision using text descriptions — image mode unavailable."
+      : undefined);
+
   if (!sessionReady || !session) {
     return (
       <div className="flex h-dvh items-center justify-center bg-[#030303]">
@@ -1392,7 +1395,7 @@ export default function InterviewSessionPage() {
       }
       error={
         cloudSyncFailed ||
-        screenAnalyzePaused ||
+        screenAnalyzePausedMessage ||
         cameraVisionPaused ||
         session.status === "error" ||
         session.status === "abandoned" ||
@@ -1404,9 +1407,9 @@ export default function InterviewSessionPage() {
                 Cloud sync paused — your transcript is saved on this device.
               </p>
             ) : null}
-            {screenAnalyzePaused ? (
+            {screenAnalyzePausedMessage ? (
               <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
-                {screenAnalyzePaused}
+                {screenAnalyzePausedMessage}
               </p>
             ) : null}
             {cameraVisionPaused ? (
