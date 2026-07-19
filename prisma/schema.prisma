@@ -36,10 +36,23 @@ enum SessionStatus {
   error
 }
 
+enum RecordingStatus {
+  none
+  pending
+  uploaded
+  failed
+}
+
 enum InputMode {
   text
   voice
   mixed
+}
+
+enum PanelistMode {
+  akshay
+  archy
+  both
 }
 
 enum WeakSignalType {
@@ -145,11 +158,18 @@ model InterviewSession {
   userId        String?
   roleId        String
   status        SessionStatus @default(active)
-  inputMode     InputMode     @default(text)
+  inputMode     InputMode     @default(voice)
+  panelistMode  PanelistMode  @default(both)
   questionCount Int           @default(0)
   topicsCovered String[]      @default([])
   weakSignals   String[]      @default([])
-  lastError     String?       @db.Text
+  lastError     String?         @db.Text
+  audioRecordingUrl   String?
+  audioRecordingId    String?
+  recordingDurationMs Int?
+  recordingMimeType   String?
+  recordingStatus     RecordingStatus @default(none)
+  lastScreenAnalyzeAt DateTime?
   startedAt     DateTime      @default(now())
   completedAt   DateTime?
   createdAt     DateTime      @default(now())
@@ -160,6 +180,8 @@ model InterviewSession {
   messages            InterviewMessage[]
   report              ReadinessReport?
   realtimeSessionLogs RealtimeSessionLog[]
+  screenCaptures      SessionScreenCapture[]
+  screenObservations  SessionScreenObservation[]
 
   @@index([userId])
   @@index([roleId])
@@ -192,6 +214,7 @@ model ReadinessReport {
   summary         String   @db.Text
   shareToken      String?  @unique
   pdfUrl          String?
+  screenReviewNotes String[] @default([])
   modelDeployment String?
   generatedAt     DateTime @default(now())
   createdAt       DateTime @default(now())
@@ -287,4 +310,33 @@ model RealtimeSessionLog {
 
   @@index([interviewSessionId])
   @@map("realtime_session_logs")
+}
+
+model SessionScreenCapture {
+  id                 String   @id @default(cuid())
+  sessionId          String
+  cloudinaryUrl      String
+  cloudinaryPublicId String
+  summary            String?  @db.Text
+  questionSequence   Int?
+  capturedAt         DateTime @default(now())
+  createdAt          DateTime @default(now())
+
+  session InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@map("session_screen_captures")
+}
+
+model SessionScreenObservation {
+  id        String   @id @default(cuid())
+  sessionId String
+  summary   String   @db.Text
+  timestamp DateTime
+  createdAt DateTime @default(now())
+
+  session InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@map("session_screen_observations")
 }
