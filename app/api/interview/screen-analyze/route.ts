@@ -5,10 +5,8 @@ import { API_TIMEOUTS, withApiHandler } from "@/lib/api/handler";
 import { ApiError } from "@/lib/api/errors";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { getAzureChatModel } from "@/lib/ai";
-import {
-  isImageBase64WithinLimit,
-  MAX_IMAGE_BASE64_CHARS,
-} from "@/lib/media/image-payload";
+import { isAnalysisImageWithinLimit } from "@/lib/media/image-payload";
+import { ANALYSIS_MAX_BASE64_CHARS } from "@/lib/media/media-optimization";
 import {
   assertScreenObservationCapacity,
   createScreenObservationIfUnderLimit,
@@ -19,7 +17,7 @@ import { MAX_OBSERVATION_SUMMARY_CHARS } from "@/lib/session/session-limits";
 
 const screenAnalyzeSchema = z.object({
   sessionId: z.string(),
-  imageBase64: z.string().min(100).max(MAX_IMAGE_BASE64_CHARS),
+  imageBase64: z.string().min(100).max(ANALYSIS_MAX_BASE64_CHARS),
   roleTitle: z.string(),
   panelistMode: z.enum(["akshay", "archy", "both"]).optional(),
   priorSummary: z.string().optional(),
@@ -29,7 +27,7 @@ export const POST = withApiHandler(async (request: Request) => {
   const authSession = await requireAuth();
   const body = screenAnalyzeSchema.parse(await request.json());
 
-  if (!isImageBase64WithinLimit(body.imageBase64)) {
+  if (!isAnalysisImageWithinLimit(body.imageBase64)) {
     throw new ApiError(
       "VALIDATION_ERROR",
       "Image payload exceeds maximum allowed size.",
