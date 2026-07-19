@@ -14,3 +14,43 @@ export function scoreRingGradient(score: number): string {
   if (score >= 60) return "from-primary/90 to-orange-400";
   return "from-orange-500 to-red-400";
 }
+
+export function scoreTierLabel(score: number): string {
+  if (score >= 80) return "Interview ready";
+  if (score >= 60) return "Almost there";
+  return "Needs prep";
+}
+
+export function scoreTierDescription(score: number): string {
+  if (score >= 80) {
+    return "Your answers show the clarity and structure AI screeners reward.";
+  }
+  if (score >= 60) {
+    return "Solid foundation — tighten specificity and concrete examples.";
+  }
+  return "Focus on structure, examples, and concise delivery before your real screen.";
+}
+
+export function metricBarClass(score: number): string {
+  if (score >= 80) return "bg-emerald-500";
+  if (score >= 60) return "bg-primary";
+  return "bg-orange-500";
+}
+
+export function averageMetric(
+  values: number[],
+  fallback = 0,
+): number {
+  if (!values.length) return fallback;
+  return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
+}
+
+export function answerCompositeScore(answer: {
+  clarity: number;
+  structure: number;
+  technicalSignal: number;
+}): number {
+  return Math.round(
+    (answer.clarity + answer.structure + answer.technicalSignal) / 3,
+  );
+}

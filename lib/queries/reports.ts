@@ -1,4 +1,4 @@
-import { cacheLife, cacheTag, updateTag } from "next/cache";
+import { cacheLife, cacheTag, revalidateTag } from "next/cache";
 import {
   getReportByShareToken,
   reportToEvaluateResponse,
@@ -103,9 +103,9 @@ export function invalidateReportCache(input: {
   sessionId?: string;
 }) {
   if (input.shareToken) {
-    updateTag(`share-report:${input.shareToken}`);
+    revalidateTag(`share-report:${input.shareToken}`, "max");
   }
   if (input.sessionId) {
-    updateTag(`session-report:${input.sessionId}`);
+    revalidateTag(`session-report:${input.sessionId}`, "max");
   }
 }

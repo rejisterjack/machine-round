@@ -2,11 +2,7 @@
 
 import type { ReactNode } from "react";
 import { Progress } from "@/components/ui/progress";
-import {
-  countScoredQuestions,
-  getMaxScoredQuestions,
-  scoredProgress,
-} from "@/lib/ai/question-cap";
+import { durationProgress } from "@/lib/ai/question-cap";
 import {
   getDurationProfile,
   type InterviewDuration,
@@ -15,7 +11,6 @@ import { ndColors } from "@/lib/design/tokens";
 
 type InterviewRoomProps = {
   roleTitle: string;
-  questionCount: number;
   interviewDuration: InterviewDuration;
   elapsedSeconds: number;
   onLeave: () => void;
@@ -35,7 +30,6 @@ function formatElapsed(seconds: number) {
 
 export function InterviewRoom({
   roleTitle,
-  questionCount,
   interviewDuration,
   elapsedSeconds,
   onLeave,
@@ -47,9 +41,7 @@ export function InterviewRoom({
   error,
 }: InterviewRoomProps) {
   const profile = getDurationProfile(interviewDuration);
-  const maxScored = getMaxScoredQuestions(profile.maxQuestions);
-  const scored = countScoredQuestions(questionCount);
-  const progress = scoredProgress(questionCount, profile.maxQuestions);
+  const progress = durationProgress(elapsedSeconds, interviewDuration);
   const totalSeconds = profile.minutes * 60;
 
   return (
@@ -61,8 +53,7 @@ export function InterviewRoom({
         <div className="min-w-0">
           <p className="truncate text-sm font-medium">{roleTitle}</p>
           <p className="text-xs text-muted-foreground">
-            Q {scored}/{maxScored} · {formatElapsed(elapsedSeconds)} /{" "}
-            {formatElapsed(totalSeconds)}
+            {formatElapsed(elapsedSeconds)} / {formatElapsed(totalSeconds)}
           </p>
         </div>
         <div className="hidden w-32 sm:block">

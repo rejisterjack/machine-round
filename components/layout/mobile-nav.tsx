@@ -2,47 +2,89 @@
 
 import Link from "next/link";
 import {
-  ChevronUp,
-  ClipboardList,
-  Code2,
+  BookOpen,
+  Bot,
+  Briefcase,
+  CircleDollarSign,
+  Gift,
+  Grid2x2,
+  History,
+  Lightbulb,
+  Map,
   Menu,
   Monitor,
-  Trophy,
-  Users,
+  Newspaper,
+  X,
 } from "lucide-react";
 import { useSession } from "next-auth/react";
-import { useState } from "react";
 import { UserMenu } from "@/components/auth/user-menu";
+import { NamasteLogo } from "@/components/brand/namaste-logo";
 import { buttonVariants } from "@/components/ui/button";
 import {
   Sheet,
+  SheetClose,
   SheetContent,
-  SheetHeader,
-  SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import {
-  coursesNav,
-  exploreNavItems,
-  hackathonNav,
-} from "@/lib/design/tokens";
+import { sidebarNavItems } from "@/lib/design/tokens";
 import { cn } from "@/lib/utils";
 
 const iconMap = {
+  newspaper: Newspaper,
+  briefcase: Briefcase,
+  book: BookOpen,
+  map: Map,
+  grid: Grid2x2,
+  bot: Bot,
+  lightbulb: Lightbulb,
+  gift: Gift,
+  dollar: CircleDollarSign,
   monitor: Monitor,
-  users: Users,
-  trophy: Trophy,
-  clipboard: ClipboardList,
-  code: Code2,
+  history: History,
 } as const;
 
 type MobileNavProps = {
   trigger?: React.ReactElement;
 };
 
+function SidebarLink({
+  href,
+  label,
+  icon,
+  external = true,
+}: {
+  href: string;
+  label: string;
+  icon: keyof typeof iconMap;
+  external?: boolean;
+}) {
+  const Icon = iconMap[icon];
+  const className = "nd-sidebar-item";
+
+  if (external) {
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={className}
+      >
+        <Icon className="nd-sidebar-item-icon" strokeWidth={1.75} />
+        {label}
+      </a>
+    );
+  }
+
+  return (
+    <Link href={href} className={className}>
+      <Icon className="nd-sidebar-item-icon" strokeWidth={1.75} />
+      {label}
+    </Link>
+  );
+}
+
 export function MobileNav({ trigger }: MobileNavProps) {
   const { data: session } = useSession();
-  const [exploreOpen, setExploreOpen] = useState(false);
 
   const defaultTrigger = (
     <button
@@ -57,101 +99,72 @@ export function MobileNav({ trigger }: MobileNavProps) {
   return (
     <Sheet>
       <SheetTrigger render={trigger ?? defaultTrigger} />
-      <SheetContent side="left" className="w-full max-w-xs border-border bg-black">
-        <SheetHeader>
-          <SheetTitle className="text-foreground">Menu</SheetTitle>
-        </SheetHeader>
-        <nav className="flex flex-col gap-1 px-4">
-          <a
-            href={hackathonNav.href}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="nd-hackathon-pill mt-2 w-fit"
+      <SheetContent
+        side="left"
+        showCloseButton={false}
+        className="nd-sidebar"
+        overlayClassName="bg-black/55 backdrop-blur-[1px]"
+      >
+        <div className="nd-sidebar-header">
+          <NamasteLogo
+            href="https://namastedev.com/"
+            size="sm"
+            className="ml-0"
+          />
+          <SheetClose
+            render={
+              <button
+                type="button"
+                className="nd-sidebar-close"
+                aria-label="Close menu"
+              />
+            }
           >
-            {hackathonNav.label}
-            {hackathonNav.live ? <span className="nd-live-badge">Live</span> : null}
-          </a>
+            <X className="size-5" strokeWidth={1.75} />
+          </SheetClose>
+        </div>
 
-          <a
-            href={coursesNav.href}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="nd-header-link mt-3 inline-flex"
-          >
-            {coursesNav.label}
-          </a>
-
-          <button
-            type="button"
-            className={cn(
-              "nd-header-pill mt-3 w-fit",
-              exploreOpen && "nd-header-pill-open",
-            )}
-            aria-expanded={exploreOpen}
-            onClick={() => setExploreOpen((value) => !value)}
-          >
-            Explore
-            <ChevronUp
-              className={cn(
-                "size-4 transition-transform duration-200",
-                !exploreOpen && "rotate-180",
-              )}
+        <nav aria-label="NamasteDev" className="nd-sidebar-nav">
+          {sidebarNavItems.map((item) => (
+            <SidebarLink
+              key={item.label}
+              href={item.href}
+              label={item.label}
+              icon={item.icon}
             />
-          </button>
+          ))}
 
-          {exploreOpen ? (
-            <div className="mt-2 space-y-1 rounded-xl border border-white/10 bg-[#080808] p-2">
-              {exploreNavItems.map((item) => {
-                const Icon = iconMap[item.icon];
-                const isExternal = item.href.startsWith("http");
-                const className = "nd-explore-item";
+          <div className="my-2 border-t border-white/5" />
 
-                if (isExternal) {
-                  return (
-                    <a
-                      key={item.label}
-                      href={item.href}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={className}
-                    >
-                      <Icon className="nd-explore-item-icon" strokeWidth={1.75} />
-                      {item.label}
-                    </a>
-                  );
-                }
-
-                return (
-                  <Link key={item.label} href={item.href} className={className}>
-                    <Icon className="nd-explore-item-icon" strokeWidth={1.75} />
-                    {item.label}
-                  </Link>
-                );
-              })}
-            </div>
-          ) : null}
-
-          <div className="mt-4 border-t border-white/10 pt-4">
-            <UserMenu variant="mobile" className="px-1" />
-          </div>
-
+          <SidebarLink
+            href="/interview"
+            label="Interview Practice"
+            icon="monitor"
+            external={false}
+          />
           {session?.user ? (
-            <Link
+            <SidebarLink
               href="/history"
-              className="nd-header-link mt-2 inline-flex px-3"
-            >
-              My Rounds
-            </Link>
+              label="My Rounds"
+              icon="history"
+              external={false}
+            />
           ) : null}
+        </nav>
 
+        <div className="nd-sidebar-footer">
+          <UserMenu variant="mobile" className="mb-3 px-0" />
           <Link
             href="/interview"
-            className={cn(buttonVariants({ variant: "ndPrimary", size: "lg" }), "mt-6 w-full")}
+            className={cn(
+              buttonVariants({ variant: "ndPrimary", size: "lg" }),
+              "w-full",
+            )}
           >
             <span className="nd-cta-dot" aria-hidden />
             Start Round
           </Link>
-        </nav>
+        </div>
       </SheetContent>
     </Sheet>
   );
