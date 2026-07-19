@@ -145,7 +145,12 @@ function InterviewRoleContent() {
       }
 
       if (!response.ok) {
-        throw new Error("Could not create your interview session.");
+        const data = (await response.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        throw new Error(
+          data.error ?? "Could not create your interview session.",
+        );
       }
 
       const data = (await response.json()) as {
