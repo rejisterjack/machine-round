@@ -1,6 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { Menu, MoreVertical } from "lucide-react";
+import { useSession } from "next-auth/react";
 import { useState } from "react";
 import { NamasteLogo } from "@/components/brand/namaste-logo";
 import { UserMenu } from "@/components/auth/user-menu";
@@ -16,6 +18,7 @@ const moreOptions = [
 
 export function SiteHeader() {
   const [moreOpen, setMoreOpen] = useState(false);
+  const { data: session } = useSession();
 
   return (
     <header className="sticky top-0 z-[60] border-b border-nd-header-border bg-nd-header">
@@ -37,6 +40,13 @@ export function SiteHeader() {
             <li>
               <ExploreDropdown />
             </li>
+            {session?.user ? (
+              <li>
+                <Link href="/history" className="nd-nav-link">
+                  My Rounds
+                </Link>
+              </li>
+            ) : null}
             <li>
               <UserMenu />
             </li>

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { Menu } from "lucide-react";
+import { useSession } from "next-auth/react";
 import { UserMenu } from "@/components/auth/user-menu";
 import { buttonVariants } from "@/components/ui/button";
 import {
@@ -24,6 +25,7 @@ type MobileNavProps = {
 };
 
 export function MobileNav({ trigger }: MobileNavProps) {
+  const { data: session } = useSession();
   const defaultTrigger = (
     <button
       type="button"
@@ -58,6 +60,14 @@ export function MobileNav({ trigger }: MobileNavProps) {
           ))}
           <p className="mb-2 mt-4 nd-section-heading">Account</p>
           <UserMenu variant="mobile" className="px-1" />
+          {session?.user ? (
+            <Link
+              href="/history"
+              className="rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-white/5 hover:text-primary"
+            >
+              My Rounds
+            </Link>
+          ) : null}
           {navLinks.map((link) => (
             <a
               key={link.label}
