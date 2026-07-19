@@ -40,7 +40,6 @@ export function NdCourseCard({
             fill
             className="object-cover transition-transform duration-300 group-hover:scale-105"
             sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 25vw"
-            unoptimized
           />
         </div>
       </div>

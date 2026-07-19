@@ -1,8 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { InterviewRoom } from "@/components/interview/room/interview-room";
 import { LiveCaptions } from "@/components/interview/room/live-captions";
 import { MediaControlBar } from "@/components/interview/room/media-control-bar";
 import { PreJoinLobby } from "@/components/interview/room/pre-join-lobby";
@@ -72,6 +72,21 @@ import {
   createAssistantDedupState,
   shouldAcceptAssistantTranscriptEvent,
 } from "@/lib/voice/transcript-dedup";
+
+const InterviewRoom = dynamic(
+  () =>
+    import("@/components/interview/room/interview-room").then((module) => ({
+      default: module.InterviewRoom,
+    })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-dvh items-center justify-center text-sm text-muted-foreground">
+        Loading interview room…
+      </div>
+    ),
+  },
+);
 
 type RoomPhase = "lobby" | "room";
 

@@ -1,10 +1,10 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { Breadcrumb } from "@/components/layout/breadcrumb";
 import { PageShell } from "@/components/layout/page-shell";
-import { SessionReplay } from "@/components/replay/session-replay";
 import { ApiErrorCard } from "@/components/ui/api-error-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import type {
@@ -12,6 +12,17 @@ import type {
   InterviewMessage,
 } from "@/lib/session/interview-store";
 import type { ScreenCaptureItem } from "@/components/replay/screen-timeline";
+
+const SessionReplay = dynamic(
+  () =>
+    import("@/components/replay/session-replay").then((module) => ({
+      default: module.SessionReplay,
+    })),
+  {
+    ssr: false,
+    loading: () => <Skeleton className="h-64 w-full rounded-lg" />,
+  },
+);
 
 type ReplayPayload = {
   id: string;
