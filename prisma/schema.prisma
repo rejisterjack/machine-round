@@ -99,7 +99,7 @@ model User {
   updatedAt     DateTime  @updatedAt
 
   accounts          Account[]
-  authSessions      AuthSession[]
+  sessions          Session[]
   interviewSessions InterviewSession[]
   newsletterLeads   NewsletterLead[]
 
@@ -127,7 +127,7 @@ model Account {
   @@map("accounts")
 }
 
-model AuthSession {
+model Session {
   id           String   @id @default(cuid())
   sessionToken String   @unique
   userId       String

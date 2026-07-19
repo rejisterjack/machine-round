@@ -36,13 +36,26 @@ async function main() {
   console.log(`roles: ${roles.roles.length} found`);
 
   const firstRole = roles.roles[0] as { id: string };
-  const session = (await check("/api/sessions", {
+  const sessionResponse = await fetch(`${baseUrl}/api/sessions`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ roleId: firstRole.id }),
-  })) as { persisted?: boolean; id?: string };
+  });
+  const sessionText = await sessionResponse.text();
+  let session: { persisted?: boolean; id?: string };
+  try {
+    session = JSON.parse(sessionText) as { persisted?: boolean; id?: string };
+  } catch {
+    session = {};
+  }
 
-  if (session.persisted !== false && session.id) {
+  if (sessionResponse.status === 401) {
+    console.log("session create/get: skipped (auth required)");
+  } else if (!sessionResponse.ok) {
+    throw new Error(
+      `/api/sessions failed (${sessionResponse.status}): ${sessionText}`,
+    );
+  } else if (session.persisted !== false && session.id) {
     await check(`/api/sessions/${session.id}`);
     console.log("session create/get: ok");
   } else {

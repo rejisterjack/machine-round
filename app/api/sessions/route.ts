@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { auth } from "@/lib/auth/auth";
 import { withApiHandler } from "@/lib/api/handler";
 import { ApiError } from "@/lib/api/errors";
 import {
@@ -50,11 +51,19 @@ function serializeSession(
 }
 
 export const POST = withApiHandler(async (request: Request) => {
+  const session = await auth();
+  if (!session?.user?.id) {
+    throw new ApiError("UNAUTHORIZED", "Sign in required.", 401);
+  }
+
   const body = createSessionSchema.parse(await request.json());
   await resolveRole({ roleId: body.roleId });
 
-  const session = await createInterviewSession(body);
-  if (!session) {
+  const interviewSession = await createInterviewSession({
+    ...body,
+    userId: session.user.id,
+  });
+  if (!interviewSession) {
     return NextResponse.json({
       persisted: false,
       roleId: body.roleId,
@@ -63,7 +72,7 @@ export const POST = withApiHandler(async (request: Request) => {
 
   return NextResponse.json({
     persisted: true,
-    ...serializeSession(session),
+    ...serializeSession(interviewSession),
   });
 });
 

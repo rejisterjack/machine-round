@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { Menu } from "lucide-react";
+import { UserMenu } from "@/components/auth/user-menu";
 import { buttonVariants } from "@/components/ui/button";
 import {
   Sheet,
@@ -15,7 +16,6 @@ import { cn } from "@/lib/utils";
 
 const navLinks = [
   { label: "Courses", href: "https://namastedev.com/learn" },
-  { label: "Sign In", href: "https://namastedev.com" },
   { label: "Contact", href: "https://namastedev.com/contact-us" },
 ] as const;
 
@@ -57,6 +57,7 @@ export function MobileNav({ trigger }: MobileNavProps) {
             </a>
           ))}
           <p className="mb-2 mt-4 nd-section-heading">Account</p>
+          <UserMenu variant="mobile" className="px-1" />
           {navLinks.map((link) => (
             <a
               key={link.label}

@@ -69,6 +69,9 @@ function InterviewRoleContent() {
           session.dbSessionId = data.id;
           session.publicId = data.publicId;
         }
+      } else if (response.status === 401) {
+        router.push(`/login?callbackUrl=${encodeURIComponent("/interview")}`);
+        return;
       }
     } catch {
       // Keep client-only session as fallback when persistence is unavailable.

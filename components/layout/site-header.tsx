@@ -3,6 +3,7 @@
 import { Menu, MoreVertical } from "lucide-react";
 import { useState } from "react";
 import { NamasteLogo } from "@/components/brand/namaste-logo";
+import { UserMenu } from "@/components/auth/user-menu";
 import { ExploreDropdown } from "@/components/layout/explore-dropdown";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { cn } from "@/lib/utils";
@@ -37,14 +38,7 @@ export function SiteHeader() {
               <ExploreDropdown />
             </li>
             <li>
-              <a
-                href="https://namastedev.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="nd-nav-link"
-              >
-                Sign In
-              </a>
+              <UserMenu />
             </li>
             <li className="relative">
               <button
