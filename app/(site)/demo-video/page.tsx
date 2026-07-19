@@ -3,11 +3,12 @@ import { ExternalLink, Video } from "lucide-react";
 import { HeroGridBackground } from "@/components/brand/hero-grid-background";
 import { PageShell } from "@/components/layout/page-shell";
 import { buttonVariants } from "@/components/ui/button";
+import { optimizedVideoUrl } from "@/lib/media/cloudinary-url";
 import { cn } from "@/lib/utils";
 
-// TODO: replace with the real Cloudinary demo video URL
-const DEMO_VIDEO_SRC =
-  "https://res.cloudinary.com/<your-cloud>/video/upload/v<version>/namaste-machine-round-demo.mp4";
+const DEMO_VIDEO_SRC = optimizedVideoUrl(
+  "https://res.cloudinary.com/dyrbtaqg2/video/upload/machine-round/marketing/namaste-machine-round-demo.mp4",
+);
 
 const GITHUB_REPO_URL = "https://github.com/rejisterjack/machine-round";
 
@@ -47,7 +48,7 @@ const highlights = [
 export const metadata = {
   title: "Demo Video · Namaste Machine Round",
   description:
-    "A 3-minute walkthrough of Namaste Machine Round — voice interview, adaptive follow-ups, readiness report, and share.",
+    "A full product walkthrough of Namaste Machine Round — voice interview, adaptive follow-ups, readiness report, and share.",
 };
 
 export default function DemoVideoPage() {
@@ -64,8 +65,8 @@ export default function DemoVideoPage() {
               <span className="nd-hero-accent">in action</span>
             </h1>
             <p className="mx-auto mt-6 max-w-2xl text-sm text-muted-foreground sm:text-base">
-              A 3-minute walkthrough — from role selection and live voice
-              interview to readiness report, share link, and replay.
+              A full walkthrough — from role selection and live voice interview
+              to readiness report, share link, and replay.
             </p>
           </div>
         </div>
@@ -79,7 +80,7 @@ export default function DemoVideoPage() {
                 <Video className="size-4 text-primary" />
                 <span className="text-sm font-medium">Product demo</span>
               </div>
-              <span className="nd-pill-badge text-xs">3-minute walkthrough</span>
+              <span className="nd-pill-badge text-xs">Product walkthrough</span>
             </div>
             <video
               src={DEMO_VIDEO_SRC}
@@ -92,7 +93,7 @@ export default function DemoVideoPage() {
           </div>
 
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-            <p>3-minute walkthrough of Namaste Machine Round</p>
+            <p>Product walkthrough of Namaste Machine Round</p>
             <a
               href={DEMO_VIDEO_SRC}
               target="_blank"
