@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { auth } from "@/lib/auth/auth";
+import { requireAuth } from "@/lib/auth/require-auth";
 import { withApiHandler } from "@/lib/api/handler";
 import { ApiError } from "@/lib/api/errors";
 import {
@@ -9,11 +9,13 @@ import {
 } from "@/lib/session/persistence";
 import { reportToEvaluateResponse } from "@/lib/session/report-queries";
 import { resolveRole } from "@/lib/session/roles";
+import { assertSessionOwner } from "@/lib/session/session-access";
 import { roleSlugToId } from "@/lib/session/role-slug";
 
 const createSessionSchema = z.object({
   roleId: z.string(),
   inputMode: z.enum(["text", "voice", "mixed"]).optional(),
+  panelistMode: z.enum(["akshay", "archy", "both"]).optional(),
 });
 
 function serializeSession(
@@ -22,6 +24,7 @@ function serializeSession(
     publicId: string;
     status: string;
     inputMode: string;
+    panelistMode?: string;
     questionCount: number;
     topicsCovered: string[];
     weakSignals: string[];
@@ -37,6 +40,7 @@ function serializeSession(
     roleTitle: session.role.title,
     status: session.status,
     inputMode: session.inputMode,
+    panelistMode: session.panelistMode ?? "both",
     questionCount: session.questionCount,
     topicsCovered: session.topicsCovered,
     weakSignals: session.weakSignals,
@@ -51,10 +55,7 @@ function serializeSession(
 }
 
 export const POST = withApiHandler(async (request: Request) => {
-  const session = await auth();
-  if (!session?.user?.id) {
-    throw new ApiError("UNAUTHORIZED", "Sign in required.", 401);
-  }
+  const session = await requireAuth();
 
   const body = createSessionSchema.parse(await request.json());
   await resolveRole({ roleId: body.roleId });
@@ -77,10 +78,13 @@ export const POST = withApiHandler(async (request: Request) => {
 });
 
 export const GET = withApiHandler(async (request: Request) => {
+  const authSession = await requireAuth();
   const sessionId = new URL(request.url).searchParams.get("id");
   if (!sessionId) {
     throw new ApiError("VALIDATION_ERROR", "Missing session id.", 400);
   }
+
+  await assertSessionOwner(sessionId, authSession.user.id);
 
   const session = await getInterviewSessionById(sessionId);
   if (!session) {
