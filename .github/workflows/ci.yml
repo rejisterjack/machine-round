@@ -5,6 +5,9 @@ on:
     branches: [main, dev]
   pull_request:
 
+env:
+  DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+
 jobs:
   quality:
     runs-on: ubuntu-latest
