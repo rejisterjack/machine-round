@@ -3,7 +3,7 @@ import { AtSign, Earth, Heart, Map } from "lucide-react";
 import { AppStoreBadges } from "@/components/brand/app-store-badges";
 import { SocialLinks } from "@/components/brand/social-links";
 import { FooterScrollToTop } from "@/components/layout/footer-scroll-to-top";
-import { footerCta, footerNav } from "@/lib/design/tokens";
+import { footerCta, footerInterviewLinks, footerNav } from "@/lib/design/tokens";
 
 function FooterColumn({
   icon: Icon,
@@ -107,8 +107,8 @@ export function SiteFooter() {
             ))}
           </FooterColumn>
 
-          <FooterColumn icon={Earth} title="Explore Our Courses">
-            {footerNav.courses.map((link) => (
+          <FooterColumn icon={Earth} title="Explore Interviews">
+            {footerInterviewLinks.map((link) => (
               <FooterLink key={link.label} href={link.href}>
                 {link.label}
               </FooterLink>

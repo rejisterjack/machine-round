@@ -306,11 +306,20 @@ export function ReportPageClient({ initialSession }: ReportPageClientProps) {
 
   useEffect(() => {
     if (hydrating || session === null) return;
+
+    if (session.report) {
+      reportRequested.current = true;
+      setError(undefined);
+      return;
+    }
+
+    if (reportRequested.current) return;
+
     if (!session.messages.length) {
       router.replace("/interview");
       return;
     }
-    if (session.report || reportRequested.current) return;
+
     reportRequested.current = true;
     void generateReport(session);
   }, [router, session, hydrating, generateReport]);
@@ -347,7 +356,11 @@ export function ReportPageClient({ initialSession }: ReportPageClientProps) {
         ) : error ? (
           <ApiErrorCard
             className="mt-10"
-            message={sessionLastError ? `${error} ${sessionLastError}` : error}
+            message={
+              sessionLastError && sessionLastError !== error
+                ? `${error} ${sessionLastError}`
+                : error
+            }
             onRetry={() => void generateReport(session)}
             retryLabel="Retry report"
           />
