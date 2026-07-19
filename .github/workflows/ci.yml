@@ -7,6 +7,15 @@ on:
 
 env:
   DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+  AUTH_SECRET: ci-auth-secret-minimum-32-characters-long
+  AUTH_GOOGLE_ID: ci-google-client-id
+  AUTH_GOOGLE_SECRET: ci-google-client-secret
+  AZURE_OPENAI_ENDPOINT: https://ci-example.openai.azure.com/
+  AZURE_OPENAI_API_KEY: ci-azure-openai-api-key
+  AZURE_OPENAI_API_VERSION: 2025-04-01-preview
+  AZURE_OPENAI_CHAT_DEPLOYMENT: gpt-ci
+  AZURE_OPENAI_REALTIME_DEPLOYMENT: gpt-realtime-ci
+  AZURE_OPENAI_EMBEDDING_DEPLOYMENT: text-embedding-ci
 
 jobs:
   quality:
