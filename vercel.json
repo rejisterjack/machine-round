@@ -1,0 +1,13 @@
+{
+  "functions": {
+    "app/api/evaluate/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/interview/route.ts": {
+      "maxDuration": 30
+    },
+    "app/api/reports/share/[token]/pdf/route.tsx": {
+      "maxDuration": 30
+    }
+  }
+}

@@ -5,6 +5,7 @@ import { CodexTerminal } from "@/components/brand/codex-terminal";
 import { NdCourseCard } from "@/components/brand/nd-course-card";
 import { NdHero } from "@/components/brand/nd-hero";
 import { RoleCardSkeleton } from "@/components/brand/role-card-skeleton";
+import { SampleReportPreview } from "@/components/landing/sample-report-preview";
 import { PageShell } from "@/components/layout/page-shell";
 import { useRoles } from "@/hooks/use-roles";
 
@@ -149,6 +150,20 @@ export default function HomePage() {
               </p>
             </div>
           ))}
+        </div>
+      </section>
+
+      <section className="nd-section-gap">
+        <p className="nd-section-heading text-center">Sample report</p>
+        <h2 className="mt-3 text-center font-heading text-2xl font-medium sm:text-3xl lg:text-4xl">
+          See what you get after a round
+        </h2>
+        <p className="mx-auto mt-3 max-w-2xl text-center text-sm text-muted-foreground">
+          Judges and first-time visitors can preview a readiness report before
+          signing in. Full interviews require Google sign-in for history and replay.
+        </p>
+        <div className="mx-auto mt-10 max-w-4xl">
+          <SampleReportPreview />
         </div>
       </section>
 

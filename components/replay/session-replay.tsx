@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import { CodexTerminal } from "@/components/brand/codex-terminal";
 import { ReadinessReport } from "@/components/report/readiness-report";
@@ -9,9 +11,12 @@ import {
 } from "@/components/replay/screen-timeline";
 import { Button } from "@/components/ui/button";
 import { getPanelist } from "@/lib/ai/personas/panelists";
+import { useFailedRecordingRetry } from "@/hooks/use-failed-recording-retry";
+import { optimizedVideoUrl } from "@/lib/media/cloudinary-url";
 import type { EvaluateResponse, InterviewMessage } from "@/lib/session/interview-store";
 
 type SessionReplayProps = {
+  sessionId?: string;
   roleTitle: string;
   messages: InterviewMessage[];
   report?: EvaluateResponse & { shareToken?: string | null };
@@ -20,8 +25,13 @@ type SessionReplayProps = {
   panelistMode?: string;
   audioRecordingUrl?: string;
   recordingDurationMs?: number;
+  recordingStatus?: string | null;
+  hasRecording?: boolean;
   screenCaptures?: ScreenCaptureItem[];
   screenReviewNotes?: string[];
+  onRecordingRetry?: () => void;
+  /** When true, hides owner-only actions (e.g. recording retry). */
+  readOnly?: boolean;
 };
 
 function panelistLabel(mode?: string) {
@@ -31,6 +41,7 @@ function panelistLabel(mode?: string) {
 }
 
 export function SessionReplay({
+  sessionId,
   roleTitle,
   messages,
   report,
@@ -39,13 +50,29 @@ export function SessionReplay({
   panelistMode,
   audioRecordingUrl,
   recordingDurationMs,
+  recordingStatus = null,
+  hasRecording = Boolean(audioRecordingUrl),
   screenCaptures = [],
   screenReviewNotes = [],
+  onRecordingRetry,
+  readOnly = false,
 }: SessionReplayProps) {
+  const { showRetry, retrying, retryError, retryUpload } =
+    useFailedRecordingRetry(
+      sessionId ?? "",
+      hasRecording,
+      recordingStatus,
+      onRecordingRetry,
+    );
+
   const reviewNotes =
     screenReviewNotes.length > 0
       ? screenReviewNotes
       : (report?.screenReviewNotes ?? []);
+
+  const playbackUrl = audioRecordingUrl
+    ? optimizedVideoUrl(audioRecordingUrl)
+    : undefined;
 
   return (
     <div className="space-y-8">
@@ -58,15 +85,30 @@ export function SessionReplay({
         </p>
       </div>
 
-      {audioRecordingUrl ? (
+      {playbackUrl ? (
         <div>
           <h2 className="mb-4 font-heading text-xl font-medium">
             Session recording
           </h2>
           <RecordingPlayer
-            src={audioRecordingUrl}
+            src={playbackUrl}
             durationMs={recordingDurationMs}
           />
+        </div>
+      ) : null}
+
+      {sessionId && showRetry && !readOnly ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            variant="ndGhost"
+            disabled={retrying}
+            onClick={() => void retryUpload()}
+          >
+            {retrying ? "Retrying upload..." : "Retry recording upload"}
+          </Button>
+          {retryError ? (
+            <p className="text-xs text-red-400">{retryError}</p>
+          ) : null}
         </div>
       ) : null}
 

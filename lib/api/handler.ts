@@ -59,11 +59,26 @@ export function withApiHandler<TContext = unknown>(
   const timeoutMs = options.timeoutMs ?? API_TIMEOUTS.default;
 
   return async (request: Request, context?: TContext) => {
+    const startedAt = Date.now();
+    const path = new URL(request.url).pathname;
+
     try {
       const response = await withTimeout(handler(request, context), timeoutMs);
       return response;
     } catch (error) {
+      const durationMs = Date.now() - startedAt;
+
       if (error instanceof Error && error.message.includes("timed out")) {
+        console.error(
+          JSON.stringify({
+            level: "error",
+            type: "api_timeout",
+            method: request.method,
+            path,
+            durationMs,
+            timeoutMs,
+          }),
+        );
         return NextResponse.json(
           { error: "Request timed out. Please retry.", code: "TIMEOUT" },
           { status: 504 },
@@ -71,6 +86,21 @@ export function withApiHandler<TContext = unknown>(
       }
 
       const { status, body } = toApiErrorResponse(error);
+      if (status >= 500) {
+        console.error(
+          JSON.stringify({
+            level: "error",
+            type: "api_error",
+            method: request.method,
+            path,
+            durationMs,
+            status,
+            code: body.code,
+            message: error instanceof Error ? error.message : "unknown",
+          }),
+        );
+      }
+
       return NextResponse.json(body, { status });
     }
   };

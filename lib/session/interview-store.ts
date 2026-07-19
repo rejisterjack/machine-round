@@ -42,6 +42,15 @@ export const transcriptRequestSchema = z.object({
   content: z.string().min(1),
   role: z.enum(["user", "assistant"]).default("user"),
   speaker: panelistIdSchema.optional(),
+  questionCount: z.number().int().min(0).optional(),
+  topicsCovered: z.array(z.string()).optional(),
+  weakSignals: z.array(z.string()).optional(),
+  referencedAnswer: z.string().optional(),
+  clientSyncId: z.string().optional(),
+  status: z
+    .enum(["active", "thinking", "completed", "abandoned", "error"])
+    .optional(),
+  completedAt: z.string().datetime().nullable().optional(),
 });
 
 export const screenObservationSchema = z.object({

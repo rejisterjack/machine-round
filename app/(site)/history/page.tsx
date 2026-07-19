@@ -10,6 +10,7 @@ import { PageShell } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
 import { ApiErrorCard } from "@/components/ui/api-error-card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { roles } from "@/lib/design/tokens";
 
 type HistorySession = {
   id: string;
@@ -28,6 +29,14 @@ type HistorySession = {
 
 const PAGE_SIZE = 20;
 
+const STATUS_OPTIONS = [
+  { value: "", label: "All statuses" },
+  { value: "completed", label: "Completed" },
+  { value: "active", label: "Active" },
+  { value: "abandoned", label: "Abandoned" },
+  { value: "error", label: "Error" },
+] as const;
+
 export default function HistoryPage() {
   const { status } = useSession();
   const router = useRouter();
@@ -36,6 +45,24 @@ export default function HistoryPage() {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string>();
+  const [statusFilter, setStatusFilter] = useState("");
+  const [roleFilter, setRoleFilter] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState("");
+
+  const buildQuery = useCallback(
+    (offset: number) => {
+      const params = new URLSearchParams({
+        limit: String(PAGE_SIZE),
+        offset: String(offset),
+      });
+      if (statusFilter) params.set("status", statusFilter);
+      if (roleFilter) params.set("roleId", roleFilter);
+      if (appliedSearch.trim()) params.set("q", appliedSearch.trim());
+      return params.toString();
+    },
+    [appliedSearch, roleFilter, statusFilter],
+  );
 
   const loadHistory = useCallback(
     async (offset = 0, append = false) => {
@@ -47,9 +74,7 @@ export default function HistoryPage() {
       setError(undefined);
 
       try {
-        const response = await fetch(
-          `/api/sessions/mine?limit=${PAGE_SIZE}&offset=${offset}`,
-        );
+        const response = await fetch(`/api/sessions/mine?${buildQuery(offset)}`);
         if (response.status === 401) {
           router.replace("/login?callbackUrl=/history");
           return;
@@ -72,7 +97,7 @@ export default function HistoryPage() {
         setLoadingMore(false);
       }
     },
-    [router],
+    [buildQuery, router],
   );
 
   useEffect(() => {
@@ -81,11 +106,22 @@ export default function HistoryPage() {
       return;
     }
     if (status === "authenticated") {
-      void loadHistory();
+      queueMicrotask(() => void loadHistory());
     }
   }, [status, router, loadHistory]);
 
   const hasMore = sessions.length < total;
+
+  async function handleDelete(sessionId: string): Promise<void> {
+    const response = await fetch(`/api/sessions/${sessionId}`, {
+      method: "DELETE",
+    });
+    if (!response.ok) {
+      throw new Error("Could not delete session.");
+    }
+    setSessions((current) => current.filter((session) => session.id !== sessionId));
+    setTotal((current) => Math.max(0, current - 1));
+  }
 
   return (
     <PageShell>
@@ -104,6 +140,64 @@ export default function HistoryPage() {
           Replay past interviews with transcripts, reports, and session media.
         </p>
 
+        <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="text-muted-foreground">Status</span>
+            <select
+              className="nd-input min-w-[10rem] rounded-md border border-border bg-secondary px-3 py-2"
+              value={statusFilter}
+              onChange={(event) => {
+                setStatusFilter(event.target.value);
+                setAppliedSearch(searchQuery);
+              }}
+            >
+              {STATUS_OPTIONS.map((option) => (
+                <option key={option.label} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="text-muted-foreground">Role</span>
+            <select
+              className="nd-input min-w-[12rem] rounded-md border border-border bg-secondary px-3 py-2"
+              value={roleFilter}
+              onChange={(event) => {
+                setRoleFilter(event.target.value);
+                setAppliedSearch(searchQuery);
+              }}
+            >
+              <option value="">All roles</option>
+              {roles.map((role) => (
+                <option key={role.id} value={role.id}>
+                  {role.title}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex min-w-[14rem] flex-1 flex-col gap-1 text-sm">
+            <span className="text-muted-foreground">Search role</span>
+            <input
+              className="nd-input rounded-md border border-border bg-secondary px-3 py-2"
+              placeholder="e.g. Backend"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  setAppliedSearch(searchQuery);
+                }
+              }}
+            />
+          </label>
+          <Button
+            variant="ndPrimary"
+            onClick={() => setAppliedSearch(searchQuery)}
+          >
+            Apply filters
+          </Button>
+        </div>
+
         {loading || status === "loading" ? (
           <div className="mt-10 grid gap-4 sm:grid-cols-2">
             <Skeleton className="h-44 w-full rounded-lg" />
@@ -118,8 +212,8 @@ export default function HistoryPage() {
         ) : sessions.length === 0 ? (
           <div className="nd-course-card mt-10 p-8 text-center">
             <p className="text-muted-foreground">
-              No Machine Rounds yet. Complete a signed-in interview to see it
-              here.
+              No Machine Rounds match these filters. Complete a signed-in
+              interview or clear filters to see more.
             </p>
             <Button
               variant="ndPrimary"
@@ -131,12 +225,16 @@ export default function HistoryPage() {
           </div>
         ) : (
           <>
-            <div className="mt-10 grid gap-4 sm:grid-cols-2">
+            <p className="mt-6 text-sm text-muted-foreground">
+              Showing {sessions.length} of {total} sessions
+            </p>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
               {sessions.map((session) => (
                 <SessionHistoryCard
                   key={session.id}
                   {...session}
                   onRecordingRetry={() => void loadHistory()}
+                  onDelete={() => handleDelete(session.id)}
                 />
               ))}
             </div>

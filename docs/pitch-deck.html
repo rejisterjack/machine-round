@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Namaste Machine Round — Pitch Deck</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Maven+Pro:wght@500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #030303;
+      --surface: #111111;
+      --fg: #f7f4ee;
+      --muted: rgba(247, 244, 238, 0.65);
+      --accent: #e58c33;
+      --accent-gold: #edae2f;
+      --border: rgba(247, 244, 238, 0.12);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; background: var(--bg); color: var(--fg); font-family: Inter, system-ui, sans-serif; }
+    body { overflow: hidden; }
+    .deck { height: 100vh; width: 100vw; position: relative; }
+    .slide {
+      position: absolute; inset: 0; display: none; flex-direction: column;
+      justify-content: center; padding: 4rem 6rem; background: radial-gradient(circle at 20% 0%, rgba(229,140,51,.12), transparent 40%), var(--bg);
+    }
+    .slide.active { display: flex; }
+    .eyebrow { color: var(--accent); font-size: .85rem; letter-spacing: .12em; text-transform: uppercase; margin-bottom: 1rem; }
+    h1, h2 { font-family: "Maven Pro", Georgia, serif; font-weight: 500; line-height: 1.1; }
+    h1 { font-size: clamp(2.5rem, 5vw, 4rem); max-width: 14ch; }
+    h2 { font-size: clamp(2rem, 4vw, 3rem); max-width: 18ch; margin-bottom: 1.5rem; }
+    p, li { font-size: 1.15rem; line-height: 1.6; color: var(--muted); max-width: 52rem; }
+    ul { margin-top: 1rem; padding-left: 1.25rem; }
+    li { margin: .6rem 0; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-top: 2rem; max-width: 56rem; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem 1.5rem; }
+    .card h3 { font-family: "Maven Pro", serif; color: var(--fg); margin-bottom: .5rem; font-size: 1.1rem; }
+    table { width: 100%; border-collapse: collapse; margin-top: 1.5rem; max-width: 56rem; font-size: 1rem; }
+    th, td { border: 1px solid var(--border); padding: .75rem 1rem; text-align: left; }
+    th { color: var(--accent-gold); font-weight: 500; background: var(--surface); }
+    .footer {
+      position: fixed; bottom: 1.25rem; left: 0; right: 0; display: flex; justify-content: space-between;
+      padding: 0 2rem; color: var(--muted); font-size: .85rem;
+    }
+    .progress { display: flex; gap: .4rem; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border); }
+    .dot.on { background: var(--accent); }
+    .badge { display: inline-block; margin-top: 1.5rem; padding: .4rem .8rem; border-radius: 999px; border: 1px solid var(--accent); color: var(--accent); font-size: .85rem; }
+    .hint { position: fixed; top: 1rem; right: 1.5rem; color: var(--muted); font-size: .8rem; }
+    @media print {
+      body { overflow: visible; }
+      .slide { display: flex !important; position: relative; page-break-after: always; min-height: 100vh; }
+      .hint, .footer { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="hint">← → or Space to navigate · Print to PDF</div>
+  <div class="deck" id="deck">
+    <section class="slide active">
+      <p class="eyebrow">OpenAI × NamasteDev Codex Hackathon</p>
+      <h1>Train for the interviewer that isn't human</h1>
+      <p style="margin-top:1.5rem">Three days before this hackathon I sat in a real AI hiring screen. No human rapport — just a model scoring clarity, structure, and depth.</p>
+      <span class="badge">Namaste Machine Round</span>
+    </section>
+
+    <section class="slide">
+      <p class="eyebrow">Problem</p>
+      <h2>Prep tools optimize the wrong interview</h2>
+      <ul>
+        <li>Rapport, storytelling, and body language ≠ what AI evaluators score</li>
+        <li>AI screens reward clarity, structure, specificity, and conciseness</li>
+        <li>No product trains candidates for machine evaluators today</li>
+      </ul>
+    </section>
+
+    <section class="slide">
+      <p class="eyebrow">Product</p>
+      <h2>Live voice Machine Round + readiness report</h2>
+      <div class="grid-2">
+        <div class="card"><h3>Voice interview</h3><p>Azure OpenAI Realtime via WebRTC with Akshay Saini & Archy Gupta panel personas.</p></div>
+        <div class="card"><h3>Adaptive follow-ups</h3><p>Each question references something specific from the prior answer — not a static script.</p></div>
+        <div class="card"><h3>Screen + recording</h3><p>Vision analysis on shared screen; Cloudinary archive for replay.</p></div>
+        <div class="card"><h3>Readiness report</h3><p>Share link, PDF export, and public replay via share token.</p></div>
+      </div>
+    </section>
+
+    <section class="slide">
+      <p class="eyebrow">AI fluency</p>
+      <h2>Two-agent architecture</h2>
+      <table>
+        <thead><tr><th>Agent</th><th>Role</th><th>When</th></tr></thead>
+        <tbody>
+          <tr><td>Interviewer</td><td>Adaptive questions in real time</td><td>During session</td></tr>
+          <tr><td>Evaluator</td><td>Structured scoring over full transcript</td><td>After session</td></tr>
+        </tbody>
+      </table>
+      <p style="margin-top:1.5rem">Optional RAG grounding from Neon pgvector question bank.</p>
+    </section>
+
+    <section class="slide">
+      <p class="eyebrow">Demo proof points</p>
+      <h2>What judges see live</h2>
+      <ol style="padding-left:1.25rem; margin-top:1rem;">
+        <li style="margin:.75rem 0; color:var(--muted)">Landing sample report (no login) → Google sign-in CTA</li>
+        <li style="margin:.75rem 0; color:var(--muted)">Voice follow-up references prior answer</li>
+        <li style="margin:.75rem 0; color:var(--muted)">Readiness report with per-answer breakdown</li>
+        <li style="margin:.75rem 0; color:var(--muted)">Share link + PDF + public replay</li>
+      </ol>
+    </section>
+
+    <section class="slide">
+      <p class="eyebrow">Market</p>
+      <h2>Who this is for</h2>
+      <ul>
+        <li>Developers facing AI-first hiring screens — fast-growing, underserved segment</li>
+        <li>Secondary: bootcamps, career coaches, hiring prep platforms</li>
+        <li>Wedge: voice + machine-evaluator framing, not another generic chatbot</li>
+      </ul>
+    </section>
+
+    <section class="slide">
+      <p class="eyebrow">Roadmap</p>
+      <h2>What's next</h2>
+      <ul>
+        <li>Company/JD-specific rubrics and weak-topic tracking across sessions</li>
+        <li>Team dashboards for cohort prep</li>
+        <li>Built with <strong style="color:var(--fg)">OpenAI Codex</strong> · Next.js · Azure · Neon · Vercel</li>
+      </ul>
+      <p style="margin-top:2rem; color:var(--fg); font-size:1.25rem">Try it: <a href="https://nmr.rejisterjack.com" style="color:var(--accent)">nmr.rejisterjack.com</a></p>
+    </section>
+  </div>
+
+  <div class="footer">
+    <span>Namaste Machine Round · Rupam Das</span>
+    <div class="progress" id="progress"></div>
+    <span id="counter">1 / 7</span>
+  </div>
+
+  <script>
+    const slides = [...document.querySelectorAll(".slide")];
+    const progress = document.getElementById("progress");
+    const counter = document.getElementById("counter");
+    let index = 0;
+
+    slides.forEach((_, i) => {
+      const dot = document.createElement("span");
+      dot.className = "dot" + (i === 0 ? " on" : "");
+      progress.appendChild(dot);
+    });
+
+    function show(i) {
+      index = (i + slides.length) % slides.length;
+      slides.forEach((s, j) => s.classList.toggle("active", j === index));
+      [...progress.children].forEach((d, j) => d.classList.toggle("on", j === index));
+      counter.textContent = `${index + 1} / ${slides.length}`;
+    }
+
+    window.addEventListener("keydown", (e) => {
+      if (["ArrowRight", " ", "PageDown"].includes(e.key)) { e.preventDefault(); show(index + 1); }
+      if (["ArrowLeft", "PageUp"].includes(e.key)) { e.preventDefault(); show(index - 1); }
+    });
+    show(0);
+  </script>
+</body>
+</html>

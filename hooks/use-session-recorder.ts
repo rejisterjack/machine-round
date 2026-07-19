@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   clearFailedRecording,
   saveFailedRecording,
@@ -30,6 +30,11 @@ type UploadResult = {
   durationMs?: number;
 };
 
+export type StopUploadResult =
+  | { kind: "skipped" }
+  | { kind: "uploaded"; result: UploadResult }
+  | { kind: "failed" };
+
 function pickMimeType(hasVideo: boolean) {
   const mimeCandidates = hasVideo
     ? [
@@ -57,7 +62,9 @@ export function useSessionRecorder(options: SessionRecorderOptions) {
   const startedAtRef = useRef<number | null>(null);
   const stopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const optionsRef = useRef(options);
-  optionsRef.current = options;
+  useEffect(() => {
+    optionsRef.current = options;
+  }, [options]);
 
   const supported =
     typeof window !== "undefined" &&
@@ -254,9 +261,9 @@ export function useSessionRecorder(options: SessionRecorderOptions) {
   }, [attachRecorder, buildCompositeStream, cleanupStreams]);
 
   const uploadRecording = useCallback(
-    async (blob: Blob, durationMs: number): Promise<UploadResult | null> => {
+    async (blob: Blob, durationMs: number): Promise<StopUploadResult> => {
       const sessionId = optionsRef.current.sessionId;
-      if (!sessionId) return null;
+      if (!sessionId) return { kind: "skipped" };
 
       setUploading(true);
       setError(undefined);
@@ -278,15 +285,23 @@ export function useSessionRecorder(options: SessionRecorderOptions) {
         }
 
         await clearFailedRecording(sessionId);
-        return (await response.json()) as UploadResult;
+        return {
+          kind: "uploaded",
+          result: (await response.json()) as UploadResult,
+        };
       } catch (uploadError) {
         await saveFailedRecording(sessionId, blob, durationMs);
+        void fetch(`/api/sessions/${sessionId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ recordingStatus: "failed" }),
+        });
         const message =
           uploadError instanceof Error
             ? uploadError.message
             : "Failed to upload recording.";
         setError(message);
-        return null;
+        return { kind: "failed" };
       } finally {
         setUploading(false);
       }
@@ -294,14 +309,14 @@ export function useSessionRecorder(options: SessionRecorderOptions) {
     [],
   );
 
-  const stopAndUpload = useCallback(async (): Promise<UploadResult | null> => {
+  const stopAndUpload = useCallback(async (): Promise<StopUploadResult> => {
     const blob = await stop();
     const durationMs =
       startedAtRef.current ? Date.now() - startedAtRef.current : 0;
     startedAtRef.current = null;
 
     if (!blob || !optionsRef.current.sessionId) {
-      return null;
+      return { kind: "skipped" };
     }
 
     return uploadRecording(blob, durationMs);

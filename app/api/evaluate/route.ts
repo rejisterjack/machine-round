@@ -8,6 +8,8 @@ import { formatMessageSpeaker } from "@/lib/ai/personas/panelists";
 import { buildEvaluatorPrompt } from "@/lib/ai/prompts/evaluator";
 import { isDbReady } from "@/lib/db/ready";
 import { getScreenObservations } from "@/lib/session/media-queries";
+import { buildCachedEvaluatePayload } from "@/lib/session/evaluate-cache";
+import { shouldReturnCachedReport } from "@/lib/session/evaluate-idempotency";
 import {
   appendInterviewMessages,
   getInterviewSessionById,
@@ -38,20 +40,36 @@ export const POST = withApiHandler(async (request: Request) => {
   }
   await assertSessionOwnerIfPresent(body.sessionId, authSession.user.id);
   const role = await resolveRole(body);
-  const transcript = body.messages.map(formatMessageSpeaker).join("\n");
 
   let sessionWeakSignals = body.weakSignals ?? [];
+  let dbSession = null;
 
   if (body.sessionId && (await isDbReady())) {
-    const dbSession = await getInterviewSessionById(body.sessionId);
+    dbSession = await getInterviewSessionById(body.sessionId);
     if (dbSession) {
       sessionWeakSignals = dbSession.weakSignals;
       const unsynced = body.messages.slice(dbSession.messages.length);
       if (unsynced.length > 0) {
         await appendInterviewMessages(body.sessionId, unsynced);
+        dbSession = await getInterviewSessionById(body.sessionId);
+      }
+
+      if (
+        dbSession &&
+        shouldReturnCachedReport(
+          dbSession.messages.length === body.messages.length,
+          Boolean(dbSession.report),
+        )
+      ) {
+        const cached = buildCachedEvaluatePayload(dbSession);
+        if (cached) {
+          return NextResponse.json(cached);
+        }
       }
     }
   }
+
+  const transcript = body.messages.map(formatMessageSpeaker).join("\n");
 
   const screenObservations =
     body.sessionId && (await isDbReady())

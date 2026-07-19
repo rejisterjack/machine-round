@@ -1,9 +1,14 @@
 import { DEV_SERVER_URL } from "../lib/config/dev-server";
+import {
+  assertAuthForSmoke,
+  isSmokeAuthConfigured,
+  smokeFetchInit,
+} from "./smoke-auth";
 
 const baseUrl = process.env.SMOKE_BASE_URL ?? DEV_SERVER_URL;
 
 async function check(path: string, init?: RequestInit) {
-  const response = await fetch(`${baseUrl}${path}`, init);
+  const response = await fetch(`${baseUrl}${path}`, smokeFetchInit(init));
   const text = await response.text();
   let json: unknown;
   try {
@@ -11,6 +16,8 @@ async function check(path: string, init?: RequestInit) {
   } catch {
     json = text;
   }
+
+  assertAuthForSmoke(path, response.status);
 
   if (!response.ok) {
     throw new Error(`${path} failed (${response.status}): ${text}`);
@@ -21,6 +28,9 @@ async function check(path: string, init?: RequestInit) {
 
 async function main() {
   console.log(`Running API smoke checks against ${baseUrl}`);
+  if (isSmokeAuthConfigured()) {
+    console.log("auth: SMOKE_AUTH_COOKIE configured — authenticated paths required");
+  }
 
   const health = (await check("/api/health")) as {
     ok: boolean;
@@ -29,10 +39,15 @@ async function main() {
   };
   console.log("health:", health);
 
-  const rolesResponse = await fetch(`${baseUrl}/api/roles`);
+  const rolesResponse = await fetch(
+    `${baseUrl}/api/roles`,
+    smokeFetchInit(),
+  );
   const rolesText = await rolesResponse.text();
+  assertAuthForSmoke("/api/roles", rolesResponse.status);
+
   if (rolesResponse.status === 401) {
-    console.log("roles: skipped (auth required)");
+    console.log("roles: skipped (auth required — set SMOKE_AUTH_COOKIE to exercise)");
     console.log("Smoke checks passed.");
     return;
   }
@@ -48,11 +63,14 @@ async function main() {
   console.log(`roles: ${roles.roles.length} found`);
 
   const firstRole = roles.roles[0] as { id: string };
-  const sessionResponse = await fetch(`${baseUrl}/api/sessions`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ roleId: firstRole.id }),
-  });
+  const sessionResponse = await fetch(
+    `${baseUrl}/api/sessions`,
+    smokeFetchInit({
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ roleId: firstRole.id }),
+    }),
+  );
   const sessionText = await sessionResponse.text();
   let session: { persisted?: boolean; id?: string };
   try {
@@ -60,6 +78,8 @@ async function main() {
   } catch {
     session = {};
   }
+
+  assertAuthForSmoke("/api/sessions", sessionResponse.status);
 
   if (sessionResponse.status === 401) {
     console.log("session create/get: skipped (auth required)");
@@ -74,17 +94,22 @@ async function main() {
     console.log("session persistence skipped (database not ready)");
   }
 
-  const interviewResponse = await fetch(`${baseUrl}/api/interview`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      roleId: firstRole.id,
-      messages: [],
-      questionCount: 0,
-      sessionId: session.id,
+  const interviewResponse = await fetch(
+    `${baseUrl}/api/interview`,
+    smokeFetchInit({
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        roleId: firstRole.id,
+        messages: [],
+        questionCount: 0,
+        sessionId: session.id,
+      }),
     }),
-  });
+  );
   const interviewText = await interviewResponse.text();
+
+  assertAuthForSmoke("/api/interview", interviewResponse.status);
 
   if (interviewResponse.status === 401) {
     console.log("interview panelist: skipped (auth required)");

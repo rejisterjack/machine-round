@@ -26,7 +26,9 @@ export function ScreenShareStage({
 }: ScreenShareStageProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const onVideoReadyRef = useRef(onVideoReady);
-  onVideoReadyRef.current = onVideoReady;
+  useEffect(() => {
+    onVideoReadyRef.current = onVideoReady;
+  }, [onVideoReady]);
 
   useEffect(() => {
     const video = videoRef.current;

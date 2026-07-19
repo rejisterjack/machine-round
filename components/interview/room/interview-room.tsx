@@ -3,7 +3,10 @@
 import type { ReactNode } from "react";
 import { Progress } from "@/components/ui/progress";
 import { ndColors } from "@/lib/design/tokens";
-import { MAX_QUESTIONS } from "@/lib/design/tokens";
+import {
+  countScoredQuestions,
+  MAX_SCORED_QUESTIONS,
+} from "@/lib/ai/question-cap";
 
 type InterviewRoomProps = {
   roleTitle: string;
@@ -34,7 +37,8 @@ export function InterviewRoom({
   selfPreview,
   error,
 }: InterviewRoomProps) {
-  const progress = (questionCount / MAX_QUESTIONS) * 100;
+  const scored = countScoredQuestions(questionCount);
+  const progress = (scored / MAX_SCORED_QUESTIONS) * 100;
 
   return (
     <div
@@ -45,7 +49,7 @@ export function InterviewRoom({
         <div className="min-w-0">
           <p className="truncate text-sm font-medium">{roleTitle}</p>
           <p className="text-xs text-muted-foreground">
-            Q {questionCount}/{MAX_QUESTIONS} · {formatElapsed(elapsedSeconds)}
+            Q {scored}/{MAX_SCORED_QUESTIONS} · {formatElapsed(elapsedSeconds)}
           </p>
         </div>
         <div className="hidden w-32 sm:block">

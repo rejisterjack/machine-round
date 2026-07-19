@@ -17,6 +17,8 @@ type PreJoinLobbyProps = {
   error?: string;
   onJoin: () => void;
   onRetryMic?: () => void;
+  canResume?: boolean;
+  onResume?: () => void;
 };
 
 export function PreJoinLobby({
@@ -26,6 +28,8 @@ export function PreJoinLobby({
   error,
   onJoin,
   onRetryMic,
+  canResume = false,
+  onResume,
 }: PreJoinLobbyProps) {
   const panelists = getActivePanelists(panelistMode);
 
@@ -63,10 +67,10 @@ export function PreJoinLobby({
       ) : null}
 
       <Button
-        variant="ndFilled"
+        variant={canResume ? "outline" : "ndFilled"}
         size="lg"
         className="mt-10 min-w-48"
-        disabled={joining}
+        disabled={joining || canResume}
         onClick={onJoin}
       >
         {joining ? (
@@ -78,6 +82,18 @@ export function PreJoinLobby({
           "Join interview"
         )}
       </Button>
+
+      {canResume && onResume ? (
+        <Button
+          variant="ndFilled"
+          size="lg"
+          className="mt-4 min-w-48"
+          disabled={joining}
+          onClick={onResume}
+        >
+          Resume in-progress session
+        </Button>
+      ) : null}
     </div>
   );
 }

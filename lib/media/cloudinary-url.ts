@@ -59,3 +59,31 @@ export function optimizedCaptureImageUrl(
     capture.url.startsWith("http") ? capture.url : (capture.publicId ?? capture.url);
   return optimizedImageUrl(source, variant);
 }
+
+const VIDEO_TRANSFORMS = "q_auto:eco,f_auto";
+
+export function optimizedVideoUrl(url: string): string {
+  if (!url.includes("res.cloudinary.com") || !url.includes("/upload/")) {
+    return url;
+  }
+
+  const uploadMarker = "/upload/";
+  const uploadIndex = url.indexOf(uploadMarker);
+  if (uploadIndex === -1) {
+    return url;
+  }
+
+  const prefix = url.slice(0, uploadIndex + uploadMarker.length);
+  const suffix = url.slice(uploadIndex + uploadMarker.length).replace(/^v\d+\//, "");
+
+  if (suffix.startsWith(VIDEO_TRANSFORMS)) {
+    return url;
+  }
+
+  const resourceType = url.includes("/video/upload/") ? "video" : "image";
+  if (resourceType !== "video") {
+    return url;
+  }
+
+  return `${prefix}${VIDEO_TRANSFORMS}/${suffix}`;
+}

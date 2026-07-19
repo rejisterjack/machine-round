@@ -16,6 +16,7 @@
     "db:seed": "prisma db seed",
     "smoke:api": "bun run scripts/smoke-api.ts",
     "smoke:frontend": "bun run scripts/smoke-frontend.ts",
+    "deploy:production": "bash scripts/deploy-production.sh",
     "test": "bun test"
   },
   "dependencies": {

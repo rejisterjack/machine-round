@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Breadcrumb } from "@/components/layout/breadcrumb";
 import { PageShell } from "@/components/layout/page-shell";
@@ -16,19 +17,53 @@ import {
   type EvaluateResponse,
   type InterviewSession,
 } from "@/lib/session/interview-store";
+import { canUseStoredReport } from "@/lib/session/report-hydration";
+
+type SessionApiResponse = {
+  id: string;
+  publicId: string;
+  roleTitle: string;
+  questionCount: number;
+  topicsCovered: string[];
+  weakSignals: string[];
+  messages: InterviewSession["messages"];
+  report?: EvaluateResponse;
+  shareToken?: string | null;
+};
 
 export default function ReportPage() {
-  const router = useRouter();
-  const [session, setSession] = useState<InterviewSession | null>(() =>
-    typeof window !== "undefined" ? loadSession() : null,
+  return (
+    <Suspense
+      fallback={
+        <PageShell>
+          <p className="text-sm text-muted-foreground">
+            Loading your Namaste Machine Round report...
+          </p>
+        </PageShell>
+      }
+    >
+      <ReportPageContent />
+    </Suspense>
   );
-  const [loading, setLoading] = useState(() => {
-    if (typeof window === "undefined") return true;
-    const existing = loadSession();
-    return existing ? !existing.report : true;
-  });
+}
+
+function ReportPageContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const sessionIdParam = searchParams.get("session");
+  const [session, setSession] = useState<InterviewSession | null>(null);
+  const [hydrating, setHydrating] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();
   const reportRequested = useRef(false);
+  const lastSessionParam = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (lastSessionParam.current !== sessionIdParam) {
+      lastSessionParam.current = sessionIdParam;
+      reportRequested.current = false;
+    }
+  }, [sessionIdParam]);
 
   const generateReport = useCallback(async (current: InterviewSession) => {
     setLoading(true);
@@ -72,10 +107,81 @@ export default function ReportPage() {
   }, []);
 
   useEffect(() => {
-    if (session === null) {
-      router.replace("/interview");
-      return;
+    let cancelled = false;
+
+    async function hydrate() {
+      const stored = loadSession();
+      const dbId = sessionIdParam ?? stored?.dbSessionId;
+
+      if (canUseStoredReport(stored, sessionIdParam)) {
+        if (!cancelled) {
+          setSession(stored!);
+          setHydrating(false);
+        }
+        return;
+      }
+
+      if (dbId) {
+        try {
+          const response = await fetch(`/api/sessions/${dbId}`);
+          if (response.ok) {
+            const data = (await response.json()) as SessionApiResponse;
+            if (data.report) {
+              const hydrated: InterviewSession = {
+                roleId: stored?.roleId ?? "",
+                roleTitle: data.roleTitle ?? stored?.roleTitle ?? "Interview",
+                panelistMode: stored?.panelistMode ?? "both",
+                messages: data.messages?.length
+                  ? data.messages
+                  : (stored?.messages ?? []),
+                questionCount: data.questionCount ?? stored?.questionCount ?? 0,
+                topicsCovered:
+                  data.topicsCovered ?? stored?.topicsCovered ?? [],
+                weakSignals: data.weakSignals ?? stored?.weakSignals ?? [],
+                status: "complete",
+                report: {
+                  ...data.report,
+                  shareToken: data.shareToken ?? null,
+                },
+                dbSessionId: dbId,
+                publicId: data.publicId ?? stored?.publicId,
+              };
+              if (!cancelled) {
+                setSession(hydrated);
+                saveSession(hydrated);
+                setHydrating(false);
+                reportRequested.current = true;
+              }
+              return;
+            }
+          }
+        } catch {
+          // Fall through to sessionStorage or redirect.
+        }
+      }
+
+      if (stored && canUseStoredReport(stored, sessionIdParam)) {
+        if (!cancelled) {
+          setSession(stored);
+          setHydrating(false);
+        }
+        return;
+      }
+
+      if (!cancelled) {
+        setHydrating(false);
+        router.replace("/interview");
+      }
     }
+
+    void hydrate();
+    return () => {
+      cancelled = true;
+    };
+  }, [router, sessionIdParam]);
+
+  useEffect(() => {
+    if (hydrating || session === null) return;
     if (!session.messages.length) {
       router.replace("/interview");
       return;
@@ -83,9 +189,9 @@ export default function ReportPage() {
     if (session.report || reportRequested.current) return;
     reportRequested.current = true;
     void generateReport(session);
-  }, [router, session, generateReport]);
+  }, [router, session, hydrating, generateReport]);
 
-  if (!session) {
+  if (hydrating || !session) {
     return (
       <PageShell>
         <p className="text-sm text-muted-foreground">

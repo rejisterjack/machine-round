@@ -4,10 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import {
-  clearFailedRecording,
-  loadFailedRecording,
-} from "@/lib/media/failed-recording-store";
+import { useFailedRecordingRetry } from "@/hooks/use-failed-recording-retry";
 
 type SessionHistoryCardProps = {
   id: string;
@@ -23,6 +20,7 @@ type SessionHistoryCardProps = {
   recordingStatus: string | null;
   snapshotCount: number;
   onRecordingRetry?: () => void;
+  onDelete?: () => Promise<void>;
 };
 
 function formatDate(value: string) {
@@ -47,9 +45,13 @@ export function SessionHistoryCard({
   recordingStatus,
   snapshotCount,
   onRecordingRetry,
+  onDelete,
 }: SessionHistoryCardProps) {
-  const [retrying, setRetrying] = useState(false);
-  const [retryError, setRetryError] = useState<string>();
+  const { showRetry, retrying, retryError, retryUpload } =
+    useFailedRecordingRetry(id, hasRecording, recordingStatus, onRecordingRetry);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string>();
+
   const panelLabel =
     panelistMode === "both"
       ? "Akshay & Archy"
@@ -57,37 +59,19 @@ export function SessionHistoryCard({
         ? "Archy"
         : "Akshay";
 
-  async function handleRetryUpload() {
-    setRetrying(true);
-    setRetryError(undefined);
+  async function handleDelete() {
+    if (!onDelete) return;
+    if (!window.confirm("Delete this Machine Round? This cannot be undone.")) {
+      return;
+    }
+    setDeleting(true);
+    setDeleteError(undefined);
     try {
-      const stored = await loadFailedRecording(id);
-      if (!stored) {
-        setRetryError("Recording is no longer available on this device.");
-        return;
-      }
-
-      const formData = new FormData();
-      formData.append("sessionId", id);
-      formData.append("recording", stored.blob, "session-recording.webm");
-      formData.append("durationMs", String(stored.durationMs));
-      formData.append("mimeType", stored.blob.type || "video/webm");
-
-      const response = await fetch("/api/media/session-recording", {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!response.ok) {
-        throw new Error("Upload failed.");
-      }
-
-      await clearFailedRecording(id);
-      onRecordingRetry?.();
+      await onDelete();
     } catch {
-      setRetryError("Could not upload recording. Try again later.");
+      setDeleteError("Could not delete this session.");
     } finally {
-      setRetrying(false);
+      setDeleting(false);
     }
   }
 
@@ -125,8 +109,8 @@ export function SessionHistoryCard({
         {snapshotCount > 0 ? <span>· {snapshotCount} snapshots</span> : null}
         {hasRecording ? (
           <span>· Recording</span>
-        ) : recordingStatus === "failed" ? (
-          <span className="text-amber-400">· Recording upload failed</span>
+        ) : recordingStatus === "failed" || showRetry ? (
+          <span className="text-amber-400">· Recording upload pending</span>
         ) : (
           <span>· Transcript only</span>
         )}
@@ -136,18 +120,41 @@ export function SessionHistoryCard({
         <p className="text-xs text-red-400">{retryError}</p>
       ) : null}
 
+      {deleteError ? (
+        <p className="text-xs text-red-400">{deleteError}</p>
+      ) : null}
+
       <div className="flex flex-wrap gap-2">
         <Button variant="ndPrimary" className="w-full sm:w-auto" render={<Link href={`/replay/${publicId}`} />}>
           Replay
         </Button>
-        {recordingStatus === "failed" ? (
+        {overallScore !== null ? (
+          <Button
+            variant="ndGhost"
+            className="w-full sm:w-auto"
+            render={<Link href={`/report?session=${id}`} />}
+          >
+            Report
+          </Button>
+        ) : null}
+        {showRetry ? (
           <Button
             variant="ndGhost"
             className="w-full sm:w-auto"
             disabled={retrying}
-            onClick={() => void handleRetryUpload()}
+            onClick={() => void retryUpload()}
           >
             {retrying ? "Retrying upload..." : "Retry recording upload"}
+          </Button>
+        ) : null}
+        {onDelete ? (
+          <Button
+            variant="ndGhost"
+            className="w-full sm:w-auto text-red-400"
+            disabled={deleting}
+            onClick={() => void handleDelete()}
+          >
+            {deleting ? "Deleting..." : "Delete"}
           </Button>
         ) : null}
       </div>

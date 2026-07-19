@@ -20,6 +20,7 @@ export const GET = withApiHandler(
 
     return NextResponse.json({
       roleTitle: report.session.role.title,
+      publicId: report.session.publicId,
       generatedAt: report.generatedAt,
       ...reportToEvaluateResponse(report),
     });

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { estimateBase64DecodedBytes } from "@/lib/interview/screen-capture";
-import { optimizedCaptureImageUrl, optimizedImageUrl } from "@/lib/media/cloudinary-url";
+import { optimizedCaptureImageUrl, optimizedImageUrl, optimizedVideoUrl } from "@/lib/media/cloudinary-url";
 
 describe("estimateBase64DecodedBytes", () => {
   test("decodes unpadded base64 length", () => {
@@ -74,5 +74,21 @@ describe("optimizedCaptureImageUrl", () => {
         process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME = originalCloud;
       }
     }
+  });
+});
+
+describe("optimizedVideoUrl", () => {
+  test("inserts delivery transform for cloudinary video", () => {
+    const url =
+      "https://res.cloudinary.com/demo/video/upload/v123/folder/recording.webm";
+    expect(optimizedVideoUrl(url)).toBe(
+      "https://res.cloudinary.com/demo/video/upload/q_auto:eco,f_auto/folder/recording.webm",
+    );
+  });
+
+  test("returns non-cloudinary urls unchanged", () => {
+    expect(optimizedVideoUrl("https://example.com/video.webm")).toBe(
+      "https://example.com/video.webm",
+    );
   });
 });
