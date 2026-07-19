@@ -283,6 +283,69 @@ export function useSessionRecorder(options: SessionRecorderOptions) {
       setError(undefined);
 
       try {
+        const signatureResponse = await fetch("/api/media/upload-signature", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionId }),
+        });
+
+        if (signatureResponse.ok) {
+          const signature = (await signatureResponse.json()) as {
+            cloudName: string;
+            apiKey: string;
+            timestamp: number;
+            folder: string;
+            signature: string;
+            publicId?: string;
+          };
+
+          const cloudinaryForm = new FormData();
+          cloudinaryForm.append("file", blob, "session-recording.webm");
+          cloudinaryForm.append("api_key", signature.apiKey);
+          cloudinaryForm.append("timestamp", String(signature.timestamp));
+          cloudinaryForm.append("signature", signature.signature);
+          cloudinaryForm.append("folder", signature.folder);
+          cloudinaryForm.append(
+            "public_id",
+            signature.publicId ?? "session-recording",
+          );
+
+          const directUpload = await fetch(
+            `https://api.cloudinary.com/v1_1/${signature.cloudName}/video/upload`,
+            { method: "POST", body: cloudinaryForm },
+          );
+
+          if (directUpload.ok) {
+            const uploaded = (await directUpload.json()) as {
+              secure_url: string;
+              public_id: string;
+            };
+
+            const confirmResponse = await fetch(
+              "/api/media/session-recording/confirm",
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  sessionId,
+                  publicId: uploaded.public_id,
+                  recordingUrl: uploaded.secure_url,
+                  durationMs,
+                  mimeType: blob.type || "video/webm",
+                }),
+              },
+            );
+
+            if (confirmResponse.ok) {
+              await clearFailedRecording(sessionId);
+              return {
+                kind: "uploaded",
+                result: (await confirmResponse.json()) as UploadResult,
+              };
+            }
+          }
+        }
+
         const formData = new FormData();
         formData.append("sessionId", sessionId);
         formData.append("recording", blob, "session-recording.webm");

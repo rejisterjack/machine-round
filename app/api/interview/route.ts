@@ -14,6 +14,7 @@ import { resolveRoleFromSession } from "@/lib/session/session-role-binding";
 import { reconcileSessionTranscript } from "@/lib/session/transcript-reconcile";
 import { prisma } from "@/lib/prisma";
 
+
 export const POST = withApiHandler(async (request: Request) => {
   const authSession = await requireAuth();
   const body = interviewRequestSchema.parse(await request.json());

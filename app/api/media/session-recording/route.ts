@@ -23,6 +23,8 @@ const ALLOWED_RECORDING_TYPES = new Set([
   "audio/mp4",
 ]);
 
+export const maxDuration = 60;
+
 export const POST = withApiHandler(
   async (request: Request) => {
     const authSession = await requireAuth();

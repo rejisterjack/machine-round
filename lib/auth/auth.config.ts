@@ -1,11 +1,25 @@
 import type { NextAuthConfig } from "next-auth";
 import Google from "next-auth/providers/google";
+import { getServerEnv } from "@/lib/env/server";
+
+function getAuthEnv() {
+  try {
+    return getServerEnv();
+  } catch {
+    return {
+      AUTH_GOOGLE_ID: process.env.AUTH_GOOGLE_ID,
+      AUTH_GOOGLE_SECRET: process.env.AUTH_GOOGLE_SECRET,
+    };
+  }
+}
+
+const authEnv = getAuthEnv();
 
 export const authConfig = {
   providers: [
     Google({
-      clientId: process.env.AUTH_GOOGLE_ID,
-      clientSecret: process.env.AUTH_GOOGLE_SECRET,
+      clientId: authEnv.AUTH_GOOGLE_ID,
+      clientSecret: authEnv.AUTH_GOOGLE_SECRET,
     }),
   ],
   pages: {

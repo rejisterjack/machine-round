@@ -152,6 +152,22 @@ async function main() {
             );
             console.log("share token round-trip: ok");
 
+            const sharePageResponse = await fetch(
+              `${baseUrl}/report/share/${evaluate.shareToken}`,
+              smokeFetchInit(),
+            );
+            if (!sharePageResponse.ok) {
+              throw new Error(
+                `Share report page failed (${sharePageResponse.status})`,
+              );
+            }
+            const shareHtml = await sharePageResponse.text();
+            assert(
+              shareHtml.includes(String(evaluate.overallScore)),
+              "Share report RSC page missing overall score in HTML.",
+            );
+            console.log("share report RSC page: ok");
+
             const pdfResponse = await fetch(
               `${baseUrl}/api/reports/share/${evaluate.shareToken}/pdf`,
               smokeFetchInit(),
@@ -182,9 +198,42 @@ async function main() {
         if (replayResult.skipped) {
           console.log("replay endpoint: skipped (auth required)");
         } else {
-          const replay = replayResult.data as { messages: unknown[] };
+          const replay = replayResult.data as {
+            messages: unknown[];
+            roleTitle?: string;
+            report?: { overallScore?: number };
+          };
           assert(Array.isArray(replay.messages), "Replay missing messages.");
           console.log("replay endpoint: ok");
+
+          const replayPageResponse = await fetch(
+            `${baseUrl}/replay/${session.publicId}`,
+            smokeFetchInit(),
+          );
+          if (!replayPageResponse.ok) {
+            throw new Error(
+              `Replay page failed (${replayPageResponse.status})`,
+            );
+          }
+          const replayHtml = await replayPageResponse.text();
+          assert(
+            replayHtml.includes("Session replay") ||
+              replayHtml.includes("Interview replay"),
+            "Replay RSC page missing replay heading in HTML.",
+          );
+          if (replay.roleTitle) {
+            assert(
+              replayHtml.includes(replay.roleTitle),
+              "Replay RSC page missing role title in HTML.",
+            );
+          }
+          if (replay.report?.overallScore != null) {
+            assert(
+              replayHtml.includes(String(replay.report.overallScore)),
+              "Replay RSC page missing overall score in HTML.",
+            );
+          }
+          console.log("replay RSC page: ok");
         }
       }
     }

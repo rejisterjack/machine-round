@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Plus_Jakarta_Sans } from "next/font/google";
-import { MicrosoftClarity } from "@/components/analytics/microsoft-clarity";
+import { AnalyticsScripts } from "@/components/analytics/analytics-scripts";
 import { SessionProvider } from "@/components/auth/session-provider";
 import "./globals.css";
 
@@ -57,7 +57,7 @@ export default function RootLayout({
     >
       <body className="flex min-h-full flex-col overflow-x-hidden bg-background font-sans text-foreground">
         <SessionProvider>{children}</SessionProvider>
-        <MicrosoftClarity />
+        <AnalyticsScripts />
       </body>
     </html>
   );

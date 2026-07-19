@@ -62,6 +62,7 @@ export function withApiHandler<TContext = unknown>(
   return async (request: Request, context?: TContext) => {
     const startedAt = Date.now();
     const path = new URL(request.url).pathname;
+    const requestId = request.headers.get("x-request-id") ?? "unknown";
 
     try {
       const response = await withTimeout(handler(request, context), timeoutMs);
@@ -74,6 +75,7 @@ export function withApiHandler<TContext = unknown>(
           JSON.stringify({
             level: "error",
             type: "api_timeout",
+            requestId,
             method: request.method,
             path,
             durationMs,
@@ -92,6 +94,7 @@ export function withApiHandler<TContext = unknown>(
           JSON.stringify({
             level: "error",
             type: "api_error",
+            requestId,
             method: request.method,
             path,
             durationMs,

@@ -2,13 +2,8 @@ import { NextResponse } from "next/server";
 import { withApiHandler } from "@/lib/api/handler";
 import { ApiError } from "@/lib/api/errors";
 import { requireAuth } from "@/lib/auth/require-auth";
-import { getSessionMediaForReplay } from "@/lib/session/media-queries";
-import { buildReplayPayload } from "@/lib/session/replay-payload";
-import {
-  getReportByShareToken,
-  getSessionByPublicId,
-} from "@/lib/session/report-queries";
-import { assertSessionOwnerByPublicId } from "@/lib/session/session-access";
+import { loadReplayPayload } from "@/lib/queries/replay";
+
 
 export const GET = withApiHandler(
   async (
@@ -18,27 +13,22 @@ export const GET = withApiHandler(
     const { publicId } = await context!.params;
     const shareToken = new URL(request.url).searchParams.get("shareToken");
 
-    let authorizedByShare = false;
-    if (shareToken) {
-      const report = await getReportByShareToken(shareToken);
-      if (report?.session.publicId === publicId) {
-        authorizedByShare = true;
-      }
-    }
-
-    if (!authorizedByShare) {
+    let userId: string | undefined;
+    if (!shareToken) {
       const authSession = await requireAuth();
-      await assertSessionOwnerByPublicId(publicId, authSession.user.id);
+      userId = authSession.user.id;
     }
 
-    const session = await getSessionByPublicId(publicId);
+    const payload = await loadReplayPayload({
+      publicId,
+      shareToken,
+      userId,
+    });
 
-    if (!session) {
+    if (!payload) {
       throw new ApiError("NOT_FOUND", "Session not found.", 404);
     }
 
-    const media = await getSessionMediaForReplay(session.id);
-
-    return NextResponse.json(buildReplayPayload(session, media));
+    return NextResponse.json(payload);
   },
 );
