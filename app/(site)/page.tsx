@@ -17,7 +17,7 @@ const steps = [
   {
     number: "02",
     title: "Run a machine round",
-    description: "Answer 5–7 adaptive questions by voice or text.",
+    description: "Answer 5–7 adaptive questions by voice with your chosen panelist.",
   },
   {
     number: "03",
@@ -38,9 +38,9 @@ const benefits = [
       "Every question references your actual answers — not a static script.",
   },
   {
-    title: "Voice or text",
+    title: "Choose your panelist",
     description:
-      "Hear Akshay and Archy speak via voice, or run the full round in text.",
+      "Practice with Akshay, Archy, or both — each brings a different interview lens.",
   },
   {
     title: "Readiness report",
@@ -69,9 +69,9 @@ export default function HomePage() {
         accentWord="Machine Round"
         description="A realistic AI-style screening interview that adapts its follow-ups based on your actual answers and returns a structured readiness report — so you walk in knowing what the screener is listening for."
         checklist={[
-          "Panel interview with Akshay Saini & Archy Gupta",
+          "Choose Akshay Saini, Archy Gupta, or both as your panel",
           "Adaptive follow-ups that reference your actual answers",
-          "Voice and text input — practice like a real AI screen",
+          "Voice-only live interview — practice like a real AI screen",
           "Structured readiness report with concrete improvement actions",
         ]}
         ctaLabel="Start a Machine Round"
