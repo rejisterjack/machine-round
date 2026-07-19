@@ -6,7 +6,7 @@ import type { PanelistId, PanelistMode } from "@/lib/ai/personas/panelists";
 import { formatMessageSpeaker } from "@/lib/ai/personas/panelists";
 import type { InterviewMessage } from "@/lib/session/interview-store";
 import type { InterviewDuration } from "@/lib/interview/duration-profiles";
-import { SCREEN_FLUSH_TIMEOUT_MS, SCREEN_FRAME_PUSH_INTERVAL_MS, SCREEN_PRECISION_FLUSH_TIMEOUT_MS, MAX_VOICE_RECONNECT_ATTEMPTS, REALTIME_TOKEN_REFRESH_BUFFER_MS } from "@/lib/session/session-limits";
+import { SCREEN_FLUSH_TIMEOUT_MS, SCREEN_PRECISION_FLUSH_TIMEOUT_MS, MAX_VOICE_RECONNECT_ATTEMPTS, REALTIME_TOKEN_REFRESH_BUFFER_MS } from "@/lib/session/session-limits";
 import {
   requestClosingGoodbye,
   speakPanelistAnnouncement,
@@ -20,9 +20,11 @@ import {
 import {
   buildScreenFrameImageUrl,
   formatVisionContextPrefix,
+  framePushIntervalMs,
   initialRealtimeVisionMode,
   isRealtimeVisionEnabled,
   shouldRateLimitFramePush,
+  type FramePushResult,
   type RealtimeVisionMode,
   type VisionContextSource,
 } from "@/lib/interview/realtime-vision";
@@ -87,6 +89,8 @@ export type ScreenContextMeta = {
   mimeType?: "image/jpeg" | "image/png" | "image/webp";
   contextLabel?: VisionContextSource;
 };
+
+export type { FramePushResult } from "@/lib/interview/realtime-vision";
 
 async function fetchRealtimeSession(
   opts: RealtimeVoiceOptions,
@@ -198,7 +202,8 @@ export function useRealtimeVoice(options: RealtimeVoiceOptions = {}) {
   );
   const [realtimeVisionMode, setRealtimeVisionMode] =
     useState<RealtimeVisionMode>(initialRealtimeVisionMode);
-  const lastFramePushAtRef = useRef(0);
+  const lastScreenFramePushAtRef = useRef(0);
+  const lastCameraFramePushAtRef = useRef(0);
   const lastImageSendAtRef = useRef(0);
 
   const handleRealtimeEvent = useCallback((event: RealtimeEvent) => {
@@ -787,21 +792,26 @@ export function useRealtimeVoice(options: RealtimeVoiceOptions = {}) {
     (
       imageBase64: string,
       mimeType: "image/jpeg" | "image/png" | "image/webp" = "image/jpeg",
-      options?: { force?: boolean },
-    ): boolean => {
-      if (!isRealtimeVisionEnabled()) return false;
-      if (realtimeVisionSupportedRef.current === false) return false;
+      options?: { force?: boolean; source?: VisionContextSource },
+    ): FramePushResult => {
+      if (!isRealtimeVisionEnabled()) return "disabled";
+      if (realtimeVisionSupportedRef.current === false) return "disabled";
 
+      const source = options?.source ?? "screen";
+      const lastPushAtRef =
+        source === "camera"
+          ? lastCameraFramePushAtRef
+          : lastScreenFramePushAtRef;
       const now = Date.now();
       if (
         shouldRateLimitFramePush(
-          lastFramePushAtRef.current,
+          lastPushAtRef.current,
           now,
-          SCREEN_FRAME_PUSH_INTERVAL_MS,
+          framePushIntervalMs(source),
           options?.force,
         )
       ) {
-        return false;
+        return "rate_limited";
       }
 
       const connection = connectionRef.current;
@@ -809,14 +819,14 @@ export function useRealtimeVoice(options: RealtimeVoiceOptions = {}) {
         !connection?.dataChannel ||
         connection.dataChannel.readyState !== "open"
       ) {
-        return false;
+        return "channel_unavailable";
       }
 
       if (imageBase64.length > REALTIME_CHANNEL_MAX_BASE64_CHARS) {
-        return false;
+        return "too_large";
       }
 
-      lastFramePushAtRef.current = now;
+      lastPushAtRef.current = now;
       lastImageSendAtRef.current = now;
 
       const sent = connection.sendEvent({
@@ -834,7 +844,7 @@ export function useRealtimeVoice(options: RealtimeVoiceOptions = {}) {
         },
       });
 
-      return sent;
+      return sent ? "sent" : "channel_unavailable";
     },
     [],
   );

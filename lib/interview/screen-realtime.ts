@@ -19,6 +19,7 @@ import {
   SCREEN_FRAME_STALE_REPUSH_MS,
   SCREEN_PRECISION_ANALYZE_TIMEOUT_MS,
   SCREEN_REALTIME_INTERVAL_MS,
+  CAMERA_REALTIME_INTERVAL_MS,
 } from "@/lib/session/session-limits";
 
 export type ScreenRealtimePushMeta = {
@@ -68,6 +69,8 @@ export type CreateScreenRealtimePusherDeps = {
   ) => Promise<VisionFrameCapture | null>;
   intervalMs?: number;
   archiveIntervalMs?: number;
+  /** When false, a skipped frame is not an error (rate limit / channel busy). */
+  reportSkippedFrames?: boolean;
 };
 
 function hashSample(data: string): string {
@@ -294,7 +297,14 @@ export function createScreenRealtimePusher(deps: CreateScreenRealtimePusherDeps)
     const frame = force
       ? await capturePrecisionFrame(source)
       : await captureRealtimeFrame(source);
-    if (!frame) return;
+    if (!frame) {
+      if (force && isCameraSource) {
+        deps.onHotError?.(
+          "Could not capture a camera frame — check camera permissions and lighting.",
+        );
+      }
+      return;
+    }
 
     const now = Date.now();
     const frameHash = hashSample(frame.analysisBase64.slice(0, 2000));
@@ -394,22 +404,22 @@ export function createScreenRealtimePusher(deps: CreateScreenRealtimePusherDeps)
     }
 
     if (imageMode) {
-      const imageSent = deps.pushToVoice(undefined, frame.analysisBase64, {
+      const pushResult = deps.pushToVoice(undefined, frame.analysisBase64, {
         capturedAt,
         imageOnly: true,
         mimeType: frame.mimeType,
         contextLabel: isCameraSource ? "camera" : "screen",
       });
-      if (imageSent) {
+      if (pushResult) {
         markPushed(frameHash, frame.changeSample, now);
         if (!isCameraSource) {
           pushHybridAnalyze(frame, ctx);
         }
-      } else {
+      } else if (deps.reportSkippedFrames !== false) {
         deps.onHotError?.(
           isCameraSource
-            ? "Camera frame skipped — voice channel busy or image too large."
-            : "Screen frame skipped — voice channel busy or image too large.",
+            ? "Camera frame could not be sent — compressing less and retrying on the next frame."
+            : "Screen frame could not be sent — retrying on the next frame.",
         );
       }
       return;
