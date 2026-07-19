@@ -9,7 +9,7 @@ import {
   formatDurationLabel,
   type InterviewDuration,
 } from "@/lib/interview/duration-profiles";
-import { countScoredQuestions } from "@/lib/ai/question-cap";
+import { countTopicsDiscussed } from "@/lib/ai/question-cap";
 import { useFailedRecordingRetry } from "@/hooks/use-failed-recording-retry";
 
 type SessionHistoryCardProps = {
@@ -123,7 +123,7 @@ export function SessionHistoryCard({
       </div>
 
       <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-        <span>{countScoredQuestions(questionCount)} scored questions</span>
+        <span>{countTopicsDiscussed(questionCount)} topics discussed</span>
         {snapshotCount > 0 ? <span>· {snapshotCount} snapshots</span> : null}
         {hasRecording ? (
           <span>· Recording</span>

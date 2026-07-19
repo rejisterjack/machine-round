@@ -26,8 +26,6 @@ import { prisma } from "@/lib/prisma";
 import { resolveRoleFromSession } from "@/lib/session/session-role-binding";
 import { assertSessionOwnerIfPresent } from "@/lib/session/session-access";
 import { interviewDurationSchema, interviewMessageSchema } from "@/lib/session/interview-store";
-import { getMaxQuestionsForDuration } from "@/lib/interview/duration-profiles";
-
 
 const realtimeSessionSchema = z.object({
   sessionId: z.string(),
@@ -37,6 +35,7 @@ const realtimeSessionSchema = z.object({
   questionCount: z.number().int().min(0).optional(),
   panelistMode: z.enum(PANELIST_MODES).optional(),
   interviewDuration: interviewDurationSchema.optional(),
+  elapsedSeconds: z.number().int().min(0).optional(),
   promptContext: z.string().max(20_000).optional(),
   courseId: z.string().optional(),
   activePanelist: z.enum(PANELIST_IDS).optional(),
@@ -125,6 +124,7 @@ export const POST = withApiHandler(async (request: Request) => {
   );
 
   const questionCount = body.questionCount ?? 0;
+  const elapsedSeconds = body.elapsedSeconds ?? 0;
   const panelistMode = bound?.panelistMode ?? body.panelistMode ?? "both";
   const interviewDuration =
     bound?.interviewDuration ?? body.interviewDuration ?? "minutes_30";
@@ -135,7 +135,6 @@ export const POST = withApiHandler(async (request: Request) => {
       : body.courseId && body.courseId !== role.id
         ? undefined
         : body.courseId;
-  const maxQuestions = getMaxQuestionsForDuration(interviewDuration);
   const activePanelist =
     body.activePanelist ?? getPanelistForQuestion(questionCount, panelistMode).id;
   const panelist = getPanelist(
@@ -171,7 +170,7 @@ export const POST = withApiHandler(async (request: Request) => {
     cameraReviewEnabled: body.cameraReviewEnabled,
     sessionId: body.sessionId,
     interviewDuration,
-    maxQuestions,
+    elapsedSeconds,
     courseId: courseIdResolved,
     promptContext,
     ragBlock,
@@ -187,6 +186,8 @@ export const POST = withApiHandler(async (request: Request) => {
         routerReason: body.routerReason,
         courseId: courseIdResolved,
         promptContext,
+        elapsedSeconds,
+        interviewDuration,
       })}`
     : instructions;
   const realtimeCreds = getAzureRealtimeCredentials();

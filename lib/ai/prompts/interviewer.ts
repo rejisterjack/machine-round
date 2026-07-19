@@ -8,7 +8,6 @@ import {
   getPhaseGuidance,
   getVarietyStyle,
 } from "@/lib/ai/conversation-phases";
-import { MAX_QUESTIONS } from "@/lib/design/tokens";
 import {
   DEFAULT_INTERVIEW_DURATION,
   getDurationProfile,
@@ -30,13 +29,33 @@ const JSON_RESPONSE_SHAPE = `Respond in JSON only with this shape:
   "weakSignals": ["optional weak signals noticed"]
 }`;
 
-function buildTextSharedRules(maxQuestions: number, behavioral: boolean) {
+function buildDurationGuidance(
+  interviewDuration: InterviewDuration,
+  elapsedSeconds: number,
+): string {
+  const profile = getDurationProfile(interviewDuration);
+  const totalMinutes = profile.minutes;
+  const elapsedMinutes = Math.floor(elapsedSeconds / 60);
+  const remainingMinutes = Math.max(0, totalMinutes - elapsedMinutes);
+
+  return `- This is a ${totalMinutes}-minute session (${elapsedMinutes} min elapsed, ~${remainingMinutes} min remaining).
+- Go deep on topics — follow-ups on the same thread are encouraged before moving on.
+- Pace naturally for the full session length; do not rush through many shallow questions.
+- Begin wrapping up in the final 2 minutes with a warm goodbye and mention their readiness report.
+- Set done to true only when giving a closing line in the wrap-up phase; otherwise keep done false.`;
+}
+
+function buildTextSharedRules(
+  interviewDuration: InterviewDuration,
+  elapsedSeconds: number,
+  behavioral: boolean,
+) {
   return `- Ask one question at a time (or a brief closing line when done).
 ${behavioral ? "- Mix behavioral and technical questions appropriate to the candidate role." : "- Ask only technical questions within the strict interview scope. No behavioral, resume, or career questions."}
 - After the first question, every follow-up MUST reference something specific from the candidate's previous answer.
 - Evaluate clarity, specificity, structure, technical correctness signal, and conciseness internally.
 - Keep questions focused and interview-realistic. No coaching during the interview.
-- When enough questions have been asked (max ${maxQuestions}), set done to true and give a brief closing line.`;
+${buildDurationGuidance(interviewDuration, elapsedSeconds)}`;
 }
 
 const VOICE_CONVERSATION_RULES = `You are on a live video call. Sound like a real human interviewer from India — not a chatbot or quiz app.
@@ -73,7 +92,7 @@ function buildFormatGuidance(
     case "conversation":
       return `Session format (${profile.label} — ${profile.tagline}):
 - Keep this a voice conversation. Do not ask the candidate to write or share code.
-- Focus on ${discussionFocus} appropriate to ${profile.minutes} minutes.`;
+- Focus on ${discussionFocus} across the full ${profile.minutes} minutes.`;
     case "light_coding":
       return `Session format (${profile.label} — ${profile.tagline}):
 - Mix discussion with at most one light coding or pseudo-code question.
@@ -88,26 +107,31 @@ function buildFormatGuidance(
   }
 }
 
-function buildTextDualPanelRules(maxQuestions: number, behavioral: boolean) {
+function buildTextDualPanelRules(
+  interviewDuration: InterviewDuration,
+  elapsedSeconds: number,
+  behavioral: boolean,
+) {
   return `You are co-hosting Namaste Machine Round as a two-person panel with Akshay Saini and Archy Gupta from NamasteDev.
 
 Panel rules:
 - Only the ACTIVE panelist speaks this turn. Do not speak as the other panelist.
-${buildTextSharedRules(maxQuestions, behavioral)}
+${buildTextSharedRules(interviewDuration, elapsedSeconds, behavioral)}
 
 ${JSON_RESPONSE_SHAPE}`;
 }
 
 function textSoloPanelRules(
   panelistName: string,
-  maxQuestions: number,
+  interviewDuration: InterviewDuration,
+  elapsedSeconds: number,
   behavioral: boolean,
 ): string {
   return `You are conducting Namaste Machine Round as ${panelistName} from NamasteDev.
 
 Interview rules:
 - You are the sole interviewer. Speak only as yourself.
-${buildTextSharedRules(maxQuestions, behavioral)}
+${buildTextSharedRules(interviewDuration, elapsedSeconds, behavioral)}
 
 ${JSON_RESPONSE_SHAPE}`;
 }
@@ -150,7 +174,7 @@ function buildTextPrompt(input: {
   panelistMode: PanelistMode;
   sessionId?: string;
   interviewDuration: InterviewDuration;
-  maxQuestions: number;
+  elapsedSeconds: number;
   courseId?: string;
   promptContext?: string;
   ragBlock?: string;
@@ -158,7 +182,11 @@ function buildTextPrompt(input: {
   const panelist = getPanelist(input.activePanelist);
   const scope = resolveInterviewScope(input);
   const behavioral = allowsBehavioral(scope);
-  const phase = getConversationPhase(input.questionCount, input.maxQuestions);
+  const phase = getConversationPhase(
+    input.questionCount,
+    input.elapsedSeconds,
+    input.interviewDuration,
+  );
   const phaseGuidance = getPhaseGuidance({
     phase,
     role: input.role,
@@ -173,15 +201,23 @@ function buildTextPrompt(input: {
 
   const baseRules =
     input.panelistMode === "both"
-      ? buildTextDualPanelRules(input.maxQuestions, behavioral)
-      : textSoloPanelRules(panelist.name, input.maxQuestions, behavioral);
+      ? buildTextDualPanelRules(
+          input.interviewDuration,
+          input.elapsedSeconds,
+          behavioral,
+        )
+      : textSoloPanelRules(
+          panelist.name,
+          input.interviewDuration,
+          input.elapsedSeconds,
+          behavioral,
+        );
 
   return `${baseRules}
 
 Role: ${input.role}
 Session length: ${getDurationProfile(input.interviewDuration).label}
-Questions asked so far: ${input.questionCount}
-Maximum questions: ${input.maxQuestions}
+Topics covered so far: ${Math.max(0, input.questionCount - 2)}
 Active panelist this turn: ${panelist.name} (${panelist.id})
 Phase: ${phase}
 Turn guidance: ${phaseGuidance}
@@ -204,7 +240,7 @@ function buildVoicePrompt(input: {
   cameraReviewEnabled?: boolean;
   sessionId?: string;
   interviewDuration: InterviewDuration;
-  maxQuestions: number;
+  elapsedSeconds: number;
   courseId?: string;
   promptContext?: string;
   ragBlock?: string;
@@ -212,7 +248,11 @@ function buildVoicePrompt(input: {
   const panelist = getPanelist(input.activePanelist);
   const profile = getDurationProfile(input.interviewDuration);
   const scope = resolveInterviewScope(input);
-  const phase = getConversationPhase(input.questionCount, input.maxQuestions);
+  const phase = getConversationPhase(
+    input.questionCount,
+    input.elapsedSeconds,
+    input.interviewDuration,
+  );
   const phaseGuidance = getPhaseGuidance({
     phase,
     role: input.role,
@@ -245,15 +285,17 @@ function buildVoicePrompt(input: {
       ? "\nFirst turn of the call — greet and set context. Use fresh wording, not a memorized script."
       : "";
 
+  const elapsedMinutes = Math.floor(input.elapsedSeconds / 60);
+  const remainingMinutes = Math.max(0, profile.minutes - elapsedMinutes);
+
   return `${baseRules}
 
 Role: ${input.role}
-Session length: ${profile.label} (${profile.tagline})
-Questions asked so far: ${input.questionCount}
-Maximum questions: ${input.maxQuestions}
+Session length: ${profile.label} (${profile.tagline}) — ${elapsedMinutes} min elapsed, ~${remainingMinutes} min remaining
 Active panelist this turn: ${panelist.name}
 Conversation phase: ${phase}
 Phase guidance: ${phaseGuidance}
+Pacing: Go deep on topics with follow-ups. Use the full ${profile.minutes} minutes. Begin wrapping up in the final 2 minutes.
 
 ${buildFormatGuidance(input.interviewDuration, scope?.strictCourseMode ?? false)}
 ${buildTrackContext(input)}
@@ -277,15 +319,14 @@ export function buildInterviewerPrompt(input: {
   cameraReviewEnabled?: boolean;
   sessionId?: string;
   interviewDuration?: InterviewDuration;
-  maxQuestions?: number;
+  elapsedSeconds?: number;
   courseId?: string;
   promptContext?: string;
   ragBlock?: string;
 }) {
   const panelistMode = input.panelistMode ?? "both";
   const interviewDuration = input.interviewDuration ?? DEFAULT_INTERVIEW_DURATION;
-  const maxQuestions =
-    input.maxQuestions ?? getDurationProfile(interviewDuration).maxQuestions;
+  const elapsedSeconds = input.elapsedSeconds ?? 0;
 
   if (input.forVoice) {
     return buildVoicePrompt({
@@ -297,7 +338,7 @@ export function buildInterviewerPrompt(input: {
       cameraReviewEnabled: input.cameraReviewEnabled,
       sessionId: input.sessionId,
       interviewDuration,
-      maxQuestions,
+      elapsedSeconds,
       courseId: input.courseId,
       promptContext: input.promptContext,
       ragBlock: input.ragBlock,
@@ -311,7 +352,7 @@ export function buildInterviewerPrompt(input: {
     panelistMode,
     sessionId: input.sessionId,
     interviewDuration,
-    maxQuestions,
+    elapsedSeconds,
     courseId: input.courseId,
     promptContext: input.promptContext,
     ragBlock: input.ragBlock,
@@ -319,4 +360,8 @@ export function buildInterviewerPrompt(input: {
 }
 
 /** @deprecated Use buildInterviewerPrompt with activePanelist */
-export const INTERVIEWER_SYSTEM_PROMPT = buildTextDualPanelRules(MAX_QUESTIONS, true);
+export const INTERVIEWER_SYSTEM_PROMPT = buildTextDualPanelRules(
+  DEFAULT_INTERVIEW_DURATION,
+  0,
+  true,
+);
