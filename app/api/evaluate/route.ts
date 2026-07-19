@@ -11,6 +11,7 @@ import { evaluateRequestSchema } from "@/lib/session/interview-store";
 import { getInterviewSessionById } from "@/lib/session/persistence";
 import { buildCachedEvaluatePayload } from "@/lib/session/evaluate-cache";
 import { shouldReturnCachedReport } from "@/lib/session/evaluate-idempotency";
+import { assertSessionOwnerIfPresent } from "@/lib/session/session-access";
 
 export const maxDuration = 60;
 
@@ -30,6 +31,7 @@ export const POST = withApiHandler(async (request: Request) => {
   if (!body.sessionId) {
     throw new ApiError("VALIDATION_ERROR", "sessionId is required.", 400);
   }
+  await assertSessionOwnerIfPresent(body.sessionId, authSession.user.id);
 
   const sync = new URL(request.url).searchParams.get("sync") === "1";
 

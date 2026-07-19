@@ -1,4 +1,11 @@
 {
+  "redirects": [
+    {
+      "source": "/docs/pitch-deck.html",
+      "destination": "/pitch-deck.html",
+      "permanent": true
+    }
+  ],
   "functions": {
     "app/api/evaluate/route.ts": {
       "maxDuration": 60
