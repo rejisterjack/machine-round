@@ -8,13 +8,14 @@ import {
   isCloudinaryConfigured,
   uploadVideo,
 } from "@/lib/media/cloudinary";
+import { MAX_RECORDING_UPLOAD_BYTES } from "@/lib/media/media-optimization";
 import {
   assertRecordingUploadAllowed,
   updateSessionRecording,
 } from "@/lib/session/media-queries";
 import { assertSessionOwner } from "@/lib/session/session-access";
 
-const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
+const MAX_UPLOAD_BYTES = MAX_RECORDING_UPLOAD_BYTES;
 const ALLOWED_RECORDING_TYPES = new Set([
   "video/webm",
   "audio/webm",
@@ -109,6 +110,7 @@ export const POST = withApiHandler(
       return NextResponse.json({
         recordingUrl: uploaded.url,
         publicId: uploaded.publicId,
+        bytes: uploaded.bytes,
         durationMs:
           durationMs && !Number.isNaN(durationMs)
             ? durationMs

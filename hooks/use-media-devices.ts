@@ -67,7 +67,7 @@ export function useMediaDevices(options: UseMediaDevicesOptions = {}) {
   const startScreenShare = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: true,
+        video: { frameRate: { ideal: 15, max: 30 } },
         audio: false,
       });
       const track = stream.getVideoTracks()[0];
