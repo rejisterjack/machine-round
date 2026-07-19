@@ -11,6 +11,10 @@ Run **5 consecutive times** on production (incognito) before submission.
 7. `/history` → replay → transcript + recording + snapshots visible.
 8. Clear sessionStorage → `/report?session={dbSessionId}` still loads saved report.
 9. `SMOKE_AUTH_COOKIE=... bun run smoke:frontend` passes against production URL.
+10. Verify response headers include `Content-Security-Policy`, `X-Request-Id`, and `X-Frame-Options: DENY`.
+11. Google OAuth sign-in completes without CSP console violations.
+12. Voice interview connects (Azure WebRTC) with CSP enabled on staging/production.
+13. Async evaluate: if report takes >2s, UI polls `/api/evaluate/status` until completed.
 
 ## Production deploy checklist
 

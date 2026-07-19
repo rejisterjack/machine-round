@@ -1,14 +1,18 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import type { InputMode, RecordingStatus, SessionStatus } from "@/generated/client";
+import type { InputMode, InterviewDuration, RecordingStatus, SessionStatus } from "@/generated/client";
 import { withApiHandler } from "@/lib/api/handler";
 import { ApiError } from "@/lib/api/errors";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { isDbReady } from "@/lib/db/ready";
 import { getInterviewSessionById } from "@/lib/session/persistence";
 import { countScreenCaptures } from "@/lib/session/media-queries";
+import { roleSlugToId } from "@/lib/session/role-slug";
+import { normalizeInterviewMessageSpeaker } from "@/lib/session/message-speaker";
 import { reportToEvaluateResponse } from "@/lib/session/report-queries";
 import { assertSessionOwner } from "@/lib/session/session-access";
+import { interviewDurationSchema } from "@/lib/session/interview-store";
+import { deleteSessionCloudinaryAssets } from "@/lib/media/session-media-cleanup";
 import { prisma } from "@/lib/prisma";
 
 const patchSessionSchema = z.object({
@@ -16,6 +20,7 @@ const patchSessionSchema = z.object({
     .enum(["active", "thinking", "completed", "abandoned", "error"])
     .optional(),
   inputMode: z.enum(["text", "voice", "mixed"]).optional(),
+  interviewDuration: interviewDurationSchema.optional(),
   questionCount: z.number().int().min(0).optional(),
   topicsCovered: z.array(z.string()).optional(),
   weakSignals: z.array(z.string()).optional(),
@@ -44,17 +49,20 @@ export const GET = withApiHandler(
       id: session.id,
       publicId: session.publicId,
       roleTitle: session.role.title,
+      roleId: roleSlugToId(session.role.slug),
       status: session.status,
       inputMode: session.inputMode,
       panelistMode: session.panelistMode ?? "both",
+      interviewDuration: session.interviewDuration ?? "minutes_30",
       questionCount: session.questionCount,
       topicsCovered: session.topicsCovered,
       weakSignals: session.weakSignals,
+      lastError: session.lastError,
       snapshotCount,
       messages: session.messages.map((message) => ({
         role: message.role,
         content: message.content,
-        speaker: message.speakerName ?? undefined,
+        speaker: normalizeInterviewMessageSpeaker(message.speakerName),
       })),
       report: reportToEvaluateResponse(session.report),
       shareToken: session.report?.shareToken ?? null,
@@ -94,11 +102,16 @@ export const PATCH = withApiHandler(
       );
     }
 
+    if (body.status === "abandoned") {
+      await deleteSessionCloudinaryAssets(id);
+    }
+
     const session = await prisma.interviewSession.update({
       where: { id },
       data: {
         status: body.status as SessionStatus | undefined,
         inputMode: body.inputMode as InputMode | undefined,
+        interviewDuration: body.interviewDuration as InterviewDuration | undefined,
         questionCount: body.questionCount,
         topicsCovered: body.topicsCovered,
         weakSignals: body.weakSignals,
@@ -136,6 +149,7 @@ export const DELETE = withApiHandler(
       throw new ApiError("NOT_FOUND", "Session not found.", 404);
     }
 
+    await deleteSessionCloudinaryAssets(id);
     await prisma.interviewSession.delete({ where: { id } });
 
     return NextResponse.json({ deleted: true, id });

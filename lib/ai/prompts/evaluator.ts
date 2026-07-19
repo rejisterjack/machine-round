@@ -34,18 +34,30 @@ export function buildEvaluatorPrompt(
   role: string,
   transcript: string,
   screenObservations?: string[],
+  scopeBlock?: string,
+  practiceQuestions?: string[],
 ) {
   const screenSection =
     screenObservations?.length ?
       `\n\nScreen share observations during the interview:\n${screenObservations.map((note, i) => `${i + 1}. ${note}`).join("\n")}\n\nIncorporate screen review signals into the report. Add a screenReviewNotes array (2-4 concise bullets) if screen context was provided.`
     : "";
 
+  const scopeSection = scopeBlock?.trim()
+    ? `\n\nInterview scope (score answers against this syllabus only):\n${scopeBlock.trim()}`
+    : "";
+
+  const practiceSection =
+    practiceQuestions?.length ?
+      `\n\nPractice questions from the role bank (suggest 1-2 in improvements when relevant):\n${practiceQuestions.map((question, index) => `${index + 1}. ${question}`).join("\n")}`
+    : "";
+
   return `${EVALUATOR_SYSTEM_PROMPT}
 
 Role: ${role}
+${scopeSection}
 
 Transcript:
-${transcript}${screenSection}`;
+${transcript}${screenSection}${practiceSection}`;
 }
 
 export { formatMessageSpeaker };

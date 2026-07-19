@@ -50,6 +50,23 @@ export function toApiErrorResponse(error: unknown): {
     }
   }
 
+  if (error instanceof Error) {
+    if (
+      error.message.includes("Expected RoleSlug") ||
+      error.message.includes("Expected TrackMode") ||
+      error.message.includes("Invalid value for argument")
+    ) {
+      return {
+        status: 503,
+        body: {
+          error:
+            "App schema is out of date. Run `bun run db:generate` and restart the dev server.",
+          code: "INTERNAL_ERROR",
+        },
+      };
+    }
+  }
+
   console.error("Unhandled API error:", error);
   return {
     status: 500,

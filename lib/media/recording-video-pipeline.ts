@@ -48,24 +48,29 @@ export async function createRecordingVideoPipeline(
   const clonedStream = new MediaStream([sourceTrack.clone()]);
   video.srcObject = clonedStream;
 
-  await new Promise<void>((resolve, reject) => {
-    const onReady = () => {
-      cleanup();
-      resolve();
-    };
-    const onError = () => {
-      cleanup();
-      stopClonedSource(video, clonedStream);
-      reject(new Error("Could not prepare recording video source."));
-    };
-    const cleanup = () => {
-      video.removeEventListener("loadedmetadata", onReady);
-      video.removeEventListener("error", onError);
-    };
-    video.addEventListener("loadedmetadata", onReady);
-    video.addEventListener("error", onError);
-    void video.play().catch(onError);
-  });
+  await Promise.race([
+    new Promise<void>((resolve, reject) => {
+      const onReady = () => {
+        cleanup();
+        resolve();
+      };
+      const onError = () => {
+        cleanup();
+        stopClonedSource(video, clonedStream);
+        reject(new Error("Could not prepare recording video source."));
+      };
+      const cleanup = () => {
+        video.removeEventListener("loadedmetadata", onReady);
+        video.removeEventListener("error", onError);
+      };
+      video.addEventListener("loadedmetadata", onReady);
+      video.addEventListener("error", onError);
+      void video.play().catch(onError);
+    }),
+    new Promise<void>((resolve) => {
+      setTimeout(() => resolve(), 5000);
+    }),
+  ]);
 
   const { width, height } = scaledRecordingDimensions(
     video.videoWidth,

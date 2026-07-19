@@ -4,6 +4,11 @@ import Link from "next/link";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import {
+  formatDurationLabel,
+  type InterviewDuration,
+} from "@/lib/interview/duration-profiles";
+import { countScoredQuestions } from "@/lib/ai/question-cap";
 import { useFailedRecordingRetry } from "@/hooks/use-failed-recording-retry";
 
 type SessionHistoryCardProps = {
@@ -11,9 +16,12 @@ type SessionHistoryCardProps = {
   publicId: string;
   roleTitle: string;
   panelistMode: string;
+  interviewDuration?: InterviewDuration;
   status: string;
   questionCount: number;
   overallScore: number | null;
+  hasReport?: boolean;
+  lastError?: string | null;
   startedAt: string;
   completedAt: string | null;
   hasRecording: boolean;
@@ -36,9 +44,12 @@ export function SessionHistoryCard({
   publicId,
   roleTitle,
   panelistMode,
+  interviewDuration = "minutes_30",
   status,
   questionCount,
   overallScore,
+  hasReport = overallScore !== null,
+  lastError,
   startedAt,
   completedAt,
   hasRecording,
@@ -81,7 +92,8 @@ export function SessionHistoryCard({
         <div>
           <h2 className="font-heading text-lg font-medium">{roleTitle}</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            {formatDate(completedAt ?? startedAt)} · {panelLabel}
+            {formatDate(completedAt ?? startedAt)} · {panelLabel} ·{" "}
+            {formatDurationLabel(interviewDuration)}
           </p>
         </div>
         {overallScore !== null ? (
@@ -97,6 +109,10 @@ export function SessionHistoryCard({
           >
             {overallScore}
           </span>
+        ) : status === "completed" ? (
+          <span className="rounded-full bg-amber-500/15 px-3 py-1 text-xs text-amber-300">
+            Report pending
+          </span>
         ) : (
           <span className="rounded-full bg-secondary px-3 py-1 text-xs text-muted-foreground">
             {status}
@@ -105,7 +121,7 @@ export function SessionHistoryCard({
       </div>
 
       <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-        <span>{questionCount} questions</span>
+        <span>{countScoredQuestions(questionCount)} scored questions</span>
         {snapshotCount > 0 ? <span>· {snapshotCount} snapshots</span> : null}
         {hasRecording ? (
           <span>· Recording</span>
@@ -115,6 +131,10 @@ export function SessionHistoryCard({
           <span>· Transcript only</span>
         )}
       </div>
+
+      {lastError && status === "completed" && !hasReport ? (
+        <p className="text-xs text-amber-300">{lastError}</p>
+      ) : null}
 
       {retryError ? (
         <p className="text-xs text-red-400">{retryError}</p>
@@ -128,13 +148,21 @@ export function SessionHistoryCard({
         <Button variant="ndPrimary" className="w-full sm:w-auto" render={<Link href={`/replay/${publicId}`} />}>
           Replay
         </Button>
-        {overallScore !== null ? (
+        {hasReport ? (
           <Button
             variant="ndGhost"
             className="w-full sm:w-auto"
             render={<Link href={`/report?session=${id}`} />}
           >
             Report
+          </Button>
+        ) : status === "completed" ? (
+          <Button
+            variant="ndGhost"
+            className="w-full sm:w-auto"
+            render={<Link href={`/report?session=${id}`} />}
+          >
+            {overallScore === null ? "Generate report" : "Retry report"}
           </Button>
         ) : null}
         {showRetry ? (

@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { buildCachedEvaluatePayload } from "@/lib/session/evaluate-cache";
+import {
+  buildCachedEvaluatePayload,
+  buildEvaluatePayloadFromSavedReport,
+} from "@/lib/session/evaluate-cache";
 
 describe("buildCachedEvaluatePayload", () => {
   test("returns null when session has no report", () => {
@@ -31,5 +34,20 @@ describe("buildCachedEvaluatePayload", () => {
     expect(cached?.overallScore).toBe(78);
     expect(cached?.shareToken).toBe("share-abc");
     expect(cached?.weakTopics).toEqual([{ label: "rambling", weight: 0.7 }]);
+  });
+
+  test("buildEvaluatePayloadFromSavedReport always includes shareToken", () => {
+    const payload = buildEvaluatePayloadFromSavedReport({
+      overallScore: 82,
+      summary: "Solid answers with clearer metrics needed.",
+      shareToken: "abc123sharetoken",
+      answerEvaluations: [],
+      improvements: [{ content: "Quantify impact." }],
+      weakTopicTags: [],
+    });
+
+    expect(payload.shareToken).toBe("abc123sharetoken");
+    expect(payload.overallScore).toBe(82);
+    expect(payload.improvements).toEqual(["Quantify impact."]);
   });
 });

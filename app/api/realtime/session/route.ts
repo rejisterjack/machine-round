@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { assertRateLimit, rateLimitKey } from "@/lib/api/assert-rate-limit";
 import { API_TIMEOUTS, withApiHandler } from "@/lib/api/handler";
 import { ApiError } from "@/lib/api/errors";
 import { requireAuth } from "@/lib/auth/require-auth";
@@ -12,14 +13,21 @@ import {
   PANELIST_IDS,
   PANELIST_MODES,
 } from "@/lib/ai/personas/panelists";
+import { resolveRealtimeVoice } from "@/lib/voice/panelist-voices";
 import { getAzureRealtimeConfig, getAzureRealtimeCredentials } from "@/lib/ai";
 import { buildInterviewerPrompt } from "@/lib/ai/prompts/interviewer";
-import { getGroundedQuestions } from "@/lib/rag/vector-store";
+import { getCourseInterviewScope } from "@/lib/courses/interview-scope";
+import {
+  buildRagGroundingBlock,
+  getGroundedQuestionsStructured,
+} from "@/lib/rag/vector-store";
 import { isDbReady } from "@/lib/db/ready";
 import { prisma } from "@/lib/prisma";
-import { resolveRole } from "@/lib/session/roles";
+import { resolveRoleFromSession } from "@/lib/session/session-role-binding";
 import { assertSessionOwnerIfPresent } from "@/lib/session/session-access";
-import { interviewMessageSchema } from "@/lib/session/interview-store";
+import { interviewDurationSchema, interviewMessageSchema } from "@/lib/session/interview-store";
+import { getMaxQuestionsForDuration } from "@/lib/interview/duration-profiles";
+
 
 const realtimeSessionSchema = z.object({
   sessionId: z.string(),
@@ -28,26 +36,59 @@ const realtimeSessionSchema = z.object({
   role: z.string().optional(),
   questionCount: z.number().int().min(0).optional(),
   panelistMode: z.enum(PANELIST_MODES).optional(),
+  interviewDuration: interviewDurationSchema.optional(),
+  promptContext: z.string().max(20_000).optional(),
+  courseId: z.string().optional(),
   activePanelist: z.enum(PANELIST_IDS).optional(),
   messages: z.array(interviewMessageSchema).optional(),
   screenReviewEnabled: z.boolean().optional(),
+  cameraReviewEnabled: z.boolean().optional(),
+  routerReason: z.string().optional(),
 });
+
+type TurnDetectionConfig = {
+  type: "server_vad";
+  threshold?: number;
+  silence_duration_ms: number;
+  prefix_padding_ms: number;
+  create_response: boolean;
+};
 
 type RealtimeSessionPayload = {
   type: "realtime";
   model: string;
   instructions: string;
-  turn_detection?: {
-    type: "server_vad";
-    silence_duration_ms: number;
-    prefix_padding_ms: number;
-  };
   audio: {
+    input?: {
+      transcription?: { model: string };
+      turn_detection?: TurnDetectionConfig;
+    };
     output: {
       voice: string;
     };
   };
 };
+
+function withServerVad(
+  session: RealtimeSessionPayload,
+): RealtimeSessionPayload {
+  return {
+    ...session,
+    audio: {
+      ...session.audio,
+      input: {
+        transcription: { model: "whisper-1" },
+        turn_detection: {
+          type: "server_vad",
+          threshold: 0.5,
+          silence_duration_ms: 1000,
+          prefix_padding_ms: 300,
+          create_response: false,
+        },
+      },
+    },
+  };
+}
 
 async function createRealtimeSession(
   clientSecretsUrl: string,
@@ -66,13 +107,35 @@ async function createRealtimeSession(
 
 export const POST = withApiHandler(async (request: Request) => {
   const authSession = await requireAuth();
+  assertRateLimit(
+    request,
+    rateLimitKey(request, ["realtime", authSession.user.id]),
+    { limit: 30, windowMs: 60_000 },
+  );
+
   const body = realtimeSessionSchema.parse(
     await request.json().catch(() => ({})),
   );
   await assertSessionOwnerIfPresent(body.sessionId, authSession.user.id);
-  const role = await resolveRole(body);
+
+  const { role, bound } = await resolveRoleFromSession(
+    body.sessionId,
+    authSession.user.id,
+    body,
+  );
+
   const questionCount = body.questionCount ?? 0;
-  const panelistMode = body.panelistMode ?? "both";
+  const panelistMode = bound?.panelistMode ?? body.panelistMode ?? "both";
+  const interviewDuration =
+    bound?.interviewDuration ?? body.interviewDuration ?? "minutes_30";
+  const promptContext = bound?.promptContext ?? body.promptContext;
+  const courseId =
+    role.id !== "job-custom"
+      ? role.id
+      : body.courseId && body.courseId !== role.id
+        ? undefined
+        : body.courseId;
+  const maxQuestions = getMaxQuestionsForDuration(interviewDuration);
   const activePanelist =
     body.activePanelist ?? getPanelistForQuestion(questionCount, panelistMode).id;
   const panelist = getPanelist(
@@ -80,10 +143,24 @@ export const POST = withApiHandler(async (request: Request) => {
   );
   const messages = body.messages ?? [];
   const transcript = messages.map(formatMessageSpeaker).join("\n");
-  const grounded = await getGroundedQuestions(role.title, 2, role.id);
-  const ragHint = grounded.length
-    ? `\n\nRole-specific question bank (weave in naturally when relevant): ${grounded.join(" | ")}`
-    : "";
+  const courseIdResolved = courseId ?? undefined;
+  const interviewScope = getCourseInterviewScope(courseIdResolved, promptContext);
+  const lastUserAnswer = messages.filter((message) => message.role === "user").at(-1)?.content;
+  const lastAssistant = messages.filter((message) => message.role === "assistant").at(-1)?.content;
+  const grounded = await getGroundedQuestionsStructured(
+    role.title,
+    4,
+    courseIdResolved,
+    {
+      topicAreas: interviewScope?.allowedTopics,
+      strictScope: interviewScope?.strictCourseMode,
+      lastUserAnswer,
+      lastAssistant,
+      messages,
+      phase: messages.length === 0 ? "greeting" : "follow_up",
+    },
+  );
+  const ragBlock = buildRagGroundingBlock(grounded, { forVoice: true });
   const instructions = buildInterviewerPrompt({
     role: role.title,
     questionCount,
@@ -91,6 +168,13 @@ export const POST = withApiHandler(async (request: Request) => {
     panelistMode,
     forVoice: true,
     screenReviewEnabled: body.screenReviewEnabled,
+    cameraReviewEnabled: body.cameraReviewEnabled,
+    sessionId: body.sessionId,
+    interviewDuration,
+    maxQuestions,
+    courseId: courseIdResolved,
+    promptContext,
+    ragBlock,
   });
   const fullInstructions = transcript
     ? `${instructions}\n\n${buildContinuationPrompt({
@@ -100,10 +184,14 @@ export const POST = withApiHandler(async (request: Request) => {
         activePanelist: panelist.id,
         transcript,
         messages,
-      })}${ragHint}`
-    : `${instructions}${ragHint}`;
+        routerReason: body.routerReason,
+        courseId: courseIdResolved,
+        promptContext,
+      })}`
+    : instructions;
   const realtimeCreds = getAzureRealtimeCredentials();
   const realtime = getAzureRealtimeConfig();
+  const realtimeVoice = resolveRealtimeVoice(panelist.id, panelist.voice);
 
   const baseSession: RealtimeSessionPayload = {
     type: "realtime",
@@ -111,26 +199,21 @@ export const POST = withApiHandler(async (request: Request) => {
     instructions: fullInstructions,
     audio: {
       output: {
-        voice: panelist.voice,
+        voice: realtimeVoice,
       },
     },
   };
 
+  let serverVadEnabled = true;
   let response = await createRealtimeSession(
     realtime.clientSecretsUrl,
     realtimeCreds.apiKey,
-    {
-      ...baseSession,
-      turn_detection: {
-        type: "server_vad",
-        silence_duration_ms: 1000,
-        prefix_padding_ms: 300,
-      },
-    },
+    withServerVad(baseSession),
   );
 
   if (!response.ok) {
     const turnDetectionError = await response.text();
+    serverVadEnabled = false;
     console.warn(
       "Realtime session with turn_detection failed, retrying without it:",
       turnDetectionError,
@@ -194,6 +277,8 @@ export const POST = withApiHandler(async (request: Request) => {
     callsUrl: realtime.callsUrl,
     deployment: realtime.deployment,
     activePanelist: panelist.id,
-    voice: panelist.voice,
+    voice: realtimeVoice,
+    requestedVoice: panelist.voice,
+    serverVadEnabled,
   });
 }, { timeoutMs: API_TIMEOUTS.default });

@@ -1,27 +1,55 @@
-import { renderToBuffer } from "@react-pdf/renderer";
 import { NextResponse } from "next/server";
+import { renderToBuffer } from "@react-pdf/renderer";
 import { z } from "zod";
+import { assertRateLimit, rateLimitKey } from "@/lib/api/assert-rate-limit";
 import { ReportPdfDocument } from "@/components/report/report-pdf-document";
 import { withApiHandler } from "@/lib/api/handler";
+import { ApiError } from "@/lib/api/errors";
 import { requireAuth } from "@/lib/auth/require-auth";
-import {
-  evaluateResponseSchema,
-  type EvaluateResponse,
-} from "@/lib/session/interview-store";
+import { getInterviewSessionById } from "@/lib/session/persistence";
+import { reportToEvaluateResponse } from "@/lib/session/report-queries";
+import { assertSessionOwner } from "@/lib/session/session-access";
 
-const pdfRequestSchema = evaluateResponseSchema.extend({
+const pdfRequestSchema = z.object({
+  sessionId: z.string(),
   roleTitle: z.string().optional(),
 });
 
+
 export const POST = withApiHandler(async (request: Request) => {
-  await requireAuth();
+  const authSession = await requireAuth();
+  assertRateLimit(
+    request,
+    rateLimitKey(request, ["pdf", authSession.user.id]),
+    { limit: 20, windowMs: 60_000 },
+  );
+
   const body = pdfRequestSchema.parse(await request.json());
-  const { roleTitle, ...report } = body as EvaluateResponse & {
-    roleTitle?: string;
-  };
+  await assertSessionOwner(body.sessionId, authSession.user.id);
+
+  const session = await getInterviewSessionById(body.sessionId);
+  if (!session?.report) {
+    throw new ApiError(
+      "NOT_FOUND",
+      "No saved report found for this session.",
+      404,
+    );
+  }
+
+  const report = reportToEvaluateResponse(session.report);
+  if (!report) {
+    throw new ApiError(
+      "NOT_FOUND",
+      "Could not load report for PDF export.",
+      404,
+    );
+  }
 
   const buffer = await renderToBuffer(
-    <ReportPdfDocument report={report} roleTitle={roleTitle} />,
+    <ReportPdfDocument
+      report={report}
+      roleTitle={body.roleTitle ?? session.role.title}
+    />,
   );
 
   return new NextResponse(new Uint8Array(buffer), {
