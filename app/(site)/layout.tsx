@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
 import { StayInformedModal } from "@/components/layout/stay-informed-modal";
@@ -13,7 +14,9 @@ export default function SiteLayout({
       <SiteHeader />
       <main className="flex flex-1 flex-col">{children}</main>
       <SiteFooter />
-      <StayInformedModal />
+      <Suspense fallback={null}>
+        <StayInformedModal />
+      </Suspense>
       <WhatsappFab />
     </>
   );

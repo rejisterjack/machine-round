@@ -87,3 +87,39 @@ export function optimizedVideoUrl(url: string): string {
 
   return `${prefix}${VIDEO_TRANSFORMS}/${suffix}`;
 }
+
+type VideoPosterOptions = {
+  offsetSeconds?: number;
+  width?: number;
+  height?: number;
+};
+
+/** Frame grab from a Cloudinary-hosted video (use early offset — not the last frame). */
+export function cloudinaryVideoPosterUrl(
+  url: string,
+  { offsetSeconds = 15, width = 1280, height = 720 }: VideoPosterOptions = {},
+): string {
+  if (!url.includes("res.cloudinary.com") || !url.includes("/video/upload/")) {
+    return url;
+  }
+
+  const uploadMarker = "/video/upload/";
+  const uploadIndex = url.indexOf(uploadMarker);
+  if (uploadIndex === -1) {
+    return url;
+  }
+
+  const prefix = url.slice(0, uploadIndex + uploadMarker.length);
+  const suffix = url
+    .slice(uploadIndex + uploadMarker.length)
+    .replace(/^v\d+\//, "")
+    .replace(/\.(mp4|webm|mov)$/i, ".jpg");
+
+  const transform = `so_${offsetSeconds},w_${width},h_${height},c_fill,q_auto,f_jpg`;
+
+  if (suffix.includes(transform)) {
+    return url;
+  }
+
+  return `${prefix}${transform}/${suffix}`;
+}

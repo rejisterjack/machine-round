@@ -1,16 +1,30 @@
 import Link from "next/link";
-import { ExternalLink, Video } from "lucide-react";
+import { CircleCheck, ExternalLink, Video } from "lucide-react";
+import { DemoVideoHeroPreview } from "@/components/brand/demo-video-hero-preview";
 import { HeroGridBackground } from "@/components/brand/hero-grid-background";
 import { PageShell } from "@/components/layout/page-shell";
 import { buttonVariants } from "@/components/ui/button";
-import { optimizedVideoUrl } from "@/lib/media/cloudinary-url";
+import {
+  cloudinaryVideoPosterUrl,
+  optimizedVideoUrl,
+} from "@/lib/media/cloudinary-url";
 import { cn } from "@/lib/utils";
 
-const DEMO_VIDEO_SRC = optimizedVideoUrl(
-  "https://res.cloudinary.com/dyrbtaqg2/video/upload/machine-round/marketing/namaste-machine-round-demo.mp4",
-);
+const DEMO_VIDEO_BASE =
+  "https://res.cloudinary.com/dyrbtaqg2/video/upload/machine-round/marketing/namaste-machine-round-demo.mp4";
+
+const DEMO_VIDEO_SRC = optimizedVideoUrl(DEMO_VIDEO_BASE);
+const DEMO_VIDEO_POSTER = cloudinaryVideoPosterUrl(DEMO_VIDEO_BASE, {
+  offsetSeconds: 20,
+});
 
 const GITHUB_REPO_URL = "https://github.com/rejisterjack/machine-round";
+
+const demoHeroChecklist = [
+  "Pick a course track and your panelist",
+  "Run a live voice machine round",
+  "Get a shareable readiness report",
+] as const;
 
 const highlights = [
   {
@@ -58,23 +72,53 @@ export default function DemoVideoPage() {
         <HeroGridBackground />
 
         <div className="nd-hero-inner">
-          <div className="mx-auto max-w-3xl text-center">
+          <div className="max-w-xl lg:max-w-none">
             <span className="nd-hero-eyebrow">Demo Video</span>
             <h1 className="nd-hero-title mt-6">
               See Namaste Machine Round{" "}
               <span className="nd-hero-accent">in action</span>
             </h1>
-            <p className="mx-auto mt-6 max-w-2xl text-sm text-muted-foreground sm:text-base">
+            <p className="mt-4 text-sm text-muted-foreground sm:text-base">
               A full walkthrough — from role selection and live voice interview
               to readiness report, share link, and replay.
             </p>
+            <ul className="mt-8 space-y-3">
+              {demoHeroChecklist.map((item) => (
+                <li key={item} className="flex items-start gap-2.5">
+                  <CircleCheck
+                    className="size-6 shrink-0 fill-primary text-black"
+                    strokeWidth={2}
+                  />
+                  <p className="text-sm text-foreground lg:text-base">{item}</p>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-10 flex flex-wrap items-center gap-3">
+              <Link
+                href="#demo-player"
+                className={cn(buttonVariants({ variant: "ndHeroCta", size: "lg" }))}
+              >
+                <span className="nd-cta-dot" aria-hidden />
+                Watch walkthrough
+              </Link>
+              <Link
+                href="/interview"
+                className={cn(buttonVariants({ variant: "ndGhost" }), "px-6 py-3")}
+              >
+                Try it yourself
+              </Link>
+            </div>
+          </div>
+
+          <div className="relative mx-auto mt-2 w-full max-w-md lg:mt-0 xl:max-w-lg">
+            <DemoVideoHeroPreview posterSrc={DEMO_VIDEO_POSTER} />
           </div>
         </div>
       </section>
 
       <PageShell glow>
         <div className="mx-auto max-w-5xl">
-          <div className="nd-replay-media-card">
+          <div id="demo-player" className="nd-replay-media-card scroll-mt-24">
             <div className="nd-replay-media-header">
               <div className="flex items-center gap-2">
                 <Video className="size-4 text-primary" />
@@ -87,7 +131,7 @@ export default function DemoVideoPage() {
               controls
               playsInline
               preload="metadata"
-              poster="/brand/hero-interview.jpeg"
+              poster={DEMO_VIDEO_POSTER}
               className="aspect-video w-full bg-black"
             />
           </div>
