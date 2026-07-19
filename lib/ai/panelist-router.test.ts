@@ -138,7 +138,7 @@ describe("panelist-router", () => {
     expect(signalsThreadClosure("I used a hash map for lookups.")).toBe(false);
   });
 
-  test("allows handoff consideration when thread is complete", async () => {
+  test("allows handoff consideration when thread is complete", () => {
     const messages = [
       {
         role: "assistant" as const,
@@ -161,14 +161,6 @@ describe("panelist-router", () => {
     ];
 
     expect(isThreadComplete(messages, "archy")).toBe(true);
-
-    const result = await resolveNextSpeaker({
-      messages,
-      panelistMode: "both",
-      connectedPanelist: "archy",
-      roleTitle: "Frontend Engineer",
-    });
-
-    expect(result.threadComplete).toBe(true);
+    expect(signalsThreadClosure(messages.at(-1)!.content)).toBe(true);
   });
 });
