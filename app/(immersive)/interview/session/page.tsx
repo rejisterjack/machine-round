@@ -745,6 +745,7 @@ export default function InterviewSessionPage() {
 
       const completed: InterviewSession = {
         ...base,
+        questionCount: computeQuestionCount(base.messages),
         status: "complete",
         inputMode: "voice",
         screenSharing: false,
@@ -755,15 +756,25 @@ export default function InterviewSessionPage() {
 
       if (base.dbSessionId) {
         await flushTranscriptQueue();
+        const latest = sessionRef.current ?? completed;
+        const questionCount = computeQuestionCount(latest.messages);
+        if (questionCount !== latest.questionCount) {
+          const reconciled = { ...latest, questionCount };
+          sessionRef.current = reconciled;
+          setSession(reconciled);
+          saveSession(reconciled);
+        }
+
         const patchResponse = await fetch(`/api/sessions/${base.dbSessionId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             status: "completed",
-            questionCount: base.questionCount,
-            topicsCovered: base.topicsCovered,
-            weakSignals: base.weakSignals,
+            questionCount,
+            topicsCovered: latest.topicsCovered,
+            weakSignals: latest.weakSignals,
             completedAt: new Date().toISOString(),
+            lastError: null,
           }),
         });
         if (!patchResponse.ok) {
@@ -791,28 +802,29 @@ export default function InterviewSessionPage() {
         await new Promise((resolve) => setTimeout(resolve, 2500));
       }
 
-      let sessionForReport: InterviewSession = completed;
+      let sessionForReport: InterviewSession = sessionRef.current ?? completed;
+      const reportSource = sessionRef.current ?? completed;
       if (
-        base.dbSessionId &&
-        base.messages.length > 0 &&
-        !completed.report
+        reportSource.dbSessionId &&
+        reportSource.messages.length > 0 &&
+        !reportSource.report
       ) {
         try {
           const evaluateResponse = await fetch("/api/evaluate", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              roleId: base.roleId,
-              roleTitle: base.roleTitle,
-              messages: base.messages,
-              sessionId: base.dbSessionId,
-              weakSignals: base.weakSignals,
+              roleId: reportSource.roleId,
+              roleTitle: reportSource.roleTitle,
+              messages: reportSource.messages,
+              sessionId: reportSource.dbSessionId,
+              weakSignals: reportSource.weakSignals,
             }),
           });
           if (evaluateResponse.ok) {
             const report = (await evaluateResponse.json()) as InterviewSession["report"];
             sessionForReport = {
-              ...completed,
+              ...reportSource,
               report: report
                 ? { ...report, shareToken: report.shareToken ?? null }
                 : undefined,
@@ -820,9 +832,35 @@ export default function InterviewSessionPage() {
             sessionRef.current = sessionForReport;
             setSession(sessionForReport);
             saveSession(sessionForReport);
+          } else {
+            const data = (await evaluateResponse.json().catch(() => ({}))) as {
+              error?: string;
+            };
+            const reportError =
+              data.error ??
+              "Could not generate your readiness report. Retry from My Rounds.";
+            setSaveError(reportError);
+            if (reportSource.dbSessionId) {
+              void fetch(`/api/sessions/${reportSource.dbSessionId}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ lastError: reportError }),
+                keepalive: true,
+              });
+            }
           }
         } catch {
-          // Report page will retry with ?session= param.
+          const reportError =
+            "Could not generate your readiness report. Retry from My Rounds.";
+          setSaveError(reportError);
+          if (reportSource.dbSessionId) {
+            void fetch(`/api/sessions/${reportSource.dbSessionId}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ lastError: reportError }),
+              keepalive: true,
+            });
+          }
         }
       }
 
@@ -832,8 +870,8 @@ export default function InterviewSessionPage() {
         setTimeout(resolve, INTERVIEW_COMPLETE_BANNER_MS),
       );
       router.push(
-        base.dbSessionId
-          ? `/report?session=${base.dbSessionId}`
+        reportSource.dbSessionId
+          ? `/report?session=${reportSource.dbSessionId}`
           : "/report",
       );
     },
@@ -1062,7 +1100,7 @@ export default function InterviewSessionPage() {
           const hydrated: InterviewSession = {
             ...current,
             messages: data.messages!,
-            questionCount: data.questionCount ?? current.questionCount,
+            questionCount: computeQuestionCount(data.messages!),
             topicsCovered: data.topicsCovered ?? current.topicsCovered,
             weakSignals: data.weakSignals ?? current.weakSignals,
             panelistMode: data.panelistMode ?? current.panelistMode,

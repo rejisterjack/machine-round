@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { ApiErrorCard } from "@/components/ui/api-error-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { roles } from "@/lib/design/tokens";
+import { backfillPendingReport } from "@/lib/session/backfill-reports";
 
 import type { InterviewDuration } from "@/lib/interview/duration-profiles";
 
@@ -53,6 +54,12 @@ export default function HistoryPage() {
   const [roleFilter, setRoleFilter] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [appliedSearch, setAppliedSearch] = useState("");
+  const [backfilling, setBackfilling] = useState(false);
+  const [backfillError, setBackfillError] = useState<string>();
+
+  const pendingReportSessions = sessions.filter(
+    (session) => session.status === "completed" && !session.hasReport,
+  );
 
   const buildQuery = useCallback(
     (offset: number) => {
@@ -125,6 +132,30 @@ export default function HistoryPage() {
     }
     setSessions((current) => current.filter((session) => session.id !== sessionId));
     setTotal((current) => Math.max(0, current - 1));
+  }
+
+  async function handleBackfillPendingReports() {
+    if (pendingReportSessions.length === 0) return;
+    setBackfilling(true);
+    setBackfillError(undefined);
+
+    try {
+      for (const session of pendingReportSessions) {
+        const result = await backfillPendingReport(session.id);
+        if (!result.ok) {
+          throw new Error(result.error);
+        }
+      }
+      await loadHistory();
+    } catch (caught) {
+      setBackfillError(
+        caught instanceof Error
+          ? caught.message
+          : "Could not generate one or more pending reports.",
+      );
+    } finally {
+      setBackfilling(false);
+    }
   }
 
   return (
@@ -229,6 +260,32 @@ export default function HistoryPage() {
           </div>
         ) : (
           <>
+            {pendingReportSessions.length > 0 ? (
+              <div className="nd-course-card mt-8 flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="font-medium">
+                    {pendingReportSessions.length} completed round
+                    {pendingReportSessions.length === 1 ? "" : "s"} without a
+                    report
+                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Generate readiness reports from saved transcripts.
+                  </p>
+                  {backfillError ? (
+                    <p className="mt-2 text-sm text-red-400">{backfillError}</p>
+                  ) : null}
+                </div>
+                <Button
+                  variant="ndPrimary"
+                  disabled={backfilling}
+                  onClick={() => void handleBackfillPendingReports()}
+                >
+                  {backfilling
+                    ? "Generating reports..."
+                    : "Generate pending reports"}
+                </Button>
+              </div>
+            ) : null}
             <p className="mt-6 text-sm text-muted-foreground">
               Showing {sessions.length} of {total} sessions
             </p>

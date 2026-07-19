@@ -17,7 +17,8 @@
     "smoke:api": "bun run scripts/smoke-api.ts",
     "smoke:frontend": "bun run scripts/smoke-frontend.ts",
     "deploy:production": "bash scripts/deploy-production.sh",
-    "test": "bun test"
+    "test": "bun test",
+    "cloudinary:purge-orphans": "bun run scripts/purge-orphan-cloudinary.ts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.2",
