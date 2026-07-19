@@ -10,7 +10,10 @@ import {
 import { buildInterviewerPrompt } from "@/lib/ai/prompts/interviewer";
 import { getConversationPhase } from "@/lib/ai/conversation-phases";
 import { getCourseInterviewScope } from "@/lib/courses/interview-scope";
-import { getGroundedQuestions } from "@/lib/rag/vector-store";
+import {
+  buildRagGroundingBlock,
+  getGroundedQuestionsStructured,
+} from "@/lib/rag/vector-store";
 import { withRetry } from "@/lib/api/handler";
 import { getMaxQuestionsForDuration } from "@/lib/interview/duration-profiles";
 import type { InterviewDuration } from "@/lib/interview/duration-profiles";
@@ -42,6 +45,13 @@ function withSpeaker(
   return { ...parsed, speaker };
 }
 
+function getLastMessageContent(
+  messages: InterviewMessage[],
+  role: InterviewMessage["role"],
+): string | undefined {
+  return messages.filter((message) => message.role === role).at(-1)?.content;
+}
+
 export async function runInterviewTurn(input: {
   roleTitle: string;
   roleId?: string;
@@ -71,27 +81,32 @@ export async function runInterviewTurn(input: {
   const courseId =
     input.roleId && input.roleId !== "job-custom" ? input.roleId : undefined;
   const interviewScope = getCourseInterviewScope(courseId, input.promptContext);
-  const grounded = await getGroundedQuestions(input.roleTitle, 2, courseId, {
-    topicAreas: interviewScope?.allowedTopics,
-    strictScope: interviewScope?.strictCourseMode,
-  });
+  const lastUserAnswer = getLastMessageContent(input.messages, "user");
+  const lastAssistant = getLastMessageContent(input.messages, "assistant");
+  const phase = getConversationPhase(input.questionCount, maxQuestions);
+
+  const grounded = await getGroundedQuestionsStructured(
+    input.roleTitle,
+    3,
+    courseId,
+    {
+      topicAreas: interviewScope?.allowedTopics,
+      strictScope: interviewScope?.strictCourseMode,
+      lastUserAnswer,
+      lastAssistant,
+      messages: input.messages,
+      phase: input.messages.length === 0 ? "greeting" : "follow_up",
+    },
+  );
+  const ragBlock = buildRagGroundingBlock(grounded);
   const transcript = input.messages.map(formatMessageSpeaker).join("\n");
 
-  const phase = getConversationPhase(input.questionCount, maxQuestions);
   const openingHint =
     phase === "greeting"
       ? `Start the interview like a real video call — greet them warmly, introduce yourself${
           panelistMode === "both" ? " and mention your co-panelist" : ""
-        }, briefly explain this is a machine round for ${input.roleTitle}, then ease in with a light opener.${
-          grounded.length
-            ? ` You may ground one question in this bank if useful: ${grounded.join(" | ")}`
-            : ""
-        }`
-      : `Start the interview with your first question.${
-          grounded.length
-            ? ` Ground one question in this bank if useful: ${grounded.join(" | ")}`
-            : ""
-        }`;
+        }, briefly explain this is a machine round for ${input.roleTitle}, then ease in with a light opener.`
+      : "Start the interview with your first question.";
 
   const invokeModel = async (strictReferencedAnswer = false) => {
     const response = await model.invoke([
@@ -105,6 +120,7 @@ export async function runInterviewTurn(input: {
           promptContext: input.promptContext,
           interviewDuration: input.interviewDuration,
           maxQuestions,
+          ragBlock,
         }),
       ),
       new HumanMessage(

@@ -4,8 +4,7 @@ import { assertRateLimit, rateLimitKey } from "@/lib/api/assert-rate-limit";
 import { API_TIMEOUTS, withApiHandler } from "@/lib/api/handler";
 import { ApiError } from "@/lib/api/errors";
 import { requireAuth } from "@/lib/auth/require-auth";
-import { buildContinuationPrompt, getPriorAssistantSpeaker } from "@/lib/ai/conversation-phases";
-import { isThreadComplete } from "@/lib/ai/panelist-router";
+import { buildContinuationPrompt } from "@/lib/ai/conversation-phases";
 import {
   formatMessageSpeaker,
   getPanelist,
@@ -18,7 +17,10 @@ import { resolveRealtimeVoice } from "@/lib/voice/panelist-voices";
 import { getAzureRealtimeConfig, getAzureRealtimeCredentials } from "@/lib/ai";
 import { buildInterviewerPrompt } from "@/lib/ai/prompts/interviewer";
 import { getCourseInterviewScope } from "@/lib/courses/interview-scope";
-import { getGroundedQuestions } from "@/lib/rag/vector-store";
+import {
+  buildRagGroundingBlock,
+  getGroundedQuestionsStructured,
+} from "@/lib/rag/vector-store";
 import { isDbReady } from "@/lib/db/ready";
 import { prisma } from "@/lib/prisma";
 import { resolveRoleFromSession } from "@/lib/session/session-role-binding";
@@ -143,18 +145,22 @@ export const POST = withApiHandler(async (request: Request) => {
   const transcript = messages.map(formatMessageSpeaker).join("\n");
   const courseIdResolved = courseId ?? undefined;
   const interviewScope = getCourseInterviewScope(courseIdResolved, promptContext);
-  const priorAssistant = getPriorAssistantSpeaker(messages);
-  const threadComplete = isThreadComplete(messages, priorAssistant);
-  const includeRagHints = questionCount <= 1 || threadComplete;
-  const grounded = includeRagHints
-    ? await getGroundedQuestions(role.title, 4, courseIdResolved, {
-        topicAreas: interviewScope?.allowedTopics,
-        strictScope: interviewScope?.strictCourseMode,
-      })
-    : [];
-  const ragHint = grounded.length
-    ? `\n\nRole-specific question bank (weave in naturally when relevant): ${grounded.join(" | ")}`
-    : "";
+  const lastUserAnswer = messages.filter((message) => message.role === "user").at(-1)?.content;
+  const lastAssistant = messages.filter((message) => message.role === "assistant").at(-1)?.content;
+  const grounded = await getGroundedQuestionsStructured(
+    role.title,
+    4,
+    courseIdResolved,
+    {
+      topicAreas: interviewScope?.allowedTopics,
+      strictScope: interviewScope?.strictCourseMode,
+      lastUserAnswer,
+      lastAssistant,
+      messages,
+      phase: messages.length === 0 ? "greeting" : "follow_up",
+    },
+  );
+  const ragBlock = buildRagGroundingBlock(grounded, { forVoice: true });
   const instructions = buildInterviewerPrompt({
     role: role.title,
     questionCount,
@@ -168,6 +174,7 @@ export const POST = withApiHandler(async (request: Request) => {
     maxQuestions,
     courseId: courseIdResolved,
     promptContext,
+    ragBlock,
   });
   const fullInstructions = transcript
     ? `${instructions}\n\n${buildContinuationPrompt({
@@ -180,8 +187,8 @@ export const POST = withApiHandler(async (request: Request) => {
         routerReason: body.routerReason,
         courseId: courseIdResolved,
         promptContext,
-      })}${ragHint}`
-    : `${instructions}${ragHint}`;
+      })}`
+    : instructions;
   const realtimeCreds = getAzureRealtimeCredentials();
   const realtime = getAzureRealtimeConfig();
   const realtimeVoice = resolveRealtimeVoice(panelist.id, panelist.voice);

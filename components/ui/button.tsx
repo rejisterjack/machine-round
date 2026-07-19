@@ -21,7 +21,7 @@ const buttonVariants = cva(
         ndPrimary:
           "h-auto min-h-11 rounded-full border border-primary bg-transparent px-6 py-3 text-base font-medium text-primary hover:bg-primary/10 focus-visible:ring-primary/40 sm:px-8 sm:py-4",
         ndHeroCta:
-          "h-auto min-h-11 gap-2 rounded-full border border-primary bg-transparent px-6 py-3 text-base font-medium text-primary hover:bg-primary/10 focus-visible:ring-primary/40 sm:min-h-[3.6875rem] sm:min-w-[14.8125rem] sm:px-8 sm:py-4",
+          "h-auto min-h-11 gap-2 rounded-full border border-primary bg-black px-6 py-3 text-base font-medium text-foreground hover:bg-primary/10 focus-visible:ring-primary/40 sm:min-h-[3.6875rem] sm:min-w-[14.8125rem] sm:px-8 sm:py-4",
         ndFilled:
           "rounded-full border-2 border-transparent bg-primary px-6 py-3 text-xs font-semibold text-white hover:bg-primary/90 focus-visible:ring-primary/40",
         ndNav:

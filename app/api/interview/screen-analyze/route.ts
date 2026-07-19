@@ -203,6 +203,7 @@ export const POST = withApiHandler(async (request: Request) => {
         confidence: trimmedSummary.length > 40 ? "high" : "low",
         observationStored: false,
         purpose: "archive",
+        timestamp: timestamp.toISOString(),
       });
     }
     throw error;

@@ -5,12 +5,13 @@ import { formatMessageSpeaker } from "@/lib/ai/personas/panelists";
 import { buildEvaluatorPrompt } from "@/lib/ai/prompts/evaluator";
 import { withRetry } from "@/lib/api/handler";
 import { buildInterviewScopeBlock } from "@/lib/courses/interview-scope";
+import { getGroundedQuestionsStructured } from "@/lib/rag/vector-store";
 import { isDbReady } from "@/lib/db/ready";
 import {
   canGenerateEvaluateReport,
   evaluateIneligibleMessage,
 } from "@/lib/session/evaluate-eligibility";
-import { buildCachedEvaluatePayload } from "@/lib/session/evaluate-cache";
+import { buildEvaluatePayloadFromSavedReport } from "@/lib/session/evaluate-cache";
 import { shouldReturnCachedReport } from "@/lib/session/evaluate-idempotency";
 import type { InterviewMessage } from "@/lib/session/interview-store";
 import { evaluateResponseSchema } from "@/lib/session/interview-store";
@@ -53,11 +54,8 @@ export async function generateEvaluateReport(input: {
     if (dbSession) {
       sessionWeakSignals = dbSession.weakSignals;
 
-      if (shouldReturnCachedReport(Boolean(dbSession.report))) {
-        const cached = buildCachedEvaluatePayload(dbSession);
-        if (cached) {
-          return cached;
-        }
+      if (shouldReturnCachedReport(Boolean(dbSession.report)) && dbSession.report) {
+        return buildEvaluatePayloadFromSavedReport(dbSession.report);
       }
     }
   }
@@ -85,12 +83,30 @@ export async function generateEvaluateReport(input: {
     bound?.promptContext ?? dbSession?.promptContext ?? undefined,
   );
 
+  const weakSignalHint = sessionWeakSignals.slice(0, 4).join(", ");
+  const practiceQuestions = await getGroundedQuestionsStructured(
+    role.title,
+    3,
+    courseId,
+    {
+      topicAreas: weakSignalHint ? weakSignalHint.split(/,\s*/) : undefined,
+      lastUserAnswer: weakSignalHint || undefined,
+      phase: "follow_up",
+    },
+  ).then((questions) => questions.map((question) => question.content));
+
   const model = getAzureEvaluatorModel();
   const screenNotes = screenObservations.map((observation) => observation.summary);
   const response = await withRetry(() =>
     model.invoke([
       new SystemMessage(
-        buildEvaluatorPrompt(role.title, transcript, screenNotes, scopeBlock),
+        buildEvaluatorPrompt(
+          role.title,
+          transcript,
+          screenNotes,
+          scopeBlock,
+          practiceQuestions,
+        ),
       ),
       new HumanMessage("Return the readiness report JSON."),
     ]),
@@ -116,10 +132,7 @@ export async function generateEvaluateReport(input: {
       parsed.screenReviewNotes ?? [],
     );
 
-    const cached = buildCachedEvaluatePayload({ report: saved });
-    if (cached) {
-      return cached;
-    }
+    return buildEvaluatePayloadFromSavedReport(saved);
   }
 
   return parsed;

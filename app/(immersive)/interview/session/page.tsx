@@ -868,7 +868,7 @@ export default function InterviewSessionPage() {
         !reportSource.report
       ) {
         try {
-          const evaluateResponse = await fetch("/api/evaluate", {
+          const evaluateResponse = await fetch("/api/evaluate?sync=1", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -879,7 +879,7 @@ export default function InterviewSessionPage() {
               weakSignals: reportSource.weakSignals,
             }),
           });
-          if (evaluateResponse.ok) {
+          if (evaluateResponse.ok && evaluateResponse.status !== 202) {
             const report = (await evaluateResponse.json()) as InterviewSession["report"];
             sessionForReport = {
               ...reportSource,

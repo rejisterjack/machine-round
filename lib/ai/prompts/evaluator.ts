@@ -35,6 +35,7 @@ export function buildEvaluatorPrompt(
   transcript: string,
   screenObservations?: string[],
   scopeBlock?: string,
+  practiceQuestions?: string[],
 ) {
   const screenSection =
     screenObservations?.length ?
@@ -45,13 +46,18 @@ export function buildEvaluatorPrompt(
     ? `\n\nInterview scope (score answers against this syllabus only):\n${scopeBlock.trim()}`
     : "";
 
+  const practiceSection =
+    practiceQuestions?.length ?
+      `\n\nPractice questions from the role bank (suggest 1-2 in improvements when relevant):\n${practiceQuestions.map((question, index) => `${index + 1}. ${question}`).join("\n")}`
+    : "";
+
   return `${EVALUATOR_SYSTEM_PROMPT}
 
 Role: ${role}
 ${scopeSection}
 
 Transcript:
-${transcript}${screenSection}`;
+${transcript}${screenSection}${practiceSection}`;
 }
 
 export { formatMessageSpeaker };

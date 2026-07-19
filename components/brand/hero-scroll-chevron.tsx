@@ -19,7 +19,7 @@ export function HeroScrollChevron({ targetId, className }: HeroScrollChevronProp
       onClick={handleClick}
       aria-label="Scroll to next section"
       className={cn(
-        "nd-hero-scroll-chevron mx-auto flex size-10 items-center justify-center text-muted-foreground transition-colors hover:text-primary",
+        "nd-hero-scroll-chevron mx-auto flex size-10 items-center justify-center text-foreground/70 transition-colors hover:text-primary",
         className,
       )}
     >

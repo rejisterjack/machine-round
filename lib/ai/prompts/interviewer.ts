@@ -153,6 +153,7 @@ function buildTextPrompt(input: {
   maxQuestions: number;
   courseId?: string;
   promptContext?: string;
+  ragBlock?: string;
 }) {
   const panelist = getPanelist(input.activePanelist);
   const scope = resolveInterviewScope(input);
@@ -187,6 +188,7 @@ Turn guidance: ${phaseGuidance}
 
 ${buildFormatGuidance(input.interviewDuration, scope?.strictCourseMode ?? false)}
 ${buildTrackContext(input)}
+${input.ragBlock ? `\n${input.ragBlock}` : ""}
 
 ${panelist.persona}
 
@@ -205,6 +207,7 @@ function buildVoicePrompt(input: {
   maxQuestions: number;
   courseId?: string;
   promptContext?: string;
+  ragBlock?: string;
 }) {
   const panelist = getPanelist(input.activePanelist);
   const profile = getDurationProfile(input.interviewDuration);
@@ -254,6 +257,7 @@ Phase guidance: ${phaseGuidance}
 
 ${buildFormatGuidance(input.interviewDuration, scope?.strictCourseMode ?? false)}
 ${buildTrackContext(input)}
+${input.ragBlock ? `\n${input.ragBlock}` : ""}
 
 ${panelist.persona}
 ${screenNote}
@@ -276,6 +280,7 @@ export function buildInterviewerPrompt(input: {
   maxQuestions?: number;
   courseId?: string;
   promptContext?: string;
+  ragBlock?: string;
 }) {
   const panelistMode = input.panelistMode ?? "both";
   const interviewDuration = input.interviewDuration ?? DEFAULT_INTERVIEW_DURATION;
@@ -295,6 +300,7 @@ export function buildInterviewerPrompt(input: {
       maxQuestions,
       courseId: input.courseId,
       promptContext: input.promptContext,
+      ragBlock: input.ragBlock,
     });
   }
 
@@ -308,6 +314,7 @@ export function buildInterviewerPrompt(input: {
     maxQuestions,
     courseId: input.courseId,
     promptContext: input.promptContext,
+    ragBlock: input.ragBlock,
   });
 }
 

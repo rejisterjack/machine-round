@@ -34,7 +34,9 @@ export function UserMenu({ className, variant = "desktop" }: UserMenuProps) {
       <Link
         href="/login"
         className={cn(
-          variant === "desktop" ? "nd-nav-link" : buttonVariants({ variant: "outline", size: "lg" }),
+          variant === "desktop"
+            ? "nd-header-link inline-flex"
+            : buttonVariants({ variant: "outline", size: "lg" }),
           variant === "mobile" && "w-full justify-center",
           className,
         )}

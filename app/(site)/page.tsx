@@ -50,29 +50,12 @@ const benefits = [
 export default function HomePage() {
   return (
     <>
-      <NdHero
-        eyebrow="Practice. Adapt. Improve."
-        tagline="Interview Preparation"
-        title="Train for the Machine Round"
-        accentWord="Machine Round"
-        description="A realistic AI-style screening interview that adapts its follow-ups based on your actual answers and returns a structured readiness report — so you walk in knowing what the screener is listening for."
-        checklist={[
-          "Choose Akshay Saini, Archy Gupta, or both as your panel",
-          "Adaptive follow-ups that reference your actual answers",
-          "Voice-only live interview — practice like a real AI screen",
-          "Structured readiness report with concrete improvement actions",
-        ]}
-        ctaLabel="Start a Machine Round"
-        ctaHref="/interview"
-        scrollTargetId="choose-track"
-        secondaryLabel="View how it works"
-        secondaryHref="#how-it-works"
-      />
+      <NdHero scrollTargetId="choose-track" />
 
       <PageShell glow>
         <section id="choose-track" className="nd-section-gap">
           <div className="mb-6 flex justify-center">
-            <span className="nd-section-pill">Explore our best tracks</span>
+            <span className="nd-section-pill">Explore our best courses</span>
           </div>
           <h2 className="text-center font-heading text-2xl font-medium sm:text-3xl lg:text-4xl">
             Choose Your Path To{" "}
