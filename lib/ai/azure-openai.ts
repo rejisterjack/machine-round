@@ -1,4 +1,5 @@
 import { AzureChatOpenAI, AzureOpenAIEmbeddings } from "@langchain/openai";
+import { getServerEnv } from "@/lib/env/server";
 
 export type AzureOpenAIConfig = {
   endpoint: string;
@@ -17,12 +18,11 @@ export type AzureRealtimeConfig = {
   callsUrl: string;
 };
 
-function requireEnv(name: string): string {
-  const value = process.env[name]?.trim();
-  if (!value) {
-    throw new Error(`Missing required environment variable: ${name}`);
-  }
-  return value;
+function optionalEnv(name: keyof ReturnType<typeof getServerEnv>): string | undefined {
+  const value = getServerEnv()[name];
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed || undefined;
 }
 
 function parseInstanceName(endpoint: string): string {
@@ -41,22 +41,18 @@ function buildAzureUrl(endpoint: string, path: string): string {
 }
 
 export function getAzureConfig(): AzureOpenAIConfig {
-  const endpoint = requireEnv("AZURE_OPENAI_ENDPOINT");
+  const env = getServerEnv();
+  const endpoint = env.AZURE_OPENAI_ENDPOINT;
 
   return {
     endpoint,
-    apiKey: requireEnv("AZURE_OPENAI_API_KEY"),
-    apiVersion: requireEnv("AZURE_OPENAI_API_VERSION"),
+    apiKey: env.AZURE_OPENAI_API_KEY,
+    apiVersion: env.AZURE_OPENAI_API_VERSION,
     instanceName: parseInstanceName(endpoint),
-    chatDeployment: requireEnv("AZURE_OPENAI_CHAT_DEPLOYMENT"),
-    realtimeDeployment: requireEnv("AZURE_OPENAI_REALTIME_DEPLOYMENT"),
-    embeddingDeployment: requireEnv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT"),
+    chatDeployment: env.AZURE_OPENAI_CHAT_DEPLOYMENT,
+    realtimeDeployment: env.AZURE_OPENAI_REALTIME_DEPLOYMENT,
+    embeddingDeployment: env.AZURE_OPENAI_EMBEDDING_DEPLOYMENT,
   };
-}
-
-function optionalEnv(name: string): string | undefined {
-  const value = process.env[name]?.trim();
-  return value || undefined;
 }
 
 export function getAzureRealtimeCredentials(): {

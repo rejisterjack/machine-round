@@ -1,7 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  cacheComponents: true,
   images: {
+    formats: ["image/avif", "image/webp"],
     remotePatterns: [
       {
         protocol: "https",
@@ -16,6 +18,19 @@ const nextConfig: NextConfig = {
         hostname: "do6gp1uxl3luu.cloudfront.net",
       },
     ],
+  },
+  async headers() {
+    return [
+      {
+        source: "/brand/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=604800, immutable",
+          },
+        ],
+      },
+    ];
   },
 };
 

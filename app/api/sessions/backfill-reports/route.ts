@@ -12,6 +12,8 @@ import { listPendingReportSessionIds } from "@/lib/session/session-maintenance";
 import { normalizeInterviewMessageSpeaker } from "@/lib/session/message-speaker";
 import type { InterviewMessage } from "@/lib/session/interview-store";
 
+export const maxDuration = 60;
+
 export const POST = withApiHandler(async () => {
   const authSession = await requireAuth();
 

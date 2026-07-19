@@ -19,6 +19,7 @@ import { ApiError } from "@/lib/api/errors";
 import { isDbReady } from "@/lib/db/ready";
 import { prisma } from "@/lib/prisma";
 import { findRoleRecordBySlug } from "@/lib/session/find-role-record";
+import { invalidateReportCache } from "@/lib/queries/reports";
 import { reportToEvaluateResponse } from "@/lib/session/report-queries";
 import { roleIdToSlug } from "@/lib/session/role-slug";
 
@@ -303,6 +304,10 @@ export async function saveReadinessReport(
   });
 
   if (existing) {
+    invalidateReportCache({
+      shareToken: existing.shareToken,
+      sessionId,
+    });
     return existing;
   }
 
@@ -362,6 +367,11 @@ export async function saveReadinessReport(
         status: "completed",
         completedAt: new Date(),
       },
+    });
+
+    invalidateReportCache({
+      shareToken: saved.shareToken,
+      sessionId,
     });
 
     return saved;

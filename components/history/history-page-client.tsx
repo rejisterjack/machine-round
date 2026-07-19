@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { deleteSessionAction } from "@/lib/actions/session-actions";
 import { SessionHistoryCard } from "@/components/history/session-history-card";
 import { Breadcrumb } from "@/components/layout/breadcrumb";
 import { PageShell } from "@/components/layout/page-shell";
@@ -117,12 +118,7 @@ export function HistoryPageClient({
   const hasMore = sessions.length < total;
 
   async function handleDelete(sessionId: string): Promise<void> {
-    const response = await fetch(`/api/sessions/${sessionId}`, {
-      method: "DELETE",
-    });
-    if (!response.ok) {
-      throw new Error("Could not delete session.");
-    }
+    await deleteSessionAction(sessionId);
     setSessions((current) => current.filter((session) => session.id !== sessionId));
     setTotal((current) => Math.max(0, current - 1));
   }

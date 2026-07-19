@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { assertRateLimit, rateLimitKey } from "@/lib/api/assert-rate-limit";
 import { API_TIMEOUTS, withApiHandler } from "@/lib/api/handler";
 import { ApiError } from "@/lib/api/errors";
 import { requireAuth } from "@/lib/auth/require-auth";
@@ -24,6 +25,7 @@ import { resolveRoleFromSession } from "@/lib/session/session-role-binding";
 import { assertSessionOwnerIfPresent } from "@/lib/session/session-access";
 import { interviewDurationSchema, interviewMessageSchema } from "@/lib/session/interview-store";
 import { getMaxQuestionsForDuration } from "@/lib/interview/duration-profiles";
+
 
 const realtimeSessionSchema = z.object({
   sessionId: z.string(),
@@ -103,6 +105,12 @@ async function createRealtimeSession(
 
 export const POST = withApiHandler(async (request: Request) => {
   const authSession = await requireAuth();
+  assertRateLimit(
+    request,
+    rateLimitKey(request, ["realtime", authSession.user.id]),
+    { limit: 30, windowMs: 60_000 },
+  );
+
   const body = realtimeSessionSchema.parse(
     await request.json().catch(() => ({})),
   );

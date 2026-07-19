@@ -19,6 +19,21 @@ export async function resetStaleThinkingSessions(userId: string) {
   return result.count;
 }
 
+export async function resetAllStaleThinkingSessions() {
+  if (!(await isDbReady())) return 0;
+
+  const cutoff = new Date(Date.now() - STALE_THINKING_MINUTES * 60_000);
+  const result = await prisma.interviewSession.updateMany({
+    where: {
+      status: "thinking",
+      updatedAt: { lt: cutoff },
+    },
+    data: { status: "active" },
+  });
+
+  return result.count;
+}
+
 export async function listPendingReportSessionIds(userId: string) {
   if (!(await isDbReady())) return [];
 

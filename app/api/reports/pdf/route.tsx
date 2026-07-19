@@ -1,6 +1,7 @@
-import { renderToBuffer } from "@react-pdf/renderer";
 import { NextResponse } from "next/server";
+import { renderToBuffer } from "@react-pdf/renderer";
 import { z } from "zod";
+import { assertRateLimit, rateLimitKey } from "@/lib/api/assert-rate-limit";
 import { ReportPdfDocument } from "@/components/report/report-pdf-document";
 import { withApiHandler } from "@/lib/api/handler";
 import { ApiError } from "@/lib/api/errors";
@@ -14,8 +15,15 @@ const pdfRequestSchema = z.object({
   roleTitle: z.string().optional(),
 });
 
+
 export const POST = withApiHandler(async (request: Request) => {
   const authSession = await requireAuth();
+  assertRateLimit(
+    request,
+    rateLimitKey(request, ["pdf", authSession.user.id]),
+    { limit: 20, windowMs: 60_000 },
+  );
+
   const body = pdfRequestSchema.parse(await request.json());
   await assertSessionOwner(body.sessionId, authSession.user.id);
 

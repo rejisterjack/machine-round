@@ -63,6 +63,7 @@ import {
 } from "@/lib/voice/realtime-transcript";
 import { onTranscriptSyncStatus } from "@/lib/voice/transcript-sync";
 import { isTranscriptSyncFailing } from "@/lib/voice/transcript-sync";
+import { abandonSessionAction, updateSessionMetadataAction } from "@/lib/actions/session-actions";
 import { reconcileTranscriptWithServer } from "@/lib/voice/transcript-reconcile-client";
 import {
   detectWeakSignalsFromAnswer,
@@ -948,6 +949,7 @@ export default function InterviewSessionPage() {
 
     const base = sessionRef.current;
     if (base?.dbSessionId && base.status !== "complete") {
+      void abandonSessionAction(base.dbSessionId).catch(() => undefined);
       void fetch(`/api/sessions/${base.dbSessionId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -988,6 +990,12 @@ export default function InterviewSessionPage() {
     sessionRef.current = updated;
     setSession(updated);
     saveSession(updated);
+
+    if (current.dbSessionId) {
+      void updateSessionMetadataAction(current.dbSessionId, {
+        interviewDuration: duration,
+      }).catch(() => undefined);
+    }
   }, []);
 
   const handleJoin = useCallback(async () => {
@@ -1004,10 +1012,8 @@ export default function InterviewSessionPage() {
 
     if (current?.dbSessionId) {
       try {
-        await fetch(`/api/sessions/${current.dbSessionId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ interviewDuration }),
+        await updateSessionMetadataAction(current.dbSessionId, {
+          interviewDuration,
         });
       } catch {
         // Continue with client-side duration if persistence fails.
@@ -1196,6 +1202,7 @@ export default function InterviewSessionPage() {
       const base = sessionRef.current;
       if (!base?.dbSessionId || base.status === "complete") return;
       abandoningRef.current = true;
+      void abandonSessionAction(base.dbSessionId).catch(() => undefined);
       void fetch(`/api/sessions/${base.dbSessionId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
