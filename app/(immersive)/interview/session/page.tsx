@@ -155,7 +155,7 @@ export default function InterviewSessionPage() {
   const bindScreenSampler = useCallback(
     (video: HTMLVideoElement) => {
       stopScreenSampler();
-      stopSamplerRef.current = startScreenSamplerLib(video, async (imageBase64) => {
+      stopSamplerRef.current = startScreenSamplerLib(video, async (frames) => {
         const current = sessionRef.current;
         if (!current?.dbSessionId) return;
         if (analyzeInFlightRef.current) return;
@@ -171,7 +171,7 @@ export default function InterviewSessionPage() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               sessionId: current.dbSessionId,
-              imageBase64,
+              imageBase64: frames.analysisBase64,
               roleTitle: current.roleTitle,
               panelistMode: current.panelistMode,
               priorSummary:
@@ -215,7 +215,8 @@ export default function InterviewSessionPage() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               sessionId: current.dbSessionId,
-              imageBase64,
+              imageBase64: frames.archiveBase64,
+              mimeType: frames.archiveMime,
               capturedAt: new Date().toISOString(),
               questionSequence: current.questionCount,
               summary: data.summary,
@@ -492,7 +493,7 @@ export default function InterviewSessionPage() {
     await startVoice(
       getPanelistForQuestion(0, sessionRef.current?.panelistMode ?? "both").id,
     );
-    recorderRef.current?.start();
+    await recorderRef.current?.start();
   }, [media, startVoice]);
 
   useEffect(() => () => clearPendingComplete(), [clearPendingComplete]);

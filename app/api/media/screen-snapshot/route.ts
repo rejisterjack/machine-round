@@ -9,19 +9,20 @@ import {
   isCloudinaryConfigured,
   uploadImage,
 } from "@/lib/media/cloudinary";
-import {
-  isImageBase64WithinLimit,
-  MAX_IMAGE_BASE64_CHARS,
-} from "@/lib/media/image-payload";
+import { ARCHIVE_MAX_BASE64_CHARS } from "@/lib/media/media-optimization";
+import { isArchiveImageWithinLimit } from "@/lib/media/image-payload";
 import {
   assertSnapshotSlotAvailable,
   createScreenCaptureIfUnderLimit,
 } from "@/lib/session/media-queries";
 import { assertSessionOwner } from "@/lib/session/session-access";
 
+const archiveMimeSchema = z.enum(["image/webp", "image/jpeg"]);
+
 const bodySchema = z.object({
   sessionId: z.string(),
-  imageBase64: z.string().min(1).max(MAX_IMAGE_BASE64_CHARS),
+  imageBase64: z.string().min(1).max(ARCHIVE_MAX_BASE64_CHARS),
+  mimeType: archiveMimeSchema.optional(),
   capturedAt: z.string().datetime().optional(),
   questionSequence: z.number().int().min(0).optional(),
   summary: z.string().max(2000).optional(),
@@ -40,7 +41,7 @@ export const POST = withApiHandler(async (request: Request) => {
 
   const body = bodySchema.parse(await request.json());
 
-  if (!isImageBase64WithinLimit(body.imageBase64)) {
+  if (!isArchiveImageWithinLimit(body.imageBase64)) {
     throw new ApiError(
       "VALIDATION_ERROR",
       "Image payload exceeds maximum allowed size.",
@@ -52,7 +53,9 @@ export const POST = withApiHandler(async (request: Request) => {
   await assertSnapshotSlotAvailable(body.sessionId);
 
   const folder = buildMediaFolder(authSession.user.id, body.sessionId);
-  const uploaded = await uploadImage(body.imageBase64, folder);
+  const uploaded = await uploadImage(body.imageBase64, folder, {
+    mimeType: body.mimeType ?? "image/jpeg",
+  });
 
   try {
     const capture = await createScreenCaptureIfUnderLimit({
@@ -68,6 +71,7 @@ export const POST = withApiHandler(async (request: Request) => {
       id: capture.id,
       url: capture.cloudinaryUrl,
       publicId: capture.cloudinaryPublicId,
+      bytes: uploaded.bytes,
     });
   } catch (error) {
     try {

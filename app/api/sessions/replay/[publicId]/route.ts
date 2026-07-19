@@ -40,6 +40,7 @@ export const GET = withApiHandler(
       recordingDurationMs: media.session?.recordingDurationMs ?? undefined,
       screenCaptures: media.captures.map((capture) => ({
         url: capture.cloudinaryUrl,
+        publicId: capture.cloudinaryPublicId,
         summary: capture.summary,
         capturedAt: capture.capturedAt.toISOString(),
         questionSequence: capture.questionSequence,
