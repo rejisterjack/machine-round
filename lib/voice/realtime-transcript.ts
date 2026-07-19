@@ -66,13 +66,14 @@ export function extractPartialDelta(
 export async function syncVoiceTranscript(
   sessionId: string,
   content: string,
+  role: "user" | "assistant" = "user",
   speaker?: PanelistId,
 ) {
   try {
     await fetch("/api/interview/transcript", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sessionId, content, speaker }),
+      body: JSON.stringify({ sessionId, content, role, speaker }),
     });
   } catch {
     // Best-effort DB sync; client transcript remains source of truth.

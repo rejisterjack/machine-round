@@ -27,15 +27,25 @@ Respond in JSON only:
 Rules:
 - Provide exactly 2 or 3 improvements.
 - weakTopics should summarize recurring weak areas for a tag cloud (3-6 items, weight 0-1).
-- Questions may be attributed to panelists Akshay Saini (akshay) or Archy Gupta (archy).`;
+- Questions may be attributed to panelists Akshay Saini (akshay) or Archy Gupta (archy).
+- screenReviewNotes: optional array of 2-4 bullets summarizing what the candidate showed on screen and how well they explained it (only when screen observations were provided).`;
 
-export function buildEvaluatorPrompt(role: string, transcript: string) {
+export function buildEvaluatorPrompt(
+  role: string,
+  transcript: string,
+  screenObservations?: string[],
+) {
+  const screenSection =
+    screenObservations?.length ?
+      `\n\nScreen share observations during the interview:\n${screenObservations.map((note, i) => `${i + 1}. ${note}`).join("\n")}\n\nIncorporate screen review signals into the report. Add a screenReviewNotes array (2-4 concise bullets) if screen context was provided.`
+    : "";
+
   return `${EVALUATOR_SYSTEM_PROMPT}
 
 Role: ${role}
 
 Transcript:
-${transcript}`;
+${transcript}${screenSection}`;
 }
 
 export { formatMessageSpeaker };

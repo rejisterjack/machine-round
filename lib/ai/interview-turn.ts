@@ -5,8 +5,10 @@ import {
   getPanelistForQuestion,
   isPanelistId,
   type PanelistId,
+  type PanelistMode,
 } from "@/lib/ai/personas/panelists";
 import { buildInterviewerPrompt } from "@/lib/ai/prompts/interviewer";
+import { getConversationPhase } from "@/lib/ai/conversation-phases";
 import { getGroundedQuestions } from "@/lib/rag/vector-store";
 import { withRetry } from "@/lib/api/handler";
 import { MAX_QUESTIONS } from "@/lib/design/tokens";
@@ -42,13 +44,18 @@ export async function runInterviewTurn(input: {
   roleId?: string;
   messages: InterviewMessage[];
   questionCount: number;
+  panelistMode?: PanelistMode;
 }) {
-  const activePanelist = getPanelistForQuestion(input.questionCount).id;
+  const panelistMode = input.panelistMode ?? "both";
+  const activePanelist = getPanelistForQuestion(
+    input.questionCount,
+    panelistMode,
+  ).id;
 
   if (input.questionCount >= MAX_QUESTIONS) {
     return {
       message:
-        "That wraps our machine round. Let's generate your readiness report.",
+        "That wraps us up — thanks so much for your time today. We'll pull up your readiness report next.",
       speaker: activePanelist,
       done: true,
     } satisfies InterviewResponse;
@@ -62,6 +69,22 @@ export async function runInterviewTurn(input: {
   );
   const transcript = input.messages.map(formatMessageSpeaker).join("\n");
 
+  const phase = getConversationPhase(input.questionCount);
+  const openingHint =
+    phase === "greeting"
+      ? `Start the interview like a real video call — greet them warmly, introduce yourself${
+          panelistMode === "both" ? " and mention your co-panelist" : ""
+        }, briefly explain this is a machine round for ${input.roleTitle}, then ease in with a light opener.${
+          grounded.length
+            ? ` You may ground one question in this bank if useful: ${grounded.join(" | ")}`
+            : ""
+        }`
+      : `Start the interview with your first question.${
+          grounded.length
+            ? ` Ground one question in this bank if useful: ${grounded.join(" | ")}`
+            : ""
+        }`;
+
   const invokeModel = async (strictReferencedAnswer = false) => {
     const response = await model.invoke([
       new SystemMessage(
@@ -69,15 +92,12 @@ export async function runInterviewTurn(input: {
           role: input.roleTitle,
           questionCount: input.questionCount,
           activePanelist,
+          panelistMode,
         }),
       ),
       new HumanMessage(
         input.messages.length === 0
-          ? `Start the interview with your first question.${
-              grounded.length
-                ? ` Ground one question in this bank if useful: ${grounded.join(" | ")}`
-                : ""
-            }`
+          ? openingHint
           : `Continue the interview based on this transcript:\n${transcript}${
               strictReferencedAnswer
                 ? "\n\nIMPORTANT: You must include referencedAnswer quoting or paraphrasing the candidate's latest answer."
