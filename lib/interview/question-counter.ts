@@ -7,9 +7,6 @@ import type { InterviewMessage } from "@/lib/session/interview-store";
 
 const SYSTEM_MESSAGE_PATTERN = /^\[System\]/i;
 
-const FOLLOW_UP_PATTERN =
-  /\b(tell me more|can you elaborate|elaborate on|you mentioned|going back|what about|dig deeper|clarify|can you explain (?:that|this|further)|walk me through (?:that|this)|how (?:exactly|specifically))\b/i;
-
 const NEW_TOPIC_PATTERN =
   /\b(moving on|next topic|let(?:'s| us) (?:move|switch|talk about)|different topic|another (?:question|topic)|now (?:let|tell))\b/i;
 
@@ -24,72 +21,93 @@ function looksLikeQuestion(content: string): boolean {
   return QUESTION_PROBE_PATTERN.test(content);
 }
 
-function isLikelyFollowUp(
-  priorAssistant: InterviewMessage | undefined,
-  newContent: string,
-): boolean {
-  if (!priorAssistant) return false;
+function computeIncrementFlags(messages: InterviewMessage[]): boolean[] {
+  const increments = new Array<boolean>(messages.length).fill(false);
 
-  const trimmed = newContent.trim();
-  if (NEW_TOPIC_PATTERN.test(trimmed)) return false;
-  if (!looksLikeQuestion(trimmed)) return true;
-
-  if (FOLLOW_UP_PATTERN.test(trimmed)) return true;
-
-  return false;
-}
-
-function countAssistantIncrements(messages: InterviewMessage[]): number {
-  let count = 0;
   for (let index = 0; index < messages.length; index += 1) {
     const message = messages[index];
     if (message.role !== "assistant") continue;
-    const before = messages.slice(0, index);
-    if (shouldIncrementQuestionCount(before, message)) {
-      count += 1;
+
+    const content = message.content.trim();
+    if (!content || isSystemMessage(content) || hasClosingIntent(content)) {
+      continue;
+    }
+
+    if (index > 0 && messages[index - 1]?.role === "assistant") {
+      continue;
+    }
+
+    let priorCount = 0;
+    for (let i = 0; i < index; i += 1) {
+      if (increments[i]) priorCount += 1;
+    }
+
+    if (priorCount < GREETING_WARMUP_TURNS) {
+      if (priorCount === 0) {
+        increments[index] = true;
+        continue;
+      }
+      const hasUserMessage = messages
+        .slice(0, index)
+        .some((entry) => entry.role === "user");
+      if (hasUserMessage) increments[index] = true;
+      continue;
+    }
+
+    const lastUserIndex = messages
+      .slice(0, index)
+      .findLastIndex((entry) => entry.role === "user");
+    if (lastUserIndex === -1) continue;
+
+    if (NEW_TOPIC_PATTERN.test(content)) {
+      increments[index] = true;
+      continue;
+    }
+
+    let incrementCount = 0;
+    let lastScoredTopicOpenerIndex = -1;
+    for (let i = 0; i < index; i += 1) {
+      if (!increments[i]) continue;
+      incrementCount += 1;
+      if (incrementCount > GREETING_WARMUP_TURNS) {
+        lastScoredTopicOpenerIndex = i;
+      }
+    }
+
+    if (
+      lastScoredTopicOpenerIndex >= 0 &&
+      lastUserIndex > lastScoredTopicOpenerIndex
+    ) {
+      continue;
+    }
+
+    if (looksLikeQuestion(content)) {
+      increments[index] = true;
     }
   }
-  return count;
+
+  return increments;
 }
 
 /**
  * Whether an incoming assistant message should advance questionCount.
+ * Used for analytics (topics discussed) — not for session termination.
  */
 export function shouldIncrementQuestionCount(
   messagesBefore: InterviewMessage[],
   newAssistantMessage: Pick<InterviewMessage, "role" | "content">,
 ): boolean {
-  if (newAssistantMessage.role !== "assistant") return false;
-
-  const content = newAssistantMessage.content.trim();
-  if (!content || isSystemMessage(content)) return false;
-  if (hasClosingIntent(content)) return false;
-
-  const lastMessage = messagesBefore.at(-1);
-  if (lastMessage?.role === "assistant") return false;
-
-  const priorCount = countAssistantIncrements(messagesBefore);
-
-  if (priorCount < GREETING_WARMUP_TURNS) {
-    if (priorCount === 0) return true;
-    const hasUserMessage = messagesBefore.some((m) => m.role === "user");
-    return hasUserMessage;
-  }
-
-  const lastUserIndex = messagesBefore.findLastIndex((m) => m.role === "user");
-  if (lastUserIndex === -1) return false;
-
-  const priorAssistant = getLastAssistantMessage(
-    messagesBefore.slice(0, lastUserIndex + 1),
-  );
-  if (priorAssistant && isLikelyFollowUp(priorAssistant, content)) {
-    return false;
-  }
-
-  return looksLikeQuestion(content);
+  const messages = [
+    ...messagesBefore,
+    { ...newAssistantMessage, role: "assistant" as const },
+  ];
+  const flags = computeIncrementFlags(messages);
+  return flags.at(-1) ?? false;
 }
 
 /** Recompute questionCount from the full transcript. */
 export function computeQuestionCount(messages: InterviewMessage[]): number {
-  return countAssistantIncrements(messages);
+  return computeIncrementFlags(messages).filter(Boolean).length;
 }
+
+export { getLastAssistantMessage };

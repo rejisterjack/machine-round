@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Play, RotateCcw } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -23,8 +24,10 @@ import {
   canGenerateEvaluateReport,
   evaluateIneligibleMessage,
 } from "@/lib/session/evaluate-eligibility";
+import { scoreBadgeClass } from "@/lib/session/score-display";
 import type { SessionReportData } from "@/lib/queries/reports";
 import type { InterviewDuration } from "@/lib/interview/duration-profiles";
+import { cn } from "@/lib/utils";
 
 function normalizeMessages(
   messages: Array<{
@@ -66,6 +69,22 @@ function toInterviewSession(data: SessionReportData): InterviewSession {
     dbSessionId: data.id,
     publicId: data.publicId,
   };
+}
+
+function ReportLoadingSkeleton() {
+  return (
+    <div className="mt-10 space-y-8">
+      <Skeleton className="h-52 w-full rounded-xl" />
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Skeleton className="h-24 rounded-xl" />
+        <Skeleton className="h-24 rounded-xl" />
+        <Skeleton className="h-24 rounded-xl" />
+        <Skeleton className="h-24 rounded-xl" />
+      </div>
+      <Skeleton className="h-36 w-full rounded-xl" />
+      <Skeleton className="h-64 w-full rounded-xl" />
+    </div>
+  );
 }
 
 type ReportPageClientProps = {
@@ -306,64 +325,123 @@ export function ReportPageClient({ initialSession }: ReportPageClientProps) {
 
   useEffect(() => {
     if (hydrating || session === null) return;
+
+    if (session.report) {
+      reportRequested.current = true;
+      setError(undefined);
+      return;
+    }
+
+    if (reportRequested.current) return;
+
     if (!session.messages.length) {
       router.replace("/interview");
       return;
     }
-    if (session.report || reportRequested.current) return;
+
     reportRequested.current = true;
     void generateReport(session);
   }, [router, session, hydrating, generateReport]);
 
   if (hydrating || !session) {
     return (
-      <PageShell>
-        <p className="text-sm text-muted-foreground">
-          Loading your Namaste Machine Round report...
-        </p>
+      <PageShell glow>
+        <div className="mx-auto max-w-4xl">
+          <Skeleton className="h-4 w-32" />
+          <Skeleton className="mt-8 h-10 w-80" />
+          <ReportLoadingSkeleton />
+        </div>
       </PageShell>
     );
   }
 
+  const score = session.report?.overallScore;
+
   return (
-    <PageShell>
-      <div className="mx-auto max-w-4xl">
-        <Breadcrumb items={[{ label: "Readiness report" }]} />
-        <p className="nd-section-heading mb-3 mt-6">Your readiness report</p>
-        <h1 className="font-heading text-3xl font-medium sm:text-4xl">
-          Your Namaste Machine Round readiness
-        </h1>
-        <p className="mt-3 text-sm text-muted-foreground">{session.roleTitle}</p>
+    <PageShell glow>
+      <div className="mx-auto max-w-4xl pb-24 lg:pb-10">
+        <Breadcrumb
+          items={[
+            { label: "History", href: "/history" },
+            { label: "Readiness report" },
+          ]}
+        />
+
+        <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="nd-section-heading">Session complete</p>
+            <h1 className="mt-2 font-heading text-3xl font-medium sm:text-4xl">
+              Your readiness report
+            </h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {session.roleTitle} · AI-evaluated feedback from your Machine
+              Round
+            </p>
+          </div>
+          {score !== undefined ? (
+            <div
+              className={cn(
+                "inline-flex shrink-0 items-center gap-2 self-start rounded-full px-4 py-2",
+                scoreBadgeClass(score),
+              )}
+            >
+              <span className="font-heading text-2xl font-semibold tabular-nums">
+                {score}
+              </span>
+              <span className="text-xs font-medium uppercase tracking-wide opacity-80">
+                /100 ready
+              </span>
+            </div>
+          ) : null}
+        </div>
+
+        {session.publicId && session.report ? (
+          <div className="nd-report-replay-banner mt-8">
+            <div>
+              <p className="font-heading text-base font-medium">
+                Rewatch your interview
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Compare your delivery with the scores and flags below.
+              </p>
+            </div>
+            <Button
+              variant="ndPrimary"
+              render={<Link href={`/replay/${session.publicId}`} />}
+            >
+              <Play className="size-4" />
+              Open replay
+            </Button>
+          </div>
+        ) : null}
 
         {loading ? (
           <div className="mt-10 space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Generating your Namaste Machine Round readiness report...
-            </p>
-            <Skeleton className="h-40 w-full rounded-lg" />
-            <Skeleton className="h-28 w-full rounded-lg" />
-            <Skeleton className="h-28 w-full rounded-lg" />
+            <div className="nd-course-card p-6">
+              <p className="font-heading text-base font-medium">
+                Generating your readiness report…
+              </p>
+              <p className="mt-2 text-sm text-muted-foreground">
+                The evaluator agent is scoring clarity, structure, and technical
+                signals from your transcript. This usually takes under 10
+                seconds.
+              </p>
+            </div>
+            <ReportLoadingSkeleton />
           </div>
         ) : error ? (
           <ApiErrorCard
             className="mt-10"
-            message={sessionLastError ? `${error} ${sessionLastError}` : error}
+            message={
+              sessionLastError && sessionLastError !== error
+                ? `${error} ${sessionLastError}`
+                : error
+            }
             onRetry={() => void generateReport(session)}
             retryLabel="Retry report"
           />
         ) : session.report ? (
           <div className="mt-10">
-            {session.publicId ? (
-              <p className="mb-4 text-sm text-muted-foreground">
-                Replay this session:{" "}
-                <Link
-                  href={`/replay/${session.publicId}`}
-                  className="text-primary underline-offset-4 hover:underline"
-                >
-                  /replay/{session.publicId}
-                </Link>
-              </p>
-            ) : null}
             <ReadinessReport
               report={session.report}
               roleTitle={session.roleTitle}
@@ -372,22 +450,25 @@ export function ReportPageClient({ initialSession }: ReportPageClientProps) {
           </div>
         ) : null}
 
-        <div className="mt-10 flex flex-wrap gap-3">
-          <Button
-            variant="ndFilled"
-            onClick={() => {
-              clearSession();
-              router.push("/interview");
-            }}
-          >
-            Try another track
-          </Button>
-          <Button variant="ndPrimary" render={<Link href="/history" />}>
-            View all my rounds
-          </Button>
-          <Button variant="ndPrimary" render={<Link href="/" />}>
-            Back to home
-          </Button>
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border/80 bg-background/90 p-4 backdrop-blur-md lg:static lg:mt-12 lg:border-0 lg:bg-transparent lg:p-0 lg:backdrop-blur-none">
+          <div className="mx-auto flex max-w-4xl flex-wrap items-center gap-3">
+            <Button
+              variant="ndFilled"
+              onClick={() => {
+                clearSession();
+                router.push("/interview");
+              }}
+            >
+              <RotateCcw className="size-4" />
+              Try another track
+            </Button>
+            <Button variant="ndPrimary" render={<Link href="/history" />}>
+              View all rounds
+            </Button>
+            <Button variant="ndPrimary" render={<Link href="/" />}>
+              Back to home
+            </Button>
+          </div>
         </div>
       </div>
     </PageShell>

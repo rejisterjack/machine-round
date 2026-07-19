@@ -1,45 +1,22 @@
-import { MAX_QUESTIONS } from "@/lib/design/tokens";
 import {
   DEFAULT_INTERVIEW_DURATION,
-  getMaxQuestionsForDuration,
   getDurationSeconds,
   type InterviewDuration,
 } from "@/lib/interview/duration-profiles";
 
-/** Greeting + warmup assistant turns before scored interview questions. */
+/** Greeting + warmup assistant turns before scored interview topics. */
 export const GREETING_WARMUP_TURNS = 2;
-
-/** PRD targets 5–7 scored questions for the default 30 min profile. */
-export const MAX_SCORED_QUESTIONS = MAX_QUESTIONS - GREETING_WARMUP_TURNS;
 
 const CLOSING_INTENT_PATTERN =
   /\b(thank you|thanks for|wrap(?:ping)? up|that(?:'s| is) all|readiness report|your report|good luck|great session|end of (?:the )?interview)\b/i;
 
-export function resolveMaxQuestions(
-  maxQuestions?: number,
-  interviewDuration?: InterviewDuration,
-): number {
-  if (maxQuestions !== undefined) return maxQuestions;
-  if (interviewDuration) return getMaxQuestionsForDuration(interviewDuration);
-  return MAX_QUESTIONS;
-}
-
-export function getMaxScoredQuestions(maxQuestions: number = MAX_QUESTIONS) {
-  return maxQuestions - GREETING_WARMUP_TURNS;
-}
-
-export function countScoredQuestions(questionCount: number) {
+/** Topics discussed after greeting and warmup (analytics only — not a session cap). */
+export function countTopicsDiscussed(questionCount: number) {
   return Math.max(0, questionCount - GREETING_WARMUP_TURNS);
 }
 
-export function shouldEndInterview(
-  questionCount: number,
-  maxQuestions: number = MAX_QUESTIONS,
-) {
-  return (
-    countScoredQuestions(questionCount) >= getMaxScoredQuestions(maxQuestions)
-  );
-}
+/** @deprecated Use countTopicsDiscussed */
+export const countScoredQuestions = countTopicsDiscussed;
 
 export function shouldEndByDuration(
   elapsedSeconds: number,
@@ -62,17 +39,6 @@ export function hasClosingIntent(message?: string): boolean {
   return CLOSING_INTENT_PATTERN.test(message);
 }
 
-export function shouldScheduleInterviewEnd(
-  questionCount: number,
-  lastAssistantMessage?: string,
-  maxQuestions: number = MAX_QUESTIONS,
-): boolean {
-  return (
-    shouldEndInterview(questionCount, maxQuestions) &&
-    hasClosingIntent(lastAssistantMessage)
-  );
-}
-
 export function shouldScheduleInterviewEndByTime(
   elapsedSeconds: number,
   lastAssistantMessage?: string,
@@ -81,17 +47,6 @@ export function shouldScheduleInterviewEndByTime(
   return (
     shouldEndByDuration(elapsedSeconds, interviewDuration) &&
     hasClosingIntent(lastAssistantMessage)
-  );
-}
-
-export function needsClosingGoodbye(
-  questionCount: number,
-  lastAssistantMessage?: string,
-  maxQuestions: number = MAX_QUESTIONS,
-): boolean {
-  return (
-    shouldEndInterview(questionCount, maxQuestions) &&
-    !hasClosingIntent(lastAssistantMessage)
   );
 }
 
@@ -106,10 +61,24 @@ export function needsClosingGoodbyeByTime(
   );
 }
 
-export function scoredProgress(
-  questionCount: number,
-  maxQuestions: number = MAX_QUESTIONS,
+export function durationProgress(
+  elapsedSeconds: number,
+  interviewDuration: InterviewDuration = DEFAULT_INTERVIEW_DURATION,
 ) {
-  const maxScored = getMaxScoredQuestions(maxQuestions);
-  return Math.min(100, (countScoredQuestions(questionCount) / maxScored) * 100);
+  const total = getDurationSeconds(interviewDuration);
+  return total > 0 ? Math.min(100, (elapsedSeconds / total) * 100) : 0;
+}
+
+/** Bucket for realtime instruction cache — refreshes when entering wrap-up window. */
+export function getInstructionPhaseBucket(
+  elapsedSeconds: number,
+  interviewDuration: InterviewDuration = DEFAULT_INTERVIEW_DURATION,
+): number {
+  if (
+    shouldWarnDurationWrapUp(elapsedSeconds, interviewDuration) ||
+    shouldEndByDuration(elapsedSeconds, interviewDuration)
+  ) {
+    return 1;
+  }
+  return 0;
 }

@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { scoreBadgeClass } from "@/lib/session/score-display";
 import { cn } from "@/lib/utils";
 import {
   formatDurationLabel,
   type InterviewDuration,
 } from "@/lib/interview/duration-profiles";
-import { countScoredQuestions } from "@/lib/ai/question-cap";
+import { countTopicsDiscussed } from "@/lib/ai/question-cap";
 import { useFailedRecordingRetry } from "@/hooks/use-failed-recording-retry";
 
 type SessionHistoryCardProps = {
@@ -87,7 +88,7 @@ export function SessionHistoryCard({
   }
 
   return (
-    <article className="nd-course-card flex flex-col gap-4 p-5">
+    <article className="nd-course-card flex h-full flex-col gap-4 p-5 sm:p-6">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="font-heading text-lg font-medium">{roleTitle}</h2>
@@ -97,18 +98,19 @@ export function SessionHistoryCard({
           </p>
         </div>
         {overallScore !== null ? (
-          <span
+          <div
             className={cn(
-              "rounded-full px-3 py-1 text-sm font-medium",
-              overallScore >= 70
-                ? "bg-emerald-500/15 text-emerald-400"
-                : overallScore >= 50
-                  ? "bg-amber-500/15 text-amber-400"
-                  : "bg-red-500/15 text-red-400",
+              "flex shrink-0 flex-col items-center rounded-full px-3 py-1.5 text-center",
+              scoreBadgeClass(overallScore),
             )}
           >
-            {overallScore}
-          </span>
+            <span className="font-heading text-lg font-semibold leading-none tabular-nums">
+              {overallScore}
+            </span>
+            <span className="mt-0.5 text-[10px] font-medium uppercase tracking-wide opacity-80">
+              /100
+            </span>
+          </div>
         ) : status === "completed" ? (
           <span className="rounded-full bg-amber-500/15 px-3 py-1 text-xs text-amber-300">
             Report pending
@@ -121,7 +123,7 @@ export function SessionHistoryCard({
       </div>
 
       <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-        <span>{countScoredQuestions(questionCount)} scored questions</span>
+        <span>{countTopicsDiscussed(questionCount)} topics discussed</span>
         {snapshotCount > 0 ? <span>· {snapshotCount} snapshots</span> : null}
         {hasRecording ? (
           <span>· Recording</span>
@@ -144,14 +146,18 @@ export function SessionHistoryCard({
         <p className="text-xs text-red-400">{deleteError}</p>
       ) : null}
 
-      <div className="flex flex-wrap gap-2">
-        <Button variant="ndPrimary" className="w-full sm:w-auto" render={<Link href={`/replay/${publicId}`} />}>
+      <div className="mt-auto flex flex-wrap items-center gap-2 pt-1">
+        <Button
+          variant="ndPrimary"
+          className="!min-h-9 h-9 px-5 py-0"
+          render={<Link href={`/replay/${publicId}`} />}
+        >
           Replay
         </Button>
         {hasReport ? (
           <Button
             variant="ndGhost"
-            className="w-full sm:w-auto"
+            className="h-9 px-4"
             render={<Link href={`/report?session=${id}`} />}
           >
             Report
@@ -159,7 +165,7 @@ export function SessionHistoryCard({
         ) : status === "completed" ? (
           <Button
             variant="ndGhost"
-            className="w-full sm:w-auto"
+            className="h-9 px-4"
             render={<Link href={`/report?session=${id}`} />}
           >
             {overallScore === null ? "Generate report" : "Retry report"}
@@ -168,7 +174,7 @@ export function SessionHistoryCard({
         {showRetry ? (
           <Button
             variant="ndGhost"
-            className="w-full sm:w-auto"
+            className="h-9 px-4"
             disabled={retrying}
             onClick={() => void retryUpload()}
           >
@@ -178,7 +184,7 @@ export function SessionHistoryCard({
         {onDelete ? (
           <Button
             variant="ndGhost"
-            className="w-full sm:w-auto text-red-400"
+            className="h-9 px-4 text-red-400 hover:text-red-300"
             disabled={deleting}
             onClick={() => void handleDelete()}
           >

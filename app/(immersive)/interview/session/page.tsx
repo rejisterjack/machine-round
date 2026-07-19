@@ -28,15 +28,12 @@ import { buildVisualFocusQuestion } from "@/lib/interview/screen-intent";
 import type { ScreenContextMeta, FramePushResult } from "@/hooks/use-realtime-voice";
 import { isFramePushFailure } from "@/lib/interview/realtime-vision";
 import {
-  needsClosingGoodbye,
   needsClosingGoodbyeByTime,
-  shouldScheduleInterviewEnd,
   shouldScheduleInterviewEndByTime,
   shouldWarnDurationWrapUp,
 } from "@/lib/ai/question-cap";
 import {
   DEFAULT_INTERVIEW_DURATION,
-  getMaxQuestionsForDuration,
   type InterviewDuration,
 } from "@/lib/interview/duration-profiles";
 import { logInterviewDebug } from "@/lib/interview/debug-log";
@@ -169,7 +166,11 @@ export default function InterviewSessionPage() {
   );
   const voicePrefetchBothRef = useRef<
     (
-      context?: { messages?: InterviewMessage[]; questionCount?: number },
+      context?: {
+        messages?: InterviewMessage[];
+        questionCount?: number;
+        elapsedSeconds?: number;
+      },
     ) => Promise<void>
   >(async () => {});
   const voiceWaitForSpeechEndRef = useRef<() => Promise<void>>(
@@ -636,11 +637,9 @@ export default function InterviewSessionPage() {
       if (message.role === "assistant") {
         const interviewDuration =
           current.interviewDuration ?? DEFAULT_INTERVIEW_DURATION;
-        const maxQuestions = getMaxQuestionsForDuration(interviewDuration);
         const lastAssistant = message.content;
 
         if (
-          needsClosingGoodbye(questionCount, lastAssistant, maxQuestions) ||
           needsClosingGoodbyeByTime(elapsedSeconds, lastAssistant, interviewDuration)
         ) {
           voiceRequestClosingGoodbyeRef.current();
@@ -649,7 +648,6 @@ export default function InterviewSessionPage() {
         }
 
         if (
-          shouldScheduleInterviewEnd(questionCount, lastAssistant, maxQuestions) ||
           shouldScheduleInterviewEndByTime(
             elapsedSeconds,
             lastAssistant,
@@ -663,6 +661,7 @@ export default function InterviewSessionPage() {
         void voicePrefetchBothRef.current({
           messages: updated.messages,
           questionCount,
+          elapsedSeconds,
         });
         return;
       }
@@ -681,6 +680,7 @@ export default function InterviewSessionPage() {
     questionCount: session?.questionCount,
     panelistMode,
     interviewDuration: session?.interviewDuration ?? DEFAULT_INTERVIEW_DURATION,
+    elapsedSeconds,
     promptContext: session?.promptContext,
     courseId:
       session?.trackMode === "job_description" ? undefined : session?.roleId,
@@ -1092,6 +1092,11 @@ export default function InterviewSessionPage() {
     ) {
       durationWarningSentRef.current = true;
       voiceSpeakAnnouncementRef.current("time_wrap_up");
+      void voicePrefetchBothRef.current({
+        messages: current.messages,
+        questionCount: current.questionCount,
+        elapsedSeconds,
+      });
     }
 
     if (
@@ -1337,7 +1342,6 @@ export default function InterviewSessionPage() {
       ) : null}
       <InterviewRoom
       roleTitle={session.roleTitle}
-      questionCount={session.questionCount}
       interviewDuration={session.interviewDuration ?? DEFAULT_INTERVIEW_DURATION}
       elapsedSeconds={elapsedSeconds}
       onLeave={() => void abandonSession()}

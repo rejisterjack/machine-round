@@ -7,6 +7,8 @@ import type { PanelistId, PanelistMode } from "@/lib/ai/personas/panelists";
 import { formatMessageSpeaker } from "@/lib/ai/personas/panelists";
 import type { InterviewMessage } from "@/lib/session/interview-store";
 import type { InterviewDuration } from "@/lib/interview/duration-profiles";
+import { DEFAULT_INTERVIEW_DURATION } from "@/lib/interview/duration-profiles";
+import { getInstructionPhaseBucket } from "@/lib/ai/question-cap";
 import { SCREEN_FLUSH_TIMEOUT_MS, SCREEN_PRECISION_FLUSH_TIMEOUT_MS, MAX_VOICE_RECONNECT_ATTEMPTS, REALTIME_TOKEN_REFRESH_BUFFER_MS } from "@/lib/session/session-limits";
 import {
   requestClosingGoodbye,
@@ -62,6 +64,7 @@ type PrefetchedSession = {
   serverVadEnabled: boolean;
   messageCount: number;
   questionCount: number;
+  phaseBucket: number;
 };
 
 type RealtimeVoiceOptions = {
@@ -71,6 +74,7 @@ type RealtimeVoiceOptions = {
   questionCount?: number;
   panelistMode?: PanelistMode;
   interviewDuration?: InterviewDuration;
+  elapsedSeconds?: number;
   promptContext?: string;
   courseId?: string;
   messages?: InterviewMessage[];
@@ -107,6 +111,7 @@ async function fetchRealtimeSession(
       questionCount: opts.questionCount,
       panelistMode: opts.panelistMode,
       interviewDuration: opts.interviewDuration,
+      elapsedSeconds: opts.elapsedSeconds,
       promptContext: opts.promptContext,
       courseId: opts.courseId ?? opts.roleId,
       activePanelist: panelist,
@@ -391,18 +396,31 @@ export function useRealtimeVoice(options: RealtimeVoiceOptions = {}) {
   const prefetchSession = useCallback(
     async (
       panelist: PanelistId,
-      context?: { messages?: InterviewMessage[]; questionCount?: number },
+      context?: {
+        messages?: InterviewMessage[];
+        questionCount?: number;
+        elapsedSeconds?: number;
+      },
     ) => {
       const messages = context?.messages ?? optionsRef.current.messages ?? [];
       const messageCount = messages.length;
       const questionCount =
         context?.questionCount ?? optionsRef.current.questionCount ?? 0;
+      const interviewDuration =
+        optionsRef.current.interviewDuration ?? DEFAULT_INTERVIEW_DURATION;
+      const elapsedSeconds =
+        context?.elapsedSeconds ?? optionsRef.current.elapsedSeconds ?? 0;
+      const phaseBucket = getInstructionPhaseBucket(
+        elapsedSeconds,
+        interviewDuration,
+      );
 
       const existing = prefetchedMapRef.current.get(panelist);
       if (
         existing &&
         existing.messageCount === messageCount &&
-        existing.questionCount === questionCount
+        existing.questionCount === questionCount &&
+        existing.phaseBucket === phaseBucket
       ) {
         return;
       }
@@ -417,6 +435,7 @@ export function useRealtimeVoice(options: RealtimeVoiceOptions = {}) {
           ...optionsRef.current,
           messages,
           questionCount,
+          elapsedSeconds,
         };
         const session = await fetchRealtimeSession(opts, panelist);
         prefetchedMapRef.current.set(panelist, {
@@ -427,6 +446,7 @@ export function useRealtimeVoice(options: RealtimeVoiceOptions = {}) {
           serverVadEnabled: session.serverVadEnabled ?? true,
           messageCount,
           questionCount,
+          phaseBucket,
         });
       } catch {
         // Prefetch is best-effort.
@@ -441,6 +461,7 @@ export function useRealtimeVoice(options: RealtimeVoiceOptions = {}) {
     async (context?: {
       messages?: InterviewMessage[];
       questionCount?: number;
+      elapsedSeconds?: number;
     }) => {
       const mode = optionsRef.current.panelistMode ?? "both";
       if (mode !== "both") return;
@@ -468,6 +489,13 @@ export function useRealtimeVoice(options: RealtimeVoiceOptions = {}) {
       const panelist =
         panelistOverride ?? connectedPanelistRef.current ?? "akshay";
       const messageCount = opts.messages?.length ?? 0;
+      const interviewDuration =
+        opts.interviewDuration ?? DEFAULT_INTERVIEW_DURATION;
+      const elapsedSeconds = opts.elapsedSeconds ?? 0;
+      const phaseBucket = getInstructionPhaseBucket(
+        elapsedSeconds,
+        interviewDuration,
+      );
       setHandoffPanelist(panelist);
       pendingConnectedPanelistRef.current = panelist;
 
@@ -483,7 +511,8 @@ export function useRealtimeVoice(options: RealtimeVoiceOptions = {}) {
         const useCache =
           cached !== null &&
           cached.messageCount === messageCount &&
-          cached.questionCount === (opts.questionCount ?? 0);
+          cached.questionCount === (opts.questionCount ?? 0) &&
+          cached.phaseBucket === phaseBucket;
 
         if (cached && useCache) {
           prefetchedMapRef.current.delete(panelist);
@@ -613,6 +642,9 @@ export function useRealtimeVoice(options: RealtimeVoiceOptions = {}) {
         routerReason,
         courseId: opts.courseId ?? opts.roleId,
         promptContext: opts.promptContext,
+        elapsedSeconds: opts.elapsedSeconds ?? 0,
+        interviewDuration:
+          opts.interviewDuration ?? DEFAULT_INTERVIEW_DURATION,
       });
 
       connectionRef.current?.sendEvent({

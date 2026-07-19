@@ -1,12 +1,20 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
+import { Clock, Video } from "lucide-react";
 
 type RecordingPlayerProps = {
   src: string;
   durationMs?: number;
   onTimeUpdate?: (currentTimeMs: number) => void;
 };
+
+function formatDuration(durationMs: number) {
+  const totalSeconds = Math.round(durationMs / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}m ${seconds}s`;
+}
 
 export function RecordingPlayer({
   src,
@@ -25,14 +33,26 @@ export function RecordingPlayer({
 
   if (playbackError) {
     return (
-      <div className="nd-course-card p-4 text-sm text-muted-foreground">
+      <div className="nd-replay-media-card p-6 text-sm text-muted-foreground">
         Recording is unavailable or could not be loaded.
       </div>
     );
   }
 
   return (
-    <div className="nd-course-card overflow-hidden p-0">
+    <div className="nd-replay-media-card">
+      <div className="nd-replay-media-header">
+        <div className="flex items-center gap-2">
+          <Video className="size-4 text-primary" />
+          <span className="text-sm font-medium">Session recording</span>
+        </div>
+        {durationMs ? (
+          <span className="inline-flex items-center gap-1 rounded-full border border-border bg-background/60 px-2.5 py-1 text-xs text-muted-foreground">
+            <Clock className="size-3" />
+            {formatDuration(durationMs)}
+          </span>
+        ) : null}
+      </div>
       <video
         ref={videoRef}
         src={src}
@@ -43,12 +63,6 @@ export function RecordingPlayer({
         onTimeUpdate={handleTimeUpdate}
         onError={() => setPlaybackError(true)}
       />
-      {durationMs ? (
-        <p className="px-4 py-2 text-xs text-muted-foreground">
-          Duration: {Math.round(durationMs / 1000 / 60)}m{" "}
-          {Math.round((durationMs / 1000) % 60)}s
-        </p>
-      ) : null}
     </div>
   );
 }

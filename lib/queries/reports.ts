@@ -1,4 +1,4 @@
-import { cacheLife, cacheTag, updateTag } from "next/cache";
+import { cacheLife, cacheTag, revalidateTag } from "next/cache";
 import {
   getReportByShareToken,
   reportToEvaluateResponse,
@@ -102,10 +102,16 @@ export function invalidateReportCache(input: {
   shareToken?: string | null;
   sessionId?: string;
 }) {
+  // Use { expire: 0 } for immediate expiration. Unlike the "max" profile
+  // (stale-while-revalidate semantics, which may serve stale reports while
+  // revalidating in the background), expire: 0 forces the next request to
+  // recompute the cached entry. updateTag() would also give immediate
+  // consistency but is restricted to Server Actions and throws from Route
+  // Handlers; revalidateTag with { expire: 0 } works from both contexts.
   if (input.shareToken) {
-    updateTag(`share-report:${input.shareToken}`);
+    revalidateTag(`share-report:${input.shareToken}`, { expire: 0 });
   }
   if (input.sessionId) {
-    updateTag(`session-report:${input.sessionId}`);
+    revalidateTag(`session-report:${input.sessionId}`, { expire: 0 });
   }
 }

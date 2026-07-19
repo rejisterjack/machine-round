@@ -115,12 +115,22 @@ export const heroContent = {
     "Solve hands-on coding challenges",
     "Get job-ready and land your dream offers",
   ],
-  ctaLabel: "Explore Courses",
-  ctaHref: "https://namastedev.com/learn",
-  ctaExternal: true,
+  ctaLabel: "Explore Interviews",
+  ctaHref: "#choose-track",
+  ctaExternal: false,
   imageSrc: "/brand/hero-interview.jpeg",
   imageAlt: "Akshay Saini with YouTube Silver Play Button",
 } as const;
+
+export const footerInterviewLinks = [
+  { label: "Interview Practice", href: "/interview" },
+  { label: "My Machine Rounds", href: "/history" },
+  ...footerCourseLinks.filter((link) =>
+    ["Namaste JavaScript", "Namaste Interview", "Namaste React", "Namaste DSA"].includes(
+      link.label,
+    ),
+  ),
+] as const;
 
 export const footerNav = {
   navigation: [
@@ -164,6 +174,55 @@ export const footerNav = {
 
 export const whatsappUrl =
   "https://wa.me/919876543210?text=Hi%20NamasteDev%2C%20I%20have%20a%20question%20about%20Namaste%20Machine%20Round";
+
+/** Matches namastedev.com mobile sidebar drawer */
+export const sidebarNavItems = [
+  {
+    label: "Blog",
+    href: "https://namastedev.com/write",
+    icon: "newspaper",
+  },
+  {
+    label: "Portfolio showcase",
+    href: "https://namastedev.com/portfolio",
+    icon: "briefcase",
+  },
+  {
+    label: "Resources",
+    href: "https://namastedev.com/resources",
+    icon: "book",
+  },
+  {
+    label: "Roadmaps",
+    href: "https://namastedev.com/roadmaps",
+    icon: "map",
+  },
+  {
+    label: "DSA Sheet",
+    href: "https://namastedev.com/dsa-sheet",
+    icon: "grid",
+  },
+  {
+    label: "AI Resume Reviewer",
+    href: "https://namastedev.com/ai-resume-reviewer",
+    icon: "bot",
+  },
+  {
+    label: "Project Ideas",
+    href: "https://namastedev.com/project-ideas",
+    icon: "lightbulb",
+  },
+  {
+    label: "Gift a course",
+    href: "https://namastedev.com/gift",
+    icon: "gift",
+  },
+  {
+    label: "Become Affiliate",
+    href: "https://namastedev.com/affiliate/dashboard",
+    icon: "dollar",
+  },
+] as const;
 
 /** Matches namastedev.com header Explore menu */
 export const exploreNavItems = [
