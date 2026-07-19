@@ -11,7 +11,6 @@ import { Button } from "@/components/ui/button";
 import { ApiErrorCard } from "@/components/ui/api-error-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { roles } from "@/lib/design/tokens";
-import { backfillPendingReport } from "@/lib/session/backfill-reports";
 
 import type { InterviewDuration } from "@/lib/interview/duration-profiles";
 
@@ -25,6 +24,7 @@ type HistorySession = {
   questionCount: number;
   overallScore: number | null;
   hasReport: boolean;
+  lastError?: string | null;
   startedAt: string;
   completedAt: string | null;
   hasRecording: boolean;
@@ -38,6 +38,7 @@ const STATUS_OPTIONS = [
   { value: "", label: "All statuses" },
   { value: "completed", label: "Completed" },
   { value: "active", label: "Active" },
+  { value: "thinking", label: "Processing" },
   { value: "abandoned", label: "Abandoned" },
   { value: "error", label: "Error" },
 ] as const;
@@ -56,10 +57,7 @@ export default function HistoryPage() {
   const [appliedSearch, setAppliedSearch] = useState("");
   const [backfilling, setBackfilling] = useState(false);
   const [backfillError, setBackfillError] = useState<string>();
-
-  const pendingReportSessions = sessions.filter(
-    (session) => session.status === "completed" && !session.hasReport,
-  );
+  const [pendingReportCount, setPendingReportCount] = useState(0);
 
   const buildQuery = useCallback(
     (offset: number) => {
@@ -96,8 +94,10 @@ export default function HistoryPage() {
         const data = (await response.json()) as {
           sessions: HistorySession[];
           total: number;
+          pendingReportCount?: number;
         };
         setTotal(data.total);
+        setPendingReportCount(data.pendingReportCount ?? 0);
         setSessions((current) =>
           append ? [...current, ...data.sessions] : data.sessions,
         );
@@ -135,17 +135,30 @@ export default function HistoryPage() {
   }
 
   async function handleBackfillPendingReports() {
-    if (pendingReportSessions.length === 0) return;
     setBackfilling(true);
     setBackfillError(undefined);
 
     try {
-      for (const session of pendingReportSessions) {
-        const result = await backfillPendingReport(session.id);
-        if (!result.ok) {
-          throw new Error(result.error);
-        }
+      const response = await fetch("/api/sessions/backfill-reports", {
+        method: "POST",
+      });
+      const data = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        failed?: Array<{ sessionId: string; error: string }>;
+        succeeded?: number;
+        processed?: number;
+      };
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "Could not generate pending reports.");
       }
+
+      if (data.failed?.length) {
+        setBackfillError(
+          `${data.failed.length} report(s) could not be generated. ${data.failed[0]?.error ?? ""}`.trim(),
+        );
+      }
+
       await loadHistory();
     } catch (caught) {
       setBackfillError(
@@ -260,13 +273,12 @@ export default function HistoryPage() {
           </div>
         ) : (
           <>
-            {pendingReportSessions.length > 0 ? (
+            {pendingReportCount > 0 ? (
               <div className="nd-course-card mt-8 flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <p className="font-medium">
-                    {pendingReportSessions.length} completed round
-                    {pendingReportSessions.length === 1 ? "" : "s"} without a
-                    report
+                    {pendingReportCount} completed round
+                    {pendingReportCount === 1 ? "" : "s"} without a report
                   </p>
                   <p className="mt-1 text-sm text-muted-foreground">
                     Generate readiness reports from saved transcripts.

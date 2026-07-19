@@ -1,6 +1,3 @@
-export function shouldReturnCachedReport(
-  fullySynced: boolean,
-  hasReport: boolean,
-): boolean {
-  return fullySynced && hasReport;
+export function shouldReturnCachedReport(hasReport: boolean): boolean {
+  return hasReport;
 }

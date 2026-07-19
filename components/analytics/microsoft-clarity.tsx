@@ -3,9 +3,11 @@
 import Script from "next/script";
 
 const clarityId = process.env.NEXT_PUBLIC_MICROSOFT_CLARITY_ID?.trim();
+const isProduction = process.env.NODE_ENV === "production";
 
 export function MicrosoftClarity() {
-  if (process.env.NODE_ENV !== "production" || !clarityId) {
+  // Clarity runs in production only (see .env.example).
+  if (!isProduction || !clarityId) {
     return null;
   }
 

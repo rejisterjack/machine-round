@@ -7,10 +7,10 @@ describe("canUseStoredReport", () => {
     expect(canUseStoredReport({ dbSessionId: "abc" }, "abc")).toBe(false);
   });
 
-  test("returns true when no session param", () => {
+  test("returns false when no session param", () => {
     expect(
       canUseStoredReport({ report: {}, dbSessionId: "abc" }, null),
-    ).toBe(true);
+    ).toBe(false);
   });
 
   test("returns true when param matches stored session id", () => {

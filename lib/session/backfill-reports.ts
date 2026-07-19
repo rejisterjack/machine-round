@@ -1,8 +1,10 @@
 import type { InterviewSession } from "@/lib/session/interview-store";
+import type { InterviewDuration } from "@/lib/interview/duration-profiles";
 
 type SessionApiResponse = {
   roleId?: string;
   roleTitle: string;
+  interviewDuration?: InterviewDuration;
   messages: InterviewSession["messages"];
   topicsCovered?: string[];
   weakSignals?: string[];
@@ -23,6 +25,7 @@ export async function fetchSessionForEvaluate(
     roleTitle: data.roleTitle,
     trackMode: "namaste_course",
     panelistMode: "both",
+    interviewDuration: data.interviewDuration ?? "minutes_30",
     messages: data.messages,
     questionCount: data.questionCount ?? 0,
     topicsCovered: data.topicsCovered ?? [],

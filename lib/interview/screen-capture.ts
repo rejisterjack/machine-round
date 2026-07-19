@@ -413,7 +413,9 @@ async function grabTrackBitmap(
   if (track.readyState !== "live") return null;
 
   try {
-    const capture = new ImageCapture(track);
+    const capture = new ImageCapture(track) as ImageCapture & {
+      grabFrame(): Promise<ImageBitmap>;
+    };
     return await capture.grabFrame();
   } catch {
     return null;

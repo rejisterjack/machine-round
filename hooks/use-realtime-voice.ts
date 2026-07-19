@@ -611,6 +611,8 @@ export function useRealtimeVoice(options: RealtimeVoiceOptions = {}) {
         transcript,
         messages,
         routerReason,
+        courseId: opts.courseId ?? opts.roleId,
+        promptContext: opts.promptContext,
       });
 
       connectionRef.current?.sendEvent({
