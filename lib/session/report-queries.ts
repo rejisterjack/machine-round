@@ -58,10 +58,12 @@ export function reportToEvaluateResponse(
     }>;
     improvements: Array<{ content: string }>;
     weakTopicTags: Array<{ label: string; weight: number | null }>;
+    screenReviewNotes?: string[];
   } | null | undefined,
 ): (EvaluateResponse & {
   shareToken?: string | null;
   weakTopics?: WeakTopic[];
+  screenReviewNotes?: string[];
 }) | undefined {
   if (!report) return undefined;
 
@@ -82,5 +84,6 @@ export function reportToEvaluateResponse(
       label: tag.label,
       weight: tag.weight ?? undefined,
     })),
+    screenReviewNotes: report.screenReviewNotes ?? [],
   };
 }
