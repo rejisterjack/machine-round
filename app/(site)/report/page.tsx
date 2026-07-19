@@ -18,6 +18,11 @@ import {
   type InterviewSession,
 } from "@/lib/session/interview-store";
 import { canUseStoredReport } from "@/lib/session/report-hydration";
+import { computeQuestionCount } from "@/lib/interview/question-counter";
+import {
+  canGenerateEvaluateReport,
+  evaluateIneligibleMessage,
+} from "@/lib/session/evaluate-eligibility";
 
 import type { InterviewDuration } from "@/lib/interview/duration-profiles";
 
@@ -79,6 +84,11 @@ function ReportPageContent() {
 
     if (!current.messages.length) {
       setError("No interview transcript found for this session.");
+      return;
+    }
+
+    if (!canGenerateEvaluateReport(current.messages)) {
+      setError(evaluateIneligibleMessage(current.messages));
       return;
     }
 
@@ -170,7 +180,7 @@ function ReportPageContent() {
                   stored?.interviewDuration ??
                   "minutes_30",
                 messages,
-                questionCount: data.questionCount ?? stored?.questionCount ?? 0,
+                questionCount: computeQuestionCount(messages),
                 topicsCovered:
                   data.topicsCovered ?? stored?.topicsCovered ?? [],
                 weakSignals: data.weakSignals ?? stored?.weakSignals ?? [],

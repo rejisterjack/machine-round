@@ -8,6 +8,10 @@ import { formatMessageSpeaker } from "@/lib/ai/personas/panelists";
 import { buildEvaluatorPrompt } from "@/lib/ai/prompts/evaluator";
 import { buildInterviewScopeBlock } from "@/lib/courses/interview-scope";
 import { isDbReady } from "@/lib/db/ready";
+import {
+  canGenerateEvaluateReport,
+  evaluateIneligibleMessage,
+} from "@/lib/session/evaluate-eligibility";
 import { getScreenObservations } from "@/lib/session/media-queries";
 import { buildCachedEvaluatePayload } from "@/lib/session/evaluate-cache";
 import { shouldReturnCachedReport } from "@/lib/session/evaluate-idempotency";
@@ -71,6 +75,14 @@ export const POST = withApiHandler(async (request: Request) => {
   }
 
   const transcript = body.messages.map(formatMessageSpeaker).join("\n");
+
+  if (!canGenerateEvaluateReport(body.messages)) {
+    throw new ApiError(
+      "VALIDATION_ERROR",
+      evaluateIneligibleMessage(body.messages),
+      400,
+    );
+  }
 
   const screenObservations =
     body.sessionId && (await isDbReady())

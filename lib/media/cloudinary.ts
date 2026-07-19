@@ -121,3 +121,39 @@ export async function deleteAsset(
   configureCloudinary();
   await cloudinary.uploader.destroy(publicId, { resource_type: resourceType });
 }
+
+export type CloudinaryResourceSummary = {
+  publicId: string;
+  resourceType: "image" | "video";
+};
+
+export async function listResourcesByPrefix(
+  prefix: string,
+  resourceType: "image" | "video",
+): Promise<CloudinaryResourceSummary[]> {
+  configureCloudinary();
+
+  const resources: CloudinaryResourceSummary[] = [];
+  let nextCursor: string | undefined;
+
+  do {
+    const page = await cloudinary.api.resources({
+      type: "upload",
+      resource_type: resourceType,
+      prefix,
+      max_results: 500,
+      next_cursor: nextCursor,
+    });
+
+    for (const resource of page.resources ?? []) {
+      resources.push({
+        publicId: resource.public_id,
+        resourceType,
+      });
+    }
+
+    nextCursor = page.next_cursor;
+  } while (nextCursor);
+
+  return resources;
+}

@@ -100,6 +100,10 @@ export const PATCH = withApiHandler(
       );
     }
 
+    if (body.status === "abandoned") {
+      await deleteSessionCloudinaryAssets(id);
+    }
+
     const session = await prisma.interviewSession.update({
       where: { id },
       data: {
