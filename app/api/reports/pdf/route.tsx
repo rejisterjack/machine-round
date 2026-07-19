@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { ReportPdfDocument } from "@/components/report/report-pdf-document";
 import { withApiHandler } from "@/lib/api/handler";
+import { requireAuth } from "@/lib/auth/require-auth";
 import {
   evaluateResponseSchema,
   type EvaluateResponse,
@@ -13,6 +14,7 @@ const pdfRequestSchema = evaluateResponseSchema.extend({
 });
 
 export const POST = withApiHandler(async (request: Request) => {
+  await requireAuth();
   const body = pdfRequestSchema.parse(await request.json());
   const { roleTitle, ...report } = body as EvaluateResponse & {
     roleTitle?: string;

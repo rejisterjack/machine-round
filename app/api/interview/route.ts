@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { API_TIMEOUTS, withApiHandler, withRetry } from "@/lib/api/handler";
+import { requireAuth } from "@/lib/auth/require-auth";
 import { runInterviewTurn } from "@/lib/ai/interview-turn";
 import { isDbReady } from "@/lib/db/ready";
 import {
@@ -8,6 +9,7 @@ import {
 } from "@/lib/session/persistence";
 import { interviewRequestSchema } from "@/lib/session/interview-store";
 import { resolveRole } from "@/lib/session/roles";
+import { assertSessionOwnerIfPresent } from "@/lib/session/session-access";
 import { prisma } from "@/lib/prisma";
 
 async function syncUnsyncedMessages(
@@ -24,7 +26,9 @@ async function syncUnsyncedMessages(
 }
 
 export const POST = withApiHandler(async (request: Request) => {
+  const authSession = await requireAuth();
   const body = interviewRequestSchema.parse(await request.json());
+  await assertSessionOwnerIfPresent(body.sessionId, authSession.user.id);
   const role = await resolveRole(body);
 
   if (body.sessionId && (await isDbReady())) {
@@ -41,6 +45,7 @@ export const POST = withApiHandler(async (request: Request) => {
       roleId: role.id,
       messages: body.messages,
       questionCount: body.questionCount,
+      panelistMode: body.panelistMode,
     }),
   );
 

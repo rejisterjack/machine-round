@@ -15,9 +15,24 @@ export const authConfig = {
   callbacks: {
     authorized({ auth, request: { nextUrl } }) {
       const isLoggedIn = !!auth?.user;
-      const isInterviewRoute = nextUrl.pathname.startsWith("/interview");
+      const pathname = nextUrl.pathname;
 
-      if (isInterviewRoute) {
+      const isPublicPage =
+        pathname === "/" ||
+        pathname === "/login" ||
+        pathname.startsWith("/report/share/");
+
+      if (isPublicPage) {
+        return true;
+      }
+
+      const isProtectedPage =
+        pathname.startsWith("/interview") ||
+        pathname.startsWith("/history") ||
+        pathname === "/report" ||
+        pathname.startsWith("/replay");
+
+      if (isProtectedPage) {
         return isLoggedIn;
       }
 
