@@ -1,5 +1,11 @@
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { getAzureChatModel } from "@/lib/ai";
+import {
+  formatMessageSpeaker,
+  getPanelistForQuestion,
+  isPanelistId,
+  type PanelistId,
+} from "@/lib/ai/personas/panelists";
 import { buildInterviewerPrompt } from "@/lib/ai/prompts/interviewer";
 import { getGroundedQuestions } from "@/lib/rag/vector-store";
 import { withRetry } from "@/lib/api/handler";
@@ -21,16 +27,29 @@ function needsReferencedAnswer(questionCount: number, messages: InterviewMessage
   return questionCount > 0 && messages.some((message) => message.role === "user");
 }
 
+function withSpeaker(
+  parsed: InterviewResponse,
+  activePanelist: PanelistId,
+): InterviewResponse {
+  const speaker = isPanelistId(parsed.speaker ?? "")
+    ? parsed.speaker
+    : activePanelist;
+  return { ...parsed, speaker };
+}
+
 export async function runInterviewTurn(input: {
   roleTitle: string;
   roleId?: string;
   messages: InterviewMessage[];
   questionCount: number;
 }) {
+  const activePanelist = getPanelistForQuestion(input.questionCount).id;
+
   if (input.questionCount >= MAX_QUESTIONS) {
     return {
       message:
         "That wraps our machine round. Let's generate your readiness report.",
+      speaker: activePanelist,
       done: true,
     } satisfies InterviewResponse;
   }
@@ -41,14 +60,16 @@ export async function runInterviewTurn(input: {
     2,
     input.roleId,
   );
-  const transcript = input.messages
-    .map((message) => `${message.role}: ${message.content}`)
-    .join("\n");
+  const transcript = input.messages.map(formatMessageSpeaker).join("\n");
 
   const invokeModel = async (strictReferencedAnswer = false) => {
     const response = await model.invoke([
       new SystemMessage(
-        buildInterviewerPrompt(input.roleTitle, input.questionCount),
+        buildInterviewerPrompt({
+          role: input.roleTitle,
+          questionCount: input.questionCount,
+          activePanelist,
+        }),
       ),
       new HumanMessage(
         input.messages.length === 0
@@ -70,7 +91,7 @@ export async function runInterviewTurn(input: {
         ? response.content
         : JSON.stringify(response.content);
 
-    return parseInterviewResponse(content);
+    return withSpeaker(parseInterviewResponse(content), activePanelist);
   };
 
   let parsed = await withRetry(() => invokeModel(false));

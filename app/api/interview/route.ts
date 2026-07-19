@@ -47,7 +47,13 @@ export const POST = withApiHandler(async (request: Request) => {
   if (body.sessionId && (await isDbReady())) {
     await appendInterviewMessages(
       body.sessionId,
-      [{ role: "assistant", content: parsed.message }],
+      [
+        {
+          role: "assistant",
+          content: parsed.message,
+          speaker: parsed.speaker,
+        },
+      ],
       {
         referencedAnswer: parsed.referencedAnswer,
         questionCount: body.questionCount + 1,

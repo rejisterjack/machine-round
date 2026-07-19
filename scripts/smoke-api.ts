@@ -1,4 +1,6 @@
-const baseUrl = process.env.SMOKE_BASE_URL ?? "http://localhost:3000";
+import { DEV_SERVER_URL } from "../lib/config/dev-server";
+
+const baseUrl = process.env.SMOKE_BASE_URL ?? DEV_SERVER_URL;
 
 async function check(path: string, init?: RequestInit) {
   const response = await fetch(`${baseUrl}${path}`, init);
@@ -46,6 +48,21 @@ async function main() {
   } else {
     console.log("session persistence skipped (database not ready)");
   }
+
+  const interview = (await check("/api/interview", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      roleId: firstRole.id,
+      messages: [],
+      questionCount: 0,
+    }),
+  })) as { speaker?: string; message?: string };
+
+  if (interview.speaker !== "akshay") {
+    throw new Error(`Expected akshay speaker, got ${interview.speaker ?? "none"}`);
+  }
+  console.log("interview panelist:", interview.speaker);
 
   console.log("Smoke checks passed.");
 }

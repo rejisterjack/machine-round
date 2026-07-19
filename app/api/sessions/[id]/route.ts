@@ -42,6 +42,7 @@ export const GET = withApiHandler(
       messages: session.messages.map((message) => ({
         role: message.role,
         content: message.content,
+        speaker: message.speakerName ?? undefined,
       })),
       report: reportToEvaluateResponse(session.report),
       shareToken: session.report?.shareToken ?? null,

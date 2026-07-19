@@ -2,6 +2,7 @@ import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { NextResponse } from "next/server";
 import { API_TIMEOUTS, withApiHandler, withRetry } from "@/lib/api/handler";
 import { getAzureEvaluatorModel, getAzureConfig } from "@/lib/ai";
+import { formatMessageSpeaker } from "@/lib/ai/personas/panelists";
 import { buildEvaluatorPrompt } from "@/lib/ai/prompts/evaluator";
 import { isDbReady } from "@/lib/db/ready";
 import {
@@ -28,9 +29,7 @@ function normalizeImprovements(improvements: string[]) {
 export const POST = withApiHandler(async (request: Request) => {
   const body = evaluateRequestSchema.parse(await request.json());
   const role = await resolveRole(body);
-  const transcript = body.messages
-    .map((message) => `${message.role}: ${message.content}`)
-    .join("\n");
+  const transcript = body.messages.map(formatMessageSpeaker).join("\n");
 
   let sessionWeakSignals = body.weakSignals ?? [];
 

@@ -87,8 +87,9 @@ function InterviewRoleContent() {
           Namaste Machine Round tracks
         </h1>
         <p className="mt-4 max-w-2xl text-sm text-muted-foreground">
-          Pick a role preset to start your interview. The AI interviewer adapts
-          follow-ups to your specific answers — just like a real screening round.
+          Pick a role preset to start your interview. Akshay Saini and Archy
+          Gupta will run the panel and adapt follow-ups to your specific answers
+          — just like a real screening round.
         </p>
 
         <div className="nd-card-grid mt-10">

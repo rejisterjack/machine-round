@@ -1,8 +1,12 @@
 import { z } from "zod";
+import { PANELIST_IDS } from "@/lib/ai/personas/panelists";
+
+export const panelistIdSchema = z.enum(PANELIST_IDS);
 
 export const interviewMessageSchema = z.object({
   role: z.enum(["user", "assistant"]),
   content: z.string(),
+  speaker: panelistIdSchema.optional(),
 });
 
 const roleFields = {
@@ -24,6 +28,7 @@ export const interviewRequestSchema = z
 
 export const interviewResponseSchema = z.object({
   message: z.string(),
+  speaker: panelistIdSchema.optional(),
   done: z.boolean(),
   referencedAnswer: z.string().optional(),
   topicsCovered: z.array(z.string()).optional(),

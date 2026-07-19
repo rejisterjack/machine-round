@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { CodexTerminal } from "@/components/brand/codex-terminal";
 import { ReadinessReport } from "@/components/report/readiness-report";
+import { PanelistAvatar } from "@/components/interview/panelist-avatar";
 import { Button } from "@/components/ui/button";
+import { getPanelist } from "@/lib/ai/personas/panelists";
 import type { EvaluateResponse, InterviewMessage } from "@/lib/session/interview-store";
 
 type SessionReplayProps = {
@@ -25,22 +27,33 @@ export function SessionReplay({
         <p className="text-sm text-muted-foreground">Replay ID</p>
         <p className="mt-1 font-mono text-sm">{publicId}</p>
         <p className="mt-3 text-sm text-muted-foreground">{roleTitle}</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Panel: Akshay Saini & Archy Gupta
+        </p>
       </div>
 
       <CodexTerminal title="Session transcript">
         <div className="space-y-4">
-          {messages.map((message, index) => (
-            <div
-              key={`${message.role}-${index}`}
-              className={
-                message.role === "assistant"
-                  ? "nd-message-assistant"
-                  : "nd-message-user"
-              }
-            >
-              {message.content}
-            </div>
-          ))}
+          {messages.map((message, index) =>
+            message.role === "assistant" ? (
+              <div key={`${message.role}-${index}`} className="flex gap-3">
+                <PanelistAvatar
+                  panelistId={message.speaker ?? "akshay"}
+                  className="size-8"
+                />
+                <div>
+                  <p className="mb-1 text-xs text-muted-foreground">
+                    {getPanelist(message.speaker ?? "akshay").name}
+                  </p>
+                  <div className="nd-message-assistant">{message.content}</div>
+                </div>
+              </div>
+            ) : (
+              <div key={`${message.role}-${index}`} className="nd-message-user">
+                {message.content}
+              </div>
+            ),
+          )}
         </div>
       </CodexTerminal>
 

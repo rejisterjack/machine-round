@@ -3,7 +3,10 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { InterviewerAvatar, TranscriptPanel } from "@/components/interview/transcript-panel";
+import {
+  PanelistAvatarRow,
+  TranscriptPanel,
+} from "@/components/interview/transcript-panel";
 import { VoiceControls } from "@/components/interview/voice-controls";
 import { Breadcrumb } from "@/components/layout/breadcrumb";
 import { PageShell } from "@/components/layout/page-shell";
@@ -11,6 +14,10 @@ import { Button } from "@/components/ui/button";
 import { ApiErrorCard } from "@/components/ui/api-error-card";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  getPanelistForQuestion,
+  type PanelistId,
+} from "@/lib/ai/personas/panelists";
 import { MAX_QUESTIONS } from "@/lib/design/tokens";
 import {
   loadSession,
@@ -33,34 +40,46 @@ export default function InterviewSessionPage() {
   );
   const [input, setInput] = useState("");
   const [referencedAnswer, setReferencedAnswer] = useState<string>();
+  const [voiceModeEnabled, setVoiceModeEnabled] = useState(false);
   const [partialTranscript, setPartialTranscript] = useState<{
     role: "user" | "assistant";
     content: string;
+    speaker?: PanelistId;
   }>();
   const sessionRef = useRef(session);
   sessionRef.current = session;
   const voiceStopRef = useRef<() => void>(() => {});
+  const voiceModeEnabledRef = useRef(voiceModeEnabled);
+  voiceModeEnabledRef.current = voiceModeEnabled;
+
+  const activePanelist =
+    getPanelistForQuestion(session?.questionCount ?? 0).id;
 
   const handleRealtimeEvent = useCallback((event: RealtimeEvent) => {
-    const partial = extractPartialDelta(event);
+    const current = sessionRef.current;
+    const currentSpeaker = current
+      ? getPanelistForQuestion(current.questionCount).id
+      : "akshay";
+
+    const partial = extractPartialDelta(event, currentSpeaker);
     if (partial) {
       setPartialTranscript((previous) => {
         if (previous && previous.role === partial.role) {
           return {
             role: partial.role,
             content: previous.content + partial.content,
+            speaker: partial.speaker ?? previous.speaker,
           };
         }
         return partial;
       });
     }
 
-    const message = extractMessageFromRealtimeEvent(event);
+    const message = extractMessageFromRealtimeEvent(event, currentSpeaker);
     if (!message) return;
 
     setPartialTranscript(undefined);
 
-    const current = sessionRef.current;
     if (!current) return;
 
     const last = current.messages[current.messages.length - 1];
@@ -89,13 +108,29 @@ export default function InterviewSessionPage() {
     if (message.role === "user" && current.dbSessionId) {
       void syncVoiceTranscript(current.dbSessionId, message.content);
     }
-  }, []);
+
+    if (message.role === "assistant") {
+      voiceStopRef.current();
+      if (questionCount >= MAX_QUESTIONS) {
+        const completed: InterviewSession = {
+          ...updated,
+          status: "complete",
+        };
+        sessionRef.current = completed;
+        setSession(completed);
+        saveSession(completed);
+        router.push("/report");
+      }
+    }
+  }, [router]);
 
   const voice = useRealtimeVoice({
     sessionId: session?.dbSessionId,
     roleId: session?.roleId,
     roleTitle: session?.roleTitle,
     questionCount: session?.questionCount,
+    activePanelist,
+    messages: session?.messages,
     onEvent: handleRealtimeEvent,
   });
   voiceStopRef.current = voice.stop;
@@ -108,10 +143,11 @@ export default function InterviewSessionPage() {
       const base = current ?? session;
       if (!base) return;
       voiceStopRef.current();
+      setVoiceModeEnabled(false);
       const completed: InterviewSession = {
         ...base,
         status: "complete",
-        inputMode: voice.active ? "voice" : base.inputMode,
+        inputMode: voiceModeEnabledRef.current ? "voice" : base.inputMode,
       };
       setSession(completed);
       saveSession(completed);
@@ -153,6 +189,7 @@ export default function InterviewSessionPage() {
       const assistantMessage: InterviewMessage = {
         role: "assistant",
         content: data.message,
+        speaker: data.speaker,
       };
       const updatedMessages = [...messages, assistantMessage];
       const updatedSession: InterviewSession = {
@@ -182,12 +219,26 @@ export default function InterviewSessionPage() {
       const errored: InterviewSession = {
         ...current,
         status: "error",
-        error: "Could not reach the interviewer. Try again.",
+        error: "Could not reach the panel. Try again.",
       };
       setSession(errored);
       saveSession(errored);
     }
   }, [router, endRound]);
+
+  async function continueVoicePanel(
+    current: InterviewSession,
+    messages: InterviewMessage[],
+  ) {
+    if (current.questionCount >= MAX_QUESTIONS) {
+      endRound({ ...current, messages });
+      return;
+    }
+
+    const nextPanelist = getPanelistForQuestion(current.questionCount).id;
+    sessionRef.current = { ...current, messages };
+    await voice.reconnect(nextPanelist, messages);
+  }
 
   useEffect(() => {
     const dbSessionId = session?.dbSessionId;
@@ -259,10 +310,25 @@ export default function InterviewSessionPage() {
       return;
     }
     if (bootstrapped.current || session.messages.length > 0) return;
-    if (session.inputMode === "voice" || voice.active) return;
+    if (voiceModeEnabled || voice.active) return;
     bootstrapped.current = true;
     void requestNextQuestion(session, []);
-  }, [router, session, requestNextQuestion, voice.active]);
+  }, [router, session, requestNextQuestion, voice.active, voiceModeEnabled]);
+
+  async function handleVoiceToggle() {
+    if (voice.active || voice.connecting) {
+      voice.stop();
+      setVoiceModeEnabled(false);
+      return;
+    }
+
+    const current = sessionRef.current;
+    if (!current) return;
+
+    setVoiceModeEnabled(true);
+    const panelist = getPanelistForQuestion(current.questionCount).id;
+    await voice.start(panelist);
+  }
 
   async function handleSend() {
     if (!session || !input.trim() || session.status === "thinking") return;
@@ -282,6 +348,13 @@ export default function InterviewSessionPage() {
     setSession(updated);
     saveSession(updated);
     setInput("");
+
+    if (voiceModeEnabled) {
+      sessionRef.current = updated;
+      await continueVoicePanel(updated, messages);
+      return;
+    }
+
     await requestNextQuestion(updated, messages);
   }
 
@@ -295,13 +368,14 @@ export default function InterviewSessionPage() {
 
   const progressValue = (session.questionCount / MAX_QUESTIONS) * 100;
   const atQuestionCap = session.questionCount >= MAX_QUESTIONS;
-  const voiceModeActive = voice.active;
+  const voiceModeActive = voiceModeEnabled;
   const canSend =
-    !voiceModeActive &&
     !atQuestionCap &&
     session.status !== "thinking" &&
-    session.status !== "complete";
-  const avatarStatus = voiceModeActive
+    session.status !== "complete" &&
+    (!voiceModeActive || !voice.active);
+  const displayPanelist = voice.activePanelist ?? activePanelist;
+  const avatarStatus = voiceModeActive && voice.active
     ? voice.voiceState === "speaking"
       ? "thinking"
       : voice.voiceState === "listening"
@@ -320,7 +394,10 @@ export default function InterviewSessionPage() {
         />
         <p className="nd-section-heading">Live session</p>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <InterviewerAvatar status={avatarStatus} />
+          <PanelistAvatarRow
+            status={avatarStatus}
+            activePanelist={displayPanelist}
+          />
           <div className="min-w-0 flex-1 sm:min-w-48">
             <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
               <span>{session.roleTitle}</span>
@@ -335,21 +412,24 @@ export default function InterviewSessionPage() {
         <TranscriptPanel
           messages={session.messages}
           referencedAnswer={referencedAnswer}
+          activePanelist={displayPanelist}
           partialTranscript={partialTranscript}
         />
 
         <VoiceControls
-          active={voice.active}
+          active={voiceModeEnabled}
           connecting={voice.connecting}
+          handoffPanelist={voice.handoffPanelist}
           voiceState={voice.voiceState}
+          activePanelist={displayPanelist}
           supported={voice.supported}
           error={voice.error}
-          onToggle={() => void voice.toggle()}
+          onToggle={() => void handleVoiceToggle()}
         />
 
         {session.status === "error" ? (
           <ApiErrorCard
-            message={session.error ?? "Could not reach the interviewer."}
+            message={session.error ?? "Could not reach the panel."}
             onRetry={() => {
               interviewRetryCount.current = 0;
               void requestNextQuestion(session, session.messages);
@@ -363,11 +443,13 @@ export default function InterviewSessionPage() {
             value={input}
             onChange={(event) => setInput(event.target.value)}
             placeholder={
-              voiceModeActive
-                ? "Voice mode is active. Speak your answer, or toggle voice off to type."
-                : atQuestionCap
-                  ? "Question limit reached. End the round to view your report."
-                  : "Type your answer. Voice is optional."
+              voiceModeActive && voice.active
+                ? "Panelist is speaking… type your answer once they finish."
+                : voiceModeActive
+                  ? "Type your answer — the next panelist will speak it aloud."
+                  : atQuestionCap
+                    ? "Question limit reached. End the round to view your report."
+                    : "Type your answer. Toggle voice to hear Akshay & Archy."
             }
             className="min-h-24 resize-none"
             disabled={!canSend}

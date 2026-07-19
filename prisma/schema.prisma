@@ -175,6 +175,7 @@ model InterviewMessage {
   content          String      @db.Text
   sequence         Int
   referencedAnswer String?     @db.Text
+  speakerName      String?
   createdAt        DateTime    @default(now())
 
   session InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
