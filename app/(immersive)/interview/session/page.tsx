@@ -39,6 +39,7 @@ import {
   type InterviewDuration,
 } from "@/lib/interview/duration-profiles";
 import { logInterviewDebug } from "@/lib/interview/debug-log";
+import { computeQuestionCount } from "@/lib/interview/question-counter";
 import {
   CAMERA_REALTIME_INTERVAL_MS,
   INTERVIEW_COMPLETE_BANNER_MS,
@@ -548,7 +549,7 @@ export default function InterviewSessionPage() {
       const messages = [...current.messages, storedMessage];
       const questionCount =
         message.role === "assistant"
-          ? current.questionCount + 1
+          ? computeQuestionCount(messages)
           : current.questionCount;
 
       logInterviewDebug("transcript_message", {
@@ -790,12 +791,51 @@ export default function InterviewSessionPage() {
         await new Promise((resolve) => setTimeout(resolve, 2500));
       }
 
+      let sessionForReport: InterviewSession = completed;
+      if (
+        base.dbSessionId &&
+        base.messages.length > 0 &&
+        !completed.report
+      ) {
+        try {
+          const evaluateResponse = await fetch("/api/evaluate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              roleId: base.roleId,
+              roleTitle: base.roleTitle,
+              messages: base.messages,
+              sessionId: base.dbSessionId,
+              weakSignals: base.weakSignals,
+            }),
+          });
+          if (evaluateResponse.ok) {
+            const report = (await evaluateResponse.json()) as InterviewSession["report"];
+            sessionForReport = {
+              ...completed,
+              report: report
+                ? { ...report, shareToken: report.shareToken ?? null }
+                : undefined,
+            };
+            sessionRef.current = sessionForReport;
+            setSession(sessionForReport);
+            saveSession(sessionForReport);
+          }
+        } catch {
+          // Report page will retry with ?session= param.
+        }
+      }
+
       setSavingSession(false);
       setCompleteBanner(true);
       await new Promise((resolve) =>
         setTimeout(resolve, INTERVIEW_COMPLETE_BANNER_MS),
       );
-      router.push("/report");
+      router.push(
+        base.dbSessionId
+          ? `/report?session=${base.dbSessionId}`
+          : "/report",
+      );
     },
     [clearPendingComplete, media, router, stopScreenRealtime, stopCameraRealtime],
   );
@@ -1111,7 +1151,7 @@ export default function InterviewSessionPage() {
 
   const statusChipLabel =
     completeBanner
-      ? "Interview complete — preparing your report"
+      ? "Interview complete — saving your report to My Rounds"
       : finishingInterview
         ? "Finishing interview…"
         : voice.connectionStatus === "reconnecting"
@@ -1157,7 +1197,9 @@ export default function InterviewSessionPage() {
       {completeBanner ? (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80">
           <div className="rounded-lg border border-border bg-card px-6 py-4 text-center">
-            <p className="font-medium">Interview complete — preparing your report</p>
+            <p className="font-medium">
+              Interview complete — saving your report to My Rounds
+            </p>
           </div>
         </div>
       ) : null}

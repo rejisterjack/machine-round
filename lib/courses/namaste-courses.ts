@@ -30,6 +30,8 @@ export type NamasteCourse = {
   promptFocus: string;
   topicAreas: string[];
   kind: "course" | "bundle";
+  bundleCourseIds?: NamasteCourseId[];
+  forbiddenTopics?: string[];
 };
 
 const CDN = "https://do6gp1uxl3luu.cloudfront.net/banner+and+logos";
@@ -53,8 +55,8 @@ export const NAMASTE_COURSES: NamasteCourse[] = [
     icon: "Binary",
     kind: "course",
     promptFocus:
-      "Focus on DSA fundamentals: time/space complexity, arrays, strings, hashing, stacks, queues, trees, graphs, recursion, and dynamic programming. Ask coding-style questions verbally or with light pseudo-code. Probe how they approach unseen problems and optimize solutions.",
-    topicAreas: ["arrays", "trees", "graphs", "DP", "complexity analysis"],
+      "ONLY ask DSA interview questions: time/space complexity, arrays, strings, hashing, stacks, queues, trees, graphs, recursion, and dynamic programming. Use verbal or light pseudo-code problems. NEVER ask about personal projects, resume, or career background.",
+    topicAreas: ["arrays", "trees", "graphs", "DP", "complexity analysis", "hashing", "recursion"],
   },
   {
     id: "namaste-node",
@@ -70,8 +72,8 @@ export const NAMASTE_COURSES: NamasteCourse[] = [
     icon: "Server",
     kind: "course",
     promptFocus:
-      "Focus on Node.js and backend interviews: Express/API design, middleware, async patterns, event loop, databases, caching, auth, error handling, and scaling Node services. Ask about tradeoffs in real backend systems.",
-    topicAreas: ["APIs", "async", "databases", "auth", "scaling"],
+      "ONLY ask Node.js and backend questions: Express/API design, middleware, async patterns, event loop, databases, caching, auth, error handling, and scaling Node services. NEVER ask about personal projects, resume, or unrelated frontend trivia.",
+    topicAreas: ["APIs", "async", "databases", "auth", "scaling", "event loop"],
   },
   {
     id: "namaste-frontend-system-design",
@@ -86,8 +88,8 @@ export const NAMASTE_COURSES: NamasteCourse[] = [
     icon: "Layout",
     kind: "course",
     promptFocus:
-      "Focus on frontend system design: component architecture, state at scale, rendering strategies (SSR/CSR/ISR), API integration, caching, real-time UI, accessibility, performance budgets, and designing complex dashboards or editors.",
-    topicAreas: ["architecture", "SSR", "performance", "real-time UI"],
+      "ONLY ask frontend system design questions: component architecture, state at scale, rendering strategies (SSR/CSR/ISR), API integration, caching, real-time UI, accessibility, performance budgets, and complex product surfaces. NEVER ask resume or personal project stories.",
+    topicAreas: ["architecture", "SSR", "performance", "real-time UI", "caching", "state at scale"],
   },
   {
     id: "namaste-react",
@@ -103,8 +105,8 @@ export const NAMASTE_COURSES: NamasteCourse[] = [
     icon: "Atom",
     kind: "course",
     promptFocus:
-      "Focus on React interviews: component design, hooks, state management, rendering behavior, reconciliation, performance (memo, useMemo, useCallback), data fetching patterns, and debugging UI issues. Reference real app scenarios.",
-    topicAreas: ["hooks", "state", "rendering", "performance", "patterns"],
+      "ONLY ask React interview questions: component design, hooks, state management, rendering behavior, reconciliation, performance (memo, useMemo, useCallback), data fetching patterns, and debugging UI issues. NEVER ask about personal projects or career background.",
+    topicAreas: ["hooks", "state", "rendering", "performance", "patterns", "reconciliation"],
   },
   {
     id: "namaste-javascript",
@@ -120,8 +122,8 @@ export const NAMASTE_COURSES: NamasteCourse[] = [
     icon: "Code",
     kind: "course",
     promptFocus:
-      "Focus on core JavaScript: closures, scope, `this`, prototypes, promises/async-await, event loop, ES6+ features, and tricky output questions. Probe depth of language understanding beyond framework APIs.",
-    topicAreas: ["closures", "async", "prototypes", "event loop"],
+      "ONLY ask core JavaScript questions: closures, scope, `this`, prototypes, promises/async-await, event loop, ES6+ features, hoisting, and tricky output-based questions. NEVER ask about React, Node, personal projects, resume, career goals, or opinions unrelated to the JS language.",
+    topicAreas: ["closures", "scope", "async", "prototypes", "event loop", "this", "hoisting", "ES6+"],
   },
   {
     id: "namaste-interview",
@@ -153,8 +155,9 @@ export const NAMASTE_COURSES: NamasteCourse[] = [
     icon: "Layers",
     kind: "bundle",
     promptFocus:
-      "Focus on MERN full-stack interviews: React UI, Node/Express APIs, MongoDB modeling, auth, and end-to-end feature design across the stack.",
-    topicAreas: ["React", "Node", "MongoDB", "full-stack"],
+      "ONLY ask MERN full-stack technical questions across React UI, Node/Express APIs, MongoDB modeling, auth, and end-to-end feature design. NEVER ask personal project stories or career background unless directly needed to explain a technical choice.",
+    topicAreas: ["React", "Node", "MongoDB", "Express", "full-stack", "auth"],
+    bundleCourseIds: ["namaste-react", "namaste-node"],
   },
   {
     id: "frontend-master-bundle",
@@ -169,8 +172,9 @@ export const NAMASTE_COURSES: NamasteCourse[] = [
     icon: "Monitor",
     kind: "bundle",
     promptFocus:
-      "Combine React depth with frontend system design: scalable UI architecture, performance, and complex product surfaces.",
-    topicAreas: ["React", "FSD", "performance", "architecture"],
+      "ONLY ask questions from React depth and frontend system design: scalable UI architecture, performance, rendering, and complex product surfaces. NEVER ask unrelated backend-only trivia or personal career stories.",
+    topicAreas: ["React", "FSD", "performance", "architecture", "SSR"],
+    bundleCourseIds: ["namaste-react", "namaste-frontend-system-design"],
   },
   {
     id: "advanced-fullstack-bundle",
@@ -185,8 +189,13 @@ export const NAMASTE_COURSES: NamasteCourse[] = [
     icon: "Layers",
     kind: "bundle",
     promptFocus:
-      "Full-stack senior screen: API design, React architecture, frontend system design, ownership, and tradeoffs across the entire delivery stack.",
-    topicAreas: ["full-stack", "React", "Node", "FSD"],
+      "ONLY ask advanced full-stack technical questions spanning React, Node, and frontend system design — APIs, UI architecture, performance, and delivery tradeoffs. NEVER ask personal project stories or generic behavioral questions.",
+    topicAreas: ["full-stack", "React", "Node", "FSD", "APIs", "architecture"],
+    bundleCourseIds: [
+      "namaste-react",
+      "namaste-node",
+      "namaste-frontend-system-design",
+    ],
   },
 ];
 

@@ -23,6 +23,7 @@ type HistorySession = {
   status: string;
   questionCount: number;
   overallScore: number | null;
+  hasReport: boolean;
   startedAt: string;
   completedAt: string | null;
   hasRecording: boolean;

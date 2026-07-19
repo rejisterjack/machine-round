@@ -16,6 +16,7 @@ import {
 import { resolveRealtimeVoice } from "@/lib/voice/panelist-voices";
 import { getAzureRealtimeConfig, getAzureRealtimeCredentials } from "@/lib/ai";
 import { buildInterviewerPrompt } from "@/lib/ai/prompts/interviewer";
+import { getCourseInterviewScope } from "@/lib/courses/interview-scope";
 import { getGroundedQuestions } from "@/lib/rag/vector-store";
 import { isDbReady } from "@/lib/db/ready";
 import { prisma } from "@/lib/prisma";
@@ -118,11 +119,18 @@ export const POST = withApiHandler(async (request: Request) => {
   );
   const messages = body.messages ?? [];
   const transcript = messages.map(formatMessageSpeaker).join("\n");
+  const courseId =
+    body.courseId ??
+    (body.roleId && body.roleId !== "job-custom" ? body.roleId : undefined);
+  const interviewScope = getCourseInterviewScope(courseId, body.promptContext);
   const priorAssistant = getPriorAssistantSpeaker(messages);
   const threadComplete = isThreadComplete(messages, priorAssistant);
   const includeRagHints = questionCount <= 1 || threadComplete;
   const grounded = includeRagHints
-    ? await getGroundedQuestions(role.title, 4, role.id)
+    ? await getGroundedQuestions(role.title, 4, courseId, {
+        topicAreas: interviewScope?.allowedTopics,
+        strictScope: interviewScope?.strictCourseMode,
+      })
     : [];
   const ragHint = grounded.length
     ? `\n\nRole-specific question bank (weave in naturally when relevant): ${grounded.join(" | ")}`
@@ -138,9 +146,7 @@ export const POST = withApiHandler(async (request: Request) => {
     sessionId: body.sessionId,
     interviewDuration,
     maxQuestions,
-    courseId:
-      body.courseId ??
-      (body.roleId && body.roleId !== "job-custom" ? body.roleId : undefined),
+    courseId,
     promptContext: body.promptContext,
   });
   const fullInstructions = transcript
@@ -152,6 +158,8 @@ export const POST = withApiHandler(async (request: Request) => {
         transcript,
         messages,
         routerReason: body.routerReason,
+        courseId,
+        promptContext: body.promptContext,
       })}${ragHint}`
     : `${instructions}${ragHint}`;
   const realtimeCreds = getAzureRealtimeCredentials();

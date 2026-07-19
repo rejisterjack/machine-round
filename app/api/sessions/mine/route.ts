@@ -55,6 +55,7 @@ export const GET = withApiHandler(async (request: Request) => {
       status: session.status,
       questionCount: session.questionCount,
       overallScore: session.report?.overallScore ?? null,
+      hasReport: Boolean(session.report),
       startedAt: session.startedAt.toISOString(),
       completedAt: session.completedAt?.toISOString() ?? null,
       hasRecording: session.recordingStatus === "uploaded" && Boolean(session.audioRecordingUrl),

@@ -3,6 +3,8 @@ import {
   type PanelistId,
   type PanelistMode,
 } from "@/lib/ai/personas/panelists";
+import type { InterviewScope } from "@/lib/courses/interview-scope";
+import { getCourseInterviewScope } from "@/lib/courses/interview-scope";
 import { MAX_QUESTIONS } from "@/lib/design/tokens";
 import type { InterviewMessage } from "@/lib/session/interview-store";
 
@@ -46,6 +48,7 @@ export function getPhaseGuidance(input: {
   activePanelist: PanelistId;
   priorSpeaker?: PanelistId;
   varietyStyle?: string;
+  interviewScope?: InterviewScope | null;
 }): string {
   const panelist = getPanelist(input.activePanelist);
   const coPanelist =
@@ -55,18 +58,35 @@ export function getPhaseGuidance(input: {
   const variety = input.varietyStyle
     ? ` Opener style for this session: ${input.varietyStyle}`
     : "";
+  const scope = input.interviewScope;
+  const allowedTopics =
+    scope?.allowedTopics.length ?
+      scope.allowedTopics.join(", ")
+    : input.role;
 
   switch (input.phase) {
     case "greeting":
       if (input.panelistMode === "both" && input.activePanelist === "akshay") {
-        return `Open the live call naturally.${variety} Introduce yourself and mention ${coPanelist?.shortName} is on too. Briefly frame this as a machine round for ${input.role}. Do not reuse the same greeting you've used in other sessions.`;
+        return `Open the live call naturally.${variety} Introduce yourself and mention ${coPanelist?.shortName} is on too. Briefly frame this as a ${scope?.title ?? input.role} machine round. Do not reuse the same greeting you've used in other sessions.`;
       }
-      return `Open the live call naturally.${variety} Introduce yourself as ${panelist.shortName} and frame this as a machine round for ${input.role}. Vary your wording each time.`;
+      return `Open the live call naturally.${variety} Introduce yourself as ${panelist.shortName} and frame this as a ${scope?.title ?? input.role} machine round. Vary your wording each time.`;
 
     case "warmup":
+      if (scope?.strictCourseMode) {
+        return `Ease in with a light syllabus-aligned warm-up question from: ${allowedTopics}. Do NOT ask about background, resume, personal projects, or career goals.`;
+      }
+      if (scope?.allowsBehavioral) {
+        return `Ease in conversationally with a light frontend interview warm-up — background or motivation is fine, then move into technical depth.`;
+      }
       return `Ease in conversationally. Ask about their background or what drew them to ${input.role}. React to what they actually said — do not use a canned script.`;
 
     case "explore":
+      if (scope?.strictCourseMode) {
+        return `Stay strictly within the syllabus (${allowedTopics}). Follow the candidate's thread with one focused technical question at a time. Do NOT ask behavioral, resume, or off-syllabus questions.`;
+      }
+      if (scope?.allowsBehavioral) {
+        return `Mix frontend technical depth with realistic behavioral probes. Follow the candidate's thread and ask one focused question at a time.`;
+      }
       return `Follow the candidate's thread. Pick up something specific from their last answer and ask one focused question. Vary topic areas naturally (technical depth, ownership, tradeoffs, communication) based on what they shared — do not march through a fixed checklist.`;
 
     case "closing":
@@ -167,6 +187,8 @@ export function buildContinuationPrompt(input: {
   transcript: string;
   messages: InterviewMessage[];
   routerReason?: string;
+  courseId?: string;
+  promptContext?: string;
 }): string {
   const panelist = getPanelist(input.activePanelist);
   const phase = getConversationPhase(input.questionCount);
@@ -182,6 +204,11 @@ export function buildContinuationPrompt(input: {
     priorSpeaker === input.activePanelist &&
     lastUserAnswer;
 
+  const interviewScope = getCourseInterviewScope(
+    input.courseId,
+    input.promptContext,
+  );
+
   const phaseGuidance = getPhaseGuidance({
     phase,
     role: input.role,
@@ -189,6 +216,7 @@ export function buildContinuationPrompt(input: {
     panelistMode: input.panelistMode,
     activePanelist: input.activePanelist,
     priorSpeaker,
+    interviewScope,
   });
 
   const handoffBlock = isHandoff && priorSpeaker

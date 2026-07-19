@@ -7,6 +7,7 @@ import {
   appendInterviewMessages,
   getInterviewSessionById,
 } from "@/lib/session/persistence";
+import { computeQuestionCount } from "@/lib/interview/question-counter";
 import { interviewRequestSchema } from "@/lib/session/interview-store";
 import { resolveRole } from "@/lib/session/roles";
 import { assertSessionOwnerIfPresent } from "@/lib/session/session-access";
@@ -49,19 +50,23 @@ export const POST = withApiHandler(async (request: Request) => {
     }),
   );
 
+  const assistantMessage = {
+    role: "assistant" as const,
+    content: parsed.message,
+    speaker: parsed.speaker,
+  };
+  const questionCount = computeQuestionCount([
+    ...body.messages,
+    assistantMessage,
+  ]);
+
   if (body.sessionId && (await isDbReady())) {
     await appendInterviewMessages(
       body.sessionId,
-      [
-        {
-          role: "assistant",
-          content: parsed.message,
-          speaker: parsed.speaker,
-        },
-      ],
+      [assistantMessage],
       {
         referencedAnswer: parsed.referencedAnswer,
-        questionCount: body.questionCount + 1,
+        questionCount,
         topicsCovered: parsed.topicsCovered,
         weakSignals: parsed.weakSignals,
         status: parsed.done ? "completed" : "active",
