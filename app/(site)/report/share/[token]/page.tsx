@@ -1,54 +1,49 @@
-"use client";
-
+import type { Metadata } from "next";
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { notFound } from "next/navigation";
+import { SharedReportView } from "@/components/report/shared-report-view";
 import { Breadcrumb } from "@/components/layout/breadcrumb";
 import { PageShell } from "@/components/layout/page-shell";
-import { ReadinessReport } from "@/components/report/readiness-report";
-import { ShareActions } from "@/components/report/share-actions";
 import { Button } from "@/components/ui/button";
-import { ApiErrorCard } from "@/components/ui/api-error-card";
-import { Skeleton } from "@/components/ui/skeleton";
-import type { EvaluateResponse } from "@/lib/session/interview-store";
+import { loadSharedReportData } from "@/lib/session/shared-report-data";
 
-type SharedReport = EvaluateResponse & {
-  roleTitle?: string;
-  publicId?: string;
-  generatedAt?: string;
-  shareToken?: string | null;
+type SharedReportPageProps = {
+  params: Promise<{ token: string }>;
 };
 
-export default function SharedReportPage() {
-  const params = useParams<{ token: string }>();
-  const token = params.token;
-  const [report, setReport] = useState<SharedReport | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string>();
+export async function generateMetadata({
+  params,
+}: SharedReportPageProps): Promise<Metadata> {
+  const { token } = await params;
+  const report = await loadSharedReportData(token);
 
-  const loadReport = useCallback(async () => {
-    if (!token) return;
-    setLoading(true);
-    setError(undefined);
+  if (!report) {
+    return {
+      title: "Report not found | Namaste Machine Round",
+      description: "This shared readiness report could not be found or has expired.",
+    };
+  }
 
-    try {
-      const response = await fetch(`/api/reports/share/${token}`);
-      if (!response.ok) {
-        throw new Error("Report not found.");
-      }
-      const data = (await response.json()) as SharedReport;
-      setReport({ ...data, shareToken: token });
-    } catch {
-      setError("This shared report could not be found or has expired.");
-      setReport(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [token]);
+  const title = `${report.roleTitle} Readiness Report | Namaste Machine Round`;
 
-  useEffect(() => {
-    queueMicrotask(() => void loadReport());
-  }, [loadReport]);
+  return {
+    title,
+    description: `Overall readiness score: ${report.overallScore}/100. ${report.summary.slice(0, 140)}`,
+    openGraph: {
+      title: `${report.roleTitle} — ${report.overallScore}/100 readiness`,
+      description: report.summary.slice(0, 200),
+      type: "article",
+    },
+  };
+}
+
+export default async function SharedReportPage({ params }: SharedReportPageProps) {
+  const { token } = await params;
+  const report = await loadSharedReportData(token);
+
+  if (!report) {
+    notFound();
+  }
 
   return (
     <PageShell>
@@ -64,49 +59,7 @@ export default function SharedReportPage() {
           Namaste Machine Round readiness
         </h1>
 
-        {loading ? (
-          <div className="mt-10 space-y-4">
-            <Skeleton className="h-40 w-full rounded-lg" />
-            <Skeleton className="h-28 w-full rounded-lg" />
-            <Skeleton className="h-28 w-full rounded-lg" />
-          </div>
-        ) : error ? (
-          <ApiErrorCard
-            className="mt-10"
-            message={error}
-            onRetry={() => void loadReport()}
-            retryLabel="Retry"
-          />
-        ) : report ? (
-          <div className="mt-10">
-            <ReadinessReport
-              report={report}
-              roleTitle={report.roleTitle}
-              generatedAt={report.generatedAt}
-              showShareActions={false}
-            />
-            <div className="mt-6 space-y-4">
-              {report.publicId ? (
-                <Button
-                  variant="ndPrimary"
-                  render={
-                    <Link
-                      href={`/replay/${report.publicId}?shareToken=${encodeURIComponent(token)}`}
-                    />
-                  }
-                >
-                  Watch session replay
-                </Button>
-              ) : null}
-              <ShareActions
-                shareToken={token}
-                publicShareToken={token}
-                report={report}
-                roleTitle={report.roleTitle}
-              />
-            </div>
-          </div>
-        ) : null}
+        <SharedReportView report={report} token={token} />
 
         <div className="mt-10">
           <Button variant="ndFilled" render={<Link href="/interview" />}>

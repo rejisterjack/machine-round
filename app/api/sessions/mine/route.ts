@@ -2,9 +2,10 @@ import { NextResponse } from "next/server";
 import type { SessionStatus } from "@/generated/client";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { withApiHandler } from "@/lib/api/handler";
+import { serializeHistorySession } from "@/lib/session/history-serialization";
 import { getUserSessions } from "@/lib/session/media-queries";
 import { countPendingReports, resetStaleThinkingSessions } from "@/lib/session/session-maintenance";
-import { roleIdToSlug, roleSlugToId } from "@/lib/session/role-slug";
+import { roleIdToSlug } from "@/lib/session/role-slug";
 
 const SESSION_STATUSES = new Set<SessionStatus>([
   "active",
@@ -50,24 +51,7 @@ export const GET = withApiHandler(async (request: Request) => {
   const pendingReportCount = await countPendingReports(authSession.user.id);
 
   return NextResponse.json({
-    sessions: sessions.map((session) => ({
-      id: session.id,
-      publicId: session.publicId,
-      roleTitle: session.role.title,
-      roleId: roleSlugToId(session.role.slug),
-      panelistMode: session.panelistMode,
-      interviewDuration: session.interviewDuration ?? "minutes_30",
-      status: session.status,
-      questionCount: session.questionCount,
-      overallScore: session.report?.overallScore ?? null,
-      hasReport: Boolean(session.report),
-      lastError: session.lastError,
-      startedAt: session.startedAt.toISOString(),
-      completedAt: session.completedAt?.toISOString() ?? null,
-      hasRecording: session.recordingStatus === "uploaded" && Boolean(session.audioRecordingUrl),
-      recordingStatus: session.recordingStatus,
-      snapshotCount: session._count.screenCaptures,
-    })),
+    sessions: sessions.map(serializeHistorySession),
     total,
     pendingReportCount,
     limit: safeLimit,

@@ -1,5 +1,5 @@
 import { AlertTriangle } from "lucide-react";
-import { ShareActions } from "@/components/report/share-actions";
+import { LazyShareActions } from "@/components/report/lazy-share-actions";
 import { WeakTopicsCloud } from "@/components/report/weak-topics-cloud";
 import { Progress } from "@/components/ui/progress";
 import type { EvaluateResponse } from "@/lib/session/interview-store";
@@ -100,7 +100,7 @@ export function ReadinessReport({
       ) : null}
 
       {showShareActions ? (
-        <ShareActions
+        <LazyShareActions
           shareToken={report.shareToken}
           report={report}
           roleTitle={roleTitle}

@@ -19,6 +19,7 @@ type NdHeroProps = {
   ctaHref: string;
   scrollTargetId?: string;
   secondaryLabel?: string;
+  secondaryHref?: string;
   onSecondaryClick?: () => void;
 };
 
@@ -33,6 +34,7 @@ export function NdHero({
   ctaHref,
   scrollTargetId = "choose-track",
   secondaryLabel,
+  secondaryHref,
   onSecondaryClick,
 }: NdHeroProps) {
   const titleParts = title.split(accentWord);
@@ -76,7 +78,14 @@ export function NdHero({
               <span className="nd-cta-dot" aria-hidden />
               {ctaLabel}
             </Link>
-            {secondaryLabel && onSecondaryClick ? (
+            {secondaryLabel && secondaryHref ? (
+              <Link
+                href={secondaryHref}
+                className={cn(buttonVariants({ variant: "ndGhost", size: "lg" }))}
+              >
+                {secondaryLabel}
+              </Link>
+            ) : secondaryLabel && onSecondaryClick ? (
               <Button variant="ndGhost" size="lg" onClick={onSecondaryClick}>
                 {secondaryLabel}
               </Button>
