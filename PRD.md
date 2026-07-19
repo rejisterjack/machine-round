@@ -88,6 +88,12 @@ Developers and professionals currently facing, or about to face, an AI-conducted
 - Every network call must degrade gracefully (timeout → retry once → clear error state, never a blank screen or infinite spinner).
 - No feature ships unless it works end-to-end at least 5 times in a row without manual intervention.
 
+### 6.5 Media Archive (Cloudinary storage optimization)
+- **Screen snapshots:** dual-profile capture — 960px JPEG for AI vision analysis, adaptive WebP/JPEG archive (~120 KB target) for Cloudinary storage. Max 12 snapshots per session.
+- **Session recording:** downscaled screen recap (854×480 @ 12 fps, 250 kbps video / 48 kbps audio) uploaded as WebM; max upload 25 MB.
+- **Replay delivery:** Cloudinary transform URLs (`q_auto:eco`, `f_auto`) for thumbnails and detail views — bandwidth-efficient without storing duplicate assets.
+- Tunable via optional env: `NEXT_PUBLIC_MEDIA_ARCHIVE_TARGET_KB`, `NEXT_PUBLIC_MEDIA_RECORDING_VIDEO_KBPS`, `NEXT_PUBLIC_MEDIA_RECORDING_MAX_HEIGHT` (and server-side `MEDIA_*` fallbacks).
+
 ---
 
 ## 7. Technical Architecture
