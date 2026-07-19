@@ -1,7 +1,8 @@
 import { z } from "zod";
-import { PANELIST_IDS } from "@/lib/ai/personas/panelists";
+import { PANELIST_IDS, PANELIST_MODES } from "@/lib/ai/personas/panelists";
 
 export const panelistIdSchema = z.enum(PANELIST_IDS);
+export const panelistModeSchema = z.enum(PANELIST_MODES);
 
 export const interviewMessageSchema = z.object({
   role: z.enum(["user", "assistant"]),
@@ -20,6 +21,7 @@ export const interviewRequestSchema = z
     ...roleFields,
     messages: z.array(interviewMessageSchema),
     questionCount: z.number().int().min(0),
+    panelistMode: panelistModeSchema.optional(),
     sessionId: z.string().optional(),
   })
   .refine((data) => Boolean(data.roleId || data.roleTitle || data.role), {
@@ -38,6 +40,13 @@ export const interviewResponseSchema = z.object({
 export const transcriptRequestSchema = z.object({
   sessionId: z.string(),
   content: z.string().min(1),
+  role: z.enum(["user", "assistant"]).default("user"),
+  speaker: panelistIdSchema.optional(),
+});
+
+export const screenObservationSchema = z.object({
+  timestamp: z.string(),
+  summary: z.string(),
 });
 
 export const evaluateRequestSchema = z
@@ -46,6 +55,7 @@ export const evaluateRequestSchema = z
     messages: z.array(interviewMessageSchema),
     sessionId: z.string().optional(),
     weakSignals: z.array(z.string()).optional(),
+    screenObservations: z.array(screenObservationSchema).optional(),
   })
   .refine((data) => Boolean(data.roleId || data.roleTitle || data.role), {
     message: "roleId, roleTitle, or role is required.",
@@ -71,20 +81,26 @@ export const evaluateResponseSchema = z.object({
   ),
   improvements: z.array(z.string()),
   weakTopics: z.array(weakTopicSchema).optional(),
+  screenReviewNotes: z.array(z.string()).optional(),
 });
 
 export type InterviewMessage = z.infer<typeof interviewMessageSchema>;
 export type InterviewResponse = z.infer<typeof interviewResponseSchema>;
 export type EvaluateResponse = z.infer<typeof evaluateResponseSchema>;
 export type WeakTopic = z.infer<typeof weakTopicSchema>;
+export type PanelistMode = z.infer<typeof panelistModeSchema>;
+export type ScreenObservation = z.infer<typeof screenObservationSchema>;
 
 export type InterviewSession = {
   roleId: string;
   roleTitle: string;
+  panelistMode: PanelistMode;
   messages: InterviewMessage[];
   questionCount: number;
   topicsCovered: string[];
   weakSignals: string[];
+  screenSharing?: boolean;
+  screenObservations?: ScreenObservation[];
   status: "idle" | "thinking" | "listening" | "error" | "complete";
   inputMode?: "text" | "voice" | "mixed";
   error?: string;
@@ -104,6 +120,9 @@ export function loadSession(): InterviewSession | null {
   if (!raw) return null;
   try {
     const session = JSON.parse(raw) as InterviewSession;
+    if (!session.panelistMode) {
+      session.panelistMode = "both";
+    }
     if (!sessionStorage.getItem(SESSION_STORAGE_KEY)) {
       sessionStorage.setItem(SESSION_STORAGE_KEY, raw);
       sessionStorage.removeItem(LEGACY_SESSION_STORAGE_KEY);
@@ -124,14 +143,20 @@ export function clearSession() {
   sessionStorage.removeItem(SESSION_STORAGE_KEY);
 }
 
-export function createSession(roleId: string, roleTitle: string): InterviewSession {
+export function createSession(
+  roleId: string,
+  roleTitle: string,
+  panelistMode: PanelistMode = "both",
+): InterviewSession {
   return {
     roleId,
     roleTitle,
+    panelistMode,
     messages: [],
     questionCount: 0,
     topicsCovered: [],
     weakSignals: [],
     status: "idle",
+    inputMode: "voice",
   };
 }
