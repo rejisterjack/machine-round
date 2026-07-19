@@ -7,13 +7,16 @@ import type {
   TrackMode,
   WeakSignalType,
 } from "@/generated/client";
+import { Prisma } from "@/generated/client";
 import type {
   EvaluateResponse,
   InterviewMessage,
   WeakTopic,
 } from "@/lib/session/interview-store";
+import { ApiError } from "@/lib/api/errors";
 import { isDbReady } from "@/lib/db/ready";
 import { prisma } from "@/lib/prisma";
+import { findRoleRecordBySlug } from "@/lib/session/find-role-record";
 import { reportToEvaluateResponse } from "@/lib/session/report-queries";
 import { roleIdToSlug } from "@/lib/session/role-slug";
 
@@ -70,30 +73,76 @@ export async function createInterviewSession(input: {
 
   const slug = roleIdToSlug(input.roleId);
   if (!slug) {
-    throw new Error(`Unknown role: ${input.roleId}`);
+    throw new ApiError("VALIDATION_ERROR", `Unknown role: ${input.roleId}`, 400);
   }
 
-  const role = await prisma.role.findUnique({ where: { slug } });
+  const role = await findRoleRecordBySlug(slug);
   if (!role) {
-    throw new Error(`Role not seeded: ${input.roleId}`);
+    throw new ApiError(
+      "VALIDATION_ERROR",
+      `Role "${input.roleId}" is not in the database. Run: bun run db:seed`,
+      400,
+    );
   }
 
-  return prisma.interviewSession.create({
-    data: {
-      roleId: role.id,
-      inputMode: input.inputMode ?? "voice",
-      panelistMode: input.panelistMode ?? "both",
-      interviewDuration: input.interviewDuration ?? "minutes_30",
-      trackMode: input.trackMode ?? "namaste_course",
-      promptContext: input.promptContext,
-      jobDescriptionSummary: input.jobDescriptionSummary,
-      interviewRoundId: input.interviewRoundId,
-      interviewRoundTitle: input.interviewRoundTitle,
-      status: "active",
-      userId: input.userId,
-    },
-    include: { role: true },
-  });
+  const trackMode = input.trackMode ?? "namaste_course";
+
+  try {
+    return await prisma.interviewSession.create({
+      data: {
+        roleId: role.id,
+        inputMode: input.inputMode ?? "voice",
+        panelistMode: input.panelistMode ?? "both",
+        interviewDuration: input.interviewDuration ?? "minutes_30",
+        trackMode,
+        promptContext: input.promptContext,
+        jobDescriptionSummary: input.jobDescriptionSummary,
+        interviewRoundId: input.interviewRoundId,
+        interviewRoundTitle: input.interviewRoundTitle,
+        status: "active",
+        userId: input.userId,
+      },
+      include: { role: true },
+    });
+  } catch (error) {
+    if (
+      trackMode !== "namaste_course" &&
+      error instanceof Error &&
+      error.message.includes("trackMode")
+    ) {
+      const session = await prisma.interviewSession.create({
+        data: {
+          roleId: role.id,
+          inputMode: input.inputMode ?? "voice",
+          panelistMode: input.panelistMode ?? "both",
+          interviewDuration: input.interviewDuration ?? "minutes_30",
+          trackMode: "namaste_course",
+          promptContext: input.promptContext,
+          jobDescriptionSummary: input.jobDescriptionSummary,
+          interviewRoundId: input.interviewRoundId,
+          interviewRoundTitle: input.interviewRoundTitle,
+          status: "active",
+          userId: input.userId,
+        },
+        include: { role: true },
+      });
+
+      await prisma.$executeRaw(
+        Prisma.sql`
+          UPDATE interview_sessions
+          SET "trackMode" = ${trackMode}::"TrackMode"
+          WHERE id = ${session.id}
+        `,
+      );
+
+      return prisma.interviewSession.findUniqueOrThrow({
+        where: { id: session.id },
+        include: { role: true },
+      });
+    }
+
+    throw error;
+  }
 }
 
 export async function getInterviewSessionById(sessionId: string) {

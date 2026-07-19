@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { withApiHandler } from "@/lib/api/handler";
+import { API_TIMEOUTS, withApiHandler } from "@/lib/api/handler";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { planInterviewRoundsFromJd } from "@/lib/jd/plan-from-jd";
 import {
@@ -55,4 +55,4 @@ export const POST = withApiHandler(async (request: Request) => {
     plan,
     jobDescriptionSummary: jobDescription.slice(0, 2000),
   });
-});
+}, { timeoutMs: API_TIMEOUTS.jdPlanning });

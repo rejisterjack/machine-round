@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "sh -c 'pids=$(lsof -ti :7329 2>/dev/null); [ -n \"$pids\" ] && kill -9 $pids; rm -f .next/dev/lock; exec next dev --port 7329'",
+    "dev": "prisma generate && sh -c 'pids=$(lsof -ti :7329 2>/dev/null); [ -n \"$pids\" ] && kill -9 $pids; rm -f .next/dev/lock; exec next dev --port 7329'",
     "build": "prisma generate && next build",
     "postinstall": "prisma generate",
     "start": "next start --port 7329",
@@ -12,7 +12,7 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:reset": "prisma migrate reset",
-    "db:deploy": "prisma migrate deploy",
+    "db:deploy": "prisma migrate deploy && prisma generate",
     "db:seed": "prisma db seed",
     "smoke:api": "bun run scripts/smoke-api.ts",
     "smoke:frontend": "bun run scripts/smoke-frontend.ts",
