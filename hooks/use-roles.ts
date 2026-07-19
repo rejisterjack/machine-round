@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { roles as fallbackRoles } from "@/lib/design/tokens";
+import { roles as catalogRoles } from "@/lib/design/tokens";
 import type { RoleId } from "@/lib/design/tokens";
 
 export type RoleCard = {
@@ -10,11 +9,13 @@ export type RoleCard = {
   description: string;
   icon: string;
   imageUrl: string;
-  rating: number;
+  rating?: number;
   language: string;
+  tier?: "premium" | "free" | "bundle";
+  href?: string;
 };
 
-const fallbackRoleCards: RoleCard[] = fallbackRoles.map((role) => ({
+const roleCards: RoleCard[] = catalogRoles.map((role) => ({
   id: role.id,
   title: role.title,
   description: role.description,
@@ -22,46 +23,15 @@ const fallbackRoleCards: RoleCard[] = fallbackRoles.map((role) => ({
   imageUrl: role.imageUrl,
   rating: role.rating,
   language: role.language,
+  tier: role.tier,
+  href: role.href,
 }));
 
+/** NamasteDev /learn catalog — always matches namastedev.com, not legacy DB presets. */
 export function useRoles() {
-  const [roles, setRoles] = useState<RoleCard[]>(fallbackRoleCards);
-  const [loading, setLoading] = useState(true);
-  const [source, setSource] = useState<"api" | "fallback">("fallback");
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadRoles() {
-      try {
-        const response = await fetch("/api/roles");
-        if (!response.ok) {
-          throw new Error("Failed to load roles.");
-        }
-
-        const data = (await response.json()) as { roles?: RoleCard[] };
-        if (!cancelled && data.roles?.length) {
-          setRoles(data.roles);
-          setSource("api");
-        }
-      } catch {
-        if (!cancelled) {
-          setRoles(fallbackRoleCards);
-          setSource("fallback");
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    }
-
-    void loadRoles();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  return { roles, loading, source };
+  return {
+    roles: roleCards,
+    loading: false,
+    source: "catalog" as const,
+  };
 }

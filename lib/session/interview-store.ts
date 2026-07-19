@@ -1,8 +1,14 @@
 import { z } from "zod";
 import { PANELIST_IDS, PANELIST_MODES } from "@/lib/ai/personas/panelists";
+import {
+  DEFAULT_INTERVIEW_DURATION,
+  INTERVIEW_DURATIONS,
+  type InterviewDuration,
+} from "@/lib/interview/duration-profiles";
 
 export const panelistIdSchema = z.enum(PANELIST_IDS);
 export const panelistModeSchema = z.enum(PANELIST_MODES);
+export const interviewDurationSchema = z.enum(INTERVIEW_DURATIONS);
 
 export const interviewMessageSchema = z.object({
   role: z.enum(["user", "assistant"]),
@@ -98,12 +104,21 @@ export type InterviewResponse = z.infer<typeof interviewResponseSchema>;
 export type EvaluateResponse = z.infer<typeof evaluateResponseSchema>;
 export type WeakTopic = z.infer<typeof weakTopicSchema>;
 export type PanelistMode = z.infer<typeof panelistModeSchema>;
+export type { InterviewDuration };
 export type ScreenObservation = z.infer<typeof screenObservationSchema>;
+
+export type TrackMode = "namaste_course" | "job_description";
 
 export type InterviewSession = {
   roleId: string;
   roleTitle: string;
   panelistMode: PanelistMode;
+  interviewDuration: InterviewDuration;
+  trackMode: TrackMode;
+  promptContext?: string;
+  jobDescriptionSummary?: string;
+  interviewRoundId?: string;
+  interviewRoundTitle?: string;
   messages: InterviewMessage[];
   questionCount: number;
   topicsCovered: string[];
@@ -132,6 +147,12 @@ export function loadSession(): InterviewSession | null {
     if (!session.panelistMode) {
       session.panelistMode = "both";
     }
+    if (!session.trackMode) {
+      session.trackMode = "namaste_course";
+    }
+    if (!session.interviewDuration) {
+      session.interviewDuration = DEFAULT_INTERVIEW_DURATION;
+    }
     if (!sessionStorage.getItem(SESSION_STORAGE_KEY)) {
       sessionStorage.setItem(SESSION_STORAGE_KEY, raw);
       sessionStorage.removeItem(LEGACY_SESSION_STORAGE_KEY);
@@ -156,11 +177,25 @@ export function createSession(
   roleId: string,
   roleTitle: string,
   panelistMode: PanelistMode = "both",
+  interviewDuration: InterviewDuration = DEFAULT_INTERVIEW_DURATION,
+  options?: {
+    trackMode?: TrackMode;
+    promptContext?: string;
+    jobDescriptionSummary?: string;
+    interviewRoundId?: string;
+    interviewRoundTitle?: string;
+  },
 ): InterviewSession {
   return {
     roleId,
     roleTitle,
     panelistMode,
+    interviewDuration,
+    trackMode: options?.trackMode ?? "namaste_course",
+    promptContext: options?.promptContext,
+    jobDescriptionSummary: options?.jobDescriptionSummary,
+    interviewRoundId: options?.interviewRoundId,
+    interviewRoundTitle: options?.interviewRoundTitle,
     messages: [],
     questionCount: 0,
     topicsCovered: [],

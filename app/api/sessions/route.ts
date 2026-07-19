@@ -11,11 +11,18 @@ import { reportToEvaluateResponse } from "@/lib/session/report-queries";
 import { resolveRole } from "@/lib/session/roles";
 import { assertSessionOwner } from "@/lib/session/session-access";
 import { roleSlugToId } from "@/lib/session/role-slug";
+import { interviewDurationSchema } from "@/lib/session/interview-store";
 
 const createSessionSchema = z.object({
   roleId: z.string(),
   inputMode: z.enum(["text", "voice", "mixed"]).optional(),
   panelistMode: z.enum(["akshay", "archy", "both"]).optional(),
+  interviewDuration: interviewDurationSchema.optional(),
+  trackMode: z.enum(["namaste_course", "job_description"]).optional(),
+  promptContext: z.string().max(20_000).optional(),
+  jobDescriptionSummary: z.string().max(20_000).optional(),
+  interviewRoundId: z.string().max(120).optional(),
+  interviewRoundTitle: z.string().max(200).optional(),
 });
 
 function serializeSession(
@@ -25,6 +32,7 @@ function serializeSession(
     status: string;
     inputMode: string;
     panelistMode?: string;
+    interviewDuration?: string;
     questionCount: number;
     topicsCovered: string[];
     weakSignals: string[];
@@ -41,6 +49,7 @@ function serializeSession(
     status: session.status,
     inputMode: session.inputMode,
     panelistMode: session.panelistMode ?? "both",
+    interviewDuration: session.interviewDuration ?? "minutes_30",
     questionCount: session.questionCount,
     topicsCovered: session.topicsCovered,
     weakSignals: session.weakSignals,

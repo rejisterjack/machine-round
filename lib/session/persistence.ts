@@ -1,8 +1,10 @@
 import type {
   InputMode,
+  InterviewDuration,
   MessageRole,
   PanelistMode,
   SessionStatus,
+  TrackMode,
   WeakSignalType,
 } from "@/generated/client";
 import type {
@@ -54,6 +56,12 @@ export async function createInterviewSession(input: {
   roleId: string;
   inputMode?: InputMode;
   panelistMode?: PanelistMode;
+  interviewDuration?: InterviewDuration;
+  trackMode?: TrackMode;
+  promptContext?: string;
+  jobDescriptionSummary?: string;
+  interviewRoundId?: string;
+  interviewRoundTitle?: string;
   userId?: string;
 }) {
   if (!(await isDbReady())) {
@@ -75,6 +83,12 @@ export async function createInterviewSession(input: {
       roleId: role.id,
       inputMode: input.inputMode ?? "voice",
       panelistMode: input.panelistMode ?? "both",
+      interviewDuration: input.interviewDuration ?? "minutes_30",
+      trackMode: input.trackMode ?? "namaste_course",
+      promptContext: input.promptContext,
+      jobDescriptionSummary: input.jobDescriptionSummary,
+      interviewRoundId: input.interviewRoundId,
+      interviewRoundTitle: input.interviewRoundTitle,
       status: "active",
       userId: input.userId,
     },

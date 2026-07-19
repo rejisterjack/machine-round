@@ -51,6 +51,7 @@ export const GET = withApiHandler(async (request: Request) => {
       roleTitle: session.role.title,
       roleId: roleSlugToId(session.role.slug),
       panelistMode: session.panelistMode,
+      interviewDuration: session.interviewDuration ?? "minutes_30",
       status: session.status,
       questionCount: session.questionCount,
       overallScore: session.report?.overallScore ?? null,

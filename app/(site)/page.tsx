@@ -103,10 +103,11 @@ export default function HomePage() {
             : roles.map((role) => (
                 <NdCourseCard
                   key={role.id}
-                  title={`Namaste ${role.title}`}
+                  title={role.title}
                   description={role.description}
                   imageUrl={role.imageUrl}
                   rating={role.rating}
+                  tier={role.tier}
                   language={role.language}
                   href={`/interview?role=${encodeURIComponent(role.id)}`}
                 />

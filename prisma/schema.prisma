@@ -14,6 +14,23 @@ enum RoleSlug {
   backend
   frontend
   product_minded
+  namaste_dsa
+  namaste_react
+  namaste_node
+  namaste_frontend_system_design
+  namaste_javascript
+  namaste_interview
+  namaste_ai
+  mern_stack_bundle
+  frontend_master_bundle
+  advanced_fullstack_bundle
+  backend_system_design
+  job_custom
+}
+
+enum TrackMode {
+  namaste_course
+  job_description
 }
 
 enum QuestionCategory {
@@ -53,6 +70,12 @@ enum PanelistMode {
   akshay
   archy
   both
+}
+
+enum InterviewDuration {
+  minutes_15
+  minutes_30
+  minutes_60
 }
 
 enum WeakSignalType {
@@ -159,8 +182,14 @@ model InterviewSession {
   roleId        String
   status        SessionStatus @default(active)
   inputMode     InputMode     @default(voice)
-  panelistMode  PanelistMode  @default(both)
-  questionCount Int           @default(0)
+  panelistMode      PanelistMode      @default(both)
+  interviewDuration InterviewDuration @default(minutes_30)
+  trackMode         TrackMode         @default(namaste_course)
+  interviewRoundId  String?
+  interviewRoundTitle String?
+  promptContext     String?           @db.Text
+  jobDescriptionSummary String?       @db.Text
+  questionCount     Int               @default(0)
   topicsCovered String[]      @default([])
   weakSignals   String[]      @default([])
   lastError     String?         @db.Text

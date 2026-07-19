@@ -18,10 +18,31 @@ import {
   type PanelistId,
   type PanelistMode,
 } from "@/lib/ai/personas/panelists";
-import { startScreenSampler as startScreenSamplerLib } from "@/lib/interview/screen-capture";
-import { MAX_QUESTIONS } from "@/lib/design/tokens";
-import { shouldEndInterview } from "@/lib/ai/question-cap";
-import { MAX_SCREEN_SNAPSHOTS } from "@/lib/session/session-limits";
+import {
+  createScreenRealtimePusher,
+  type ScreenFlushOptions,
+} from "@/lib/interview/screen-realtime";
+import { captureCameraFrameFromSource, captureCameraPrecisionFrameFromSource } from "@/lib/interview/screen-capture";
+import { buildVisualFocusQuestion } from "@/lib/interview/screen-intent";
+import type { ScreenContextMeta } from "@/hooks/use-realtime-voice";
+import {
+  needsClosingGoodbye,
+  needsClosingGoodbyeByTime,
+  shouldScheduleInterviewEnd,
+  shouldScheduleInterviewEndByTime,
+  shouldWarnDurationWrapUp,
+} from "@/lib/ai/question-cap";
+import {
+  DEFAULT_INTERVIEW_DURATION,
+  getMaxQuestionsForDuration,
+  type InterviewDuration,
+} from "@/lib/interview/duration-profiles";
+import { logInterviewDebug } from "@/lib/interview/debug-log";
+import {
+  INTERVIEW_COMPLETE_BANNER_MS,
+  INTERVIEW_COMPLETE_FALLBACK_MS,
+  MAX_SCREEN_SNAPSHOTS,
+} from "@/lib/session/session-limits";
 import {
   loadSession,
   saveSession,
@@ -41,14 +62,17 @@ import {
   detectWeakSignalsFromAnswer,
   mergeWeakSignals,
 } from "@/lib/voice/weak-signal-heuristics";
+import {
+  createAssistantDedupState,
+  shouldAcceptAssistantTranscriptEvent,
+} from "@/lib/voice/transcript-dedup";
 
 type RoomPhase = "lobby" | "room";
 
 export default function InterviewSessionPage() {
   const router = useRouter();
-  const [session, setSession] = useState<InterviewSession | null>(() =>
-    typeof window !== "undefined" ? loadSession() : null,
-  );
+  const [session, setSession] = useState<InterviewSession | null>(null);
+  const [sessionReady, setSessionReady] = useState(false);
   const [phase, setPhase] = useState<RoomPhase>("lobby");
   const [joining, setJoining] = useState(false);
   const [captionsOpen, setCaptionsOpen] = useState(false);
@@ -62,6 +86,9 @@ export default function InterviewSessionPage() {
   const [saveError, setSaveError] = useState<string>();
   const [cloudSyncFailed, setCloudSyncFailed] = useState(false);
   const [screenAnalyzePaused, setScreenAnalyzePaused] = useState<string>();
+  const [cameraVisionPaused, setCameraVisionPaused] = useState<string>();
+  const [finishingInterview, setFinishingInterview] = useState(false);
+  const [completeBanner, setCompleteBanner] = useState(false);
   const [canResumeSession, setCanResumeSession] = useState(false);
 
   const sessionRef = useRef(session);
@@ -70,13 +97,42 @@ export default function InterviewSessionPage() {
   const voiceReconnectRef = useRef<
     (panelist: PanelistId, messages?: InterviewMessage[]) => Promise<unknown>
   >(async () => null);
-  const sendScreenContextRef = useRef<(summary: string) => void>(() => {});
+  const sendScreenContextRef = useRef<
+    (summary: string, meta?: ScreenContextMeta) => void
+  >(() => {});
+  const sendScreenFrameRef = useRef<
+    (
+      imageBase64: string,
+      mimeType?: "image/jpeg" | "image/png" | "image/webp",
+      options?: { force?: boolean },
+    ) => boolean
+  >(() => false);
+  const realtimeVisionModeRef = useRef<"unknown" | "image" | "text">("unknown");
+  const notifyScreenShareActiveRef = useRef<() => void>(() => {});
+  const notifyScreenShareEndedRef = useRef<() => void>(() => {});
+  const notifyCameraActiveRef = useRef<() => void>(() => {});
+  const notifyCameraInactiveRef = useRef<() => void>(() => {});
+  const flushScreenContextRef = useRef<
+    (options?: ScreenFlushOptions) => Promise<void>
+  >(async () => {});
+  const flushCameraContextRef = useRef<
+    (options?: ScreenFlushOptions) => Promise<void>
+  >(async () => {});
+  const voiceConnectionActiveRef = useRef(false);
   const getRemoteAudioRef = useRef<() => HTMLAudioElement | null>(() => null);
   const screenVideoRef = useRef<HTMLVideoElement | null>(null);
-  const stopSamplerRef = useRef<(() => void) | null>(null);
+  const screenTrackRef = useRef<MediaStreamTrack | null>(null);
+  const screenRealtimeRef = useRef<ReturnType<
+    typeof createScreenRealtimePusher
+  > | null>(null);
+  const screenRealtimeTrackIdRef = useRef<string | null>(null);
+  const cameraVideoRef = useRef<HTMLVideoElement | null>(null);
+  const cameraTrackRef = useRef<MediaStreamTrack | null>(null);
+  const cameraRealtimeRef = useRef<ReturnType<
+    typeof createScreenRealtimePusher
+  > | null>(null);
+  const cameraRealtimeTrackIdRef = useRef<string | null>(null);
   const snapshotCountRef = useRef(0);
-  const analyzeInFlightRef = useRef(false);
-  const bindScreenSamplerRef = useRef<(video: HTMLVideoElement) => void>(() => {});
   const recorderRefreshInFlightRef = useRef(false);
   const recorderRef = useRef<ReturnType<typeof useSessionRecorder> | null>(null);
   const hydrating = useRef(false);
@@ -88,12 +144,27 @@ export default function InterviewSessionPage() {
   const completeSessionRef = useRef<(base: InterviewSession) => Promise<void>>(
     async () => {},
   );
-  const voicePrefetchRef = useRef<(panelist: PanelistId) => Promise<void>>(
-    async () => {},
-  );
+  const voicePrefetchBothRef = useRef<
+    (
+      context?: { messages?: InterviewMessage[]; questionCount?: number },
+    ) => Promise<void>
+  >(async () => {});
   const voiceWaitForSpeechEndRef = useRef<() => Promise<void>>(
     async () => {},
   );
+  const voiceHandleUserTurnCompleteRef = useRef<
+    (messages: InterviewMessage[]) => Promise<void>
+  >(async () => {});
+  const voiceGetConnectedPanelistRef = useRef<() => PanelistId | undefined>(
+    () => undefined,
+  );
+  const voiceRequestClosingGoodbyeRef = useRef<() => boolean>(() => false);
+  const voiceSpeakAnnouncementRef = useRef<
+    (kind: "time_wrap_up") => boolean
+  >(() => false);
+  const durationWarningSentRef = useRef(false);
+  const durationEndTriggeredRef = useRef(false);
+  const assistantDedupRef = useRef(createAssistantDedupState());
 
   const clearPersistedScreenSharing = useCallback(() => {
     const current = sessionRef.current;
@@ -104,10 +175,188 @@ export default function InterviewSessionPage() {
     saveSession(updated);
   }, []);
 
-  const stopScreenSampler = useCallback(() => {
-    stopSamplerRef.current?.();
-    stopSamplerRef.current = null;
+  const stopCameraRealtime = useCallback(() => {
+    cameraRealtimeRef.current?.stop();
+    cameraRealtimeRef.current = null;
+    cameraRealtimeTrackIdRef.current = null;
   }, []);
+
+  const stopScreenRealtime = useCallback(() => {
+    screenRealtimeRef.current?.stop();
+    screenRealtimeRef.current = null;
+    screenRealtimeTrackIdRef.current = null;
+  }, []);
+
+  const persistScreenObservation = useCallback((summary: string) => {
+    const current = sessionRef.current;
+    if (!current) return;
+    const observation: ScreenObservation = {
+      timestamp: new Date().toISOString(),
+      summary,
+    };
+    const updated: InterviewSession = {
+      ...current,
+      screenSharing: true,
+      screenObservations: [...(current.screenObservations ?? []), observation],
+    };
+    sessionRef.current = updated;
+    setSession(updated);
+    saveSession(updated);
+  }, []);
+
+  const pushVisionContextToVoice = useCallback(
+    (
+      summary: string | undefined,
+      imageBase64?: string,
+      meta?: ScreenContextMeta,
+    ): boolean => {
+      let imageSent = true;
+      if (imageBase64) {
+        imageSent = sendScreenFrameRef.current(
+          imageBase64,
+          meta?.mimeType ?? "image/jpeg",
+          {
+            force: meta?.forceImage ?? !meta?.imageOnly,
+          },
+        );
+      }
+      if (summary?.trim()) {
+        if (meta?.contextLabel === "camera") {
+          setCameraVisionPaused(undefined);
+        } else {
+          setScreenAnalyzePaused(undefined);
+        }
+        sendScreenContextRef.current(summary, {
+          ...meta,
+          contextLabel: meta?.contextLabel ?? "screen",
+        });
+      }
+      return imageSent;
+    },
+    [],
+  );
+
+  const startScreenRealtime = useCallback(
+    (video: HTMLVideoElement, track?: MediaStreamTrack) => {
+      const trackId = track?.id ?? null;
+      screenVideoRef.current = video;
+      screenTrackRef.current = track ?? null;
+
+      if (
+        screenRealtimeRef.current &&
+        screenRealtimeTrackIdRef.current === trackId
+      ) {
+        return;
+      }
+
+      stopScreenRealtime();
+      screenRealtimeTrackIdRef.current = trackId;
+
+      const pusher = createScreenRealtimePusher({
+        getSource: () => ({
+          videoEl: screenVideoRef.current,
+          track: screenTrackRef.current,
+        }),
+        getSessionContext: () => {
+          const current = sessionRef.current;
+          if (!current?.dbSessionId) return null;
+          return {
+            dbSessionId: current.dbSessionId,
+            roleTitle: current.roleTitle,
+            panelistMode: current.panelistMode,
+          };
+        },
+        pushToVoice: pushVisionContextToVoice,
+        shouldPushImages: () => realtimeVisionModeRef.current !== "text",
+        isPaused: () => !voiceConnectionActiveRef.current,
+        onHotError: (message) => setScreenAnalyzePaused(message),
+        onArchiveError: (message) => setScreenAnalyzePaused(message),
+        onArchiveFrame: async (frames, summary) => {
+          const current = sessionRef.current;
+          if (!current?.dbSessionId) return;
+          if (snapshotCountRef.current >= MAX_SCREEN_SNAPSHOTS) {
+            setScreenAnalyzePaused("Snapshot limit reached for this session.");
+            stopScreenRealtime();
+            return;
+          }
+
+          const snapshotResponse = await fetch("/api/media/screen-snapshot", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              sessionId: current.dbSessionId,
+              imageBase64: frames.archiveBase64,
+              mimeType: frames.archiveMime,
+              capturedAt: new Date().toISOString(),
+              questionSequence: current.questionCount,
+              summary,
+            }),
+          });
+
+          if (snapshotResponse.ok) {
+            persistScreenObservation(summary);
+            snapshotCountRef.current += 1;
+            setScreenAnalyzePaused(undefined);
+          } else if (snapshotResponse.status === 400) {
+            setScreenAnalyzePaused("Screen snapshots paused for this session.");
+            stopScreenRealtime();
+          }
+        },
+      });
+
+      screenRealtimeRef.current = pusher;
+      flushScreenContextRef.current = (options) => pusher.flushNow(options);
+      pusher.start();
+    },
+    [persistScreenObservation, pushVisionContextToVoice, stopScreenRealtime],
+  );
+
+  const startCameraRealtime = useCallback(
+    (video: HTMLVideoElement, track?: MediaStreamTrack) => {
+      const trackId = track?.id ?? null;
+      cameraVideoRef.current = video;
+      cameraTrackRef.current = track ?? null;
+
+      if (
+        cameraRealtimeRef.current &&
+        cameraRealtimeTrackIdRef.current === trackId
+      ) {
+        return;
+      }
+
+      stopCameraRealtime();
+      cameraRealtimeTrackIdRef.current = trackId;
+
+      const pusher = createScreenRealtimePusher({
+        getSource: () => ({
+          videoEl: cameraVideoRef.current,
+          track: cameraTrackRef.current,
+        }),
+        getSessionContext: () => {
+          const current = sessionRef.current;
+          if (!current?.dbSessionId) return null;
+          return {
+            dbSessionId: current.dbSessionId,
+            roleTitle: current.roleTitle,
+            panelistMode: current.panelistMode,
+          };
+        },
+        pushToVoice: pushVisionContextToVoice,
+        shouldPushImages: () => realtimeVisionModeRef.current !== "text",
+        isPaused: () => !voiceConnectionActiveRef.current,
+        enableArchive: false,
+        visionSource: "camera",
+        onHotError: (message) => setCameraVisionPaused(message),
+        captureRealtimeFrame: captureCameraFrameFromSource,
+        capturePrecisionFrame: captureCameraPrecisionFrameFromSource,
+      });
+
+      cameraRealtimeRef.current = pusher;
+      flushCameraContextRef.current = (options) => pusher.flushNow(options);
+      pusher.start();
+    },
+    [pushVisionContextToVoice, stopCameraRealtime],
+  );
 
   const refreshRecorderTracks = useCallback(async () => {
     if (recorderRefreshInFlightRef.current) return;
@@ -126,155 +375,78 @@ export default function InterviewSessionPage() {
   micStreamRef.current = media.micStream;
 
   const panelistMode: PanelistMode = session?.panelistMode ?? "both";
-  const activePanelist = getPanelistForQuestion(
+  const joinPanelist = getPanelistForQuestion(
     session?.questionCount ?? 0,
     panelistMode,
   ).id;
 
-  const continueVoicePanel = useCallback(
-    async (current: InterviewSession, messages: InterviewMessage[]) => {
-      if (shouldEndInterview(current.questionCount)) return;
-      const nextPanelist = getPanelistForQuestion(
-        current.questionCount,
-        current.panelistMode ?? "both",
-      ).id;
-      sessionRef.current = { ...current, messages };
-      await voiceReconnectRef.current(nextPanelist, messages);
+  const handleVideoReady = useCallback(
+    (video: HTMLVideoElement, track?: MediaStreamTrack) => {
+      if (!media.sharingScreen) return;
+      stopCameraRealtime();
+      startScreenRealtime(video, track);
+      window.setTimeout(() => {
+        notifyScreenShareActiveRef.current();
+      }, 400);
     },
-    [],
+    [media.sharingScreen, startScreenRealtime, stopCameraRealtime],
   );
 
-  const appendScreenObservation = useCallback((summary: string) => {
+  const handleCameraVideoReady = useCallback(
+    (video: HTMLVideoElement, track?: MediaStreamTrack) => {
+      if (!media.cameraEnabled || media.sharingScreen) return;
+      startCameraRealtime(video, track);
+      window.setTimeout(() => {
+        notifyCameraActiveRef.current();
+      }, 400);
+    },
+    [media.cameraEnabled, media.sharingScreen, startCameraRealtime],
+  );
+
+  useEffect(() => {
+    if (media.sharingScreen) {
+      stopCameraRealtime();
+      return;
+    }
+    if (media.cameraEnabled && cameraVideoRef.current) {
+      startCameraRealtime(
+        cameraVideoRef.current,
+        cameraTrackRef.current ?? undefined,
+      );
+    } else {
+      if (cameraRealtimeRef.current) {
+        notifyCameraInactiveRef.current();
+      }
+      stopCameraRealtime();
+      setCameraVisionPaused(undefined);
+    }
+  }, [
+    media.cameraEnabled,
+    media.sharingScreen,
+    startCameraRealtime,
+    stopCameraRealtime,
+  ]);
+
+  const prevSharingScreenRef = useRef(media.sharingScreen);
+  useEffect(() => {
+    if (prevSharingScreenRef.current && !media.sharingScreen) {
+      notifyScreenShareEndedRef.current();
+    }
+    prevSharingScreenRef.current = media.sharingScreen;
+  }, [media.sharingScreen]);
+
+  const handleRetryScreenShare = useCallback(async () => {
+    const stream = await media.retryScreenShare();
+    if (!stream) return;
     const current = sessionRef.current;
-    if (!current) return;
-    const observation: ScreenObservation = {
-      timestamp: new Date().toISOString(),
-      summary,
-    };
-    const updated: InterviewSession = {
-      ...current,
-      screenSharing: true,
-      screenObservations: [...(current.screenObservations ?? []), observation],
-    };
-    sessionRef.current = updated;
-    setSession(updated);
-    saveSession(updated);
-    sendScreenContextRef.current(summary);
-  }, []);
-
-  const bindScreenSampler = useCallback(
-    (video: HTMLVideoElement) => {
-      stopScreenSampler();
-      stopSamplerRef.current = startScreenSamplerLib(video, async (frames) => {
-        const current = sessionRef.current;
-        if (!current?.dbSessionId) return;
-        if (analyzeInFlightRef.current) return;
-        if (snapshotCountRef.current >= MAX_SCREEN_SNAPSHOTS) {
-          setScreenAnalyzePaused("Snapshot limit reached for this session.");
-          stopScreenSampler();
-          return;
-        }
-
-        analyzeInFlightRef.current = true;
-        try {
-          const response = await fetch("/api/interview/screen-analyze", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              sessionId: current.dbSessionId,
-              imageBase64: frames.analysisBase64,
-              roleTitle: current.roleTitle,
-              panelistMode: current.panelistMode,
-              priorSummary:
-                current.screenObservations?.at(-1)?.summary ?? undefined,
-            }),
-          });
-
-          if (!response.ok) {
-            try {
-              const errData = (await response.json()) as { reason?: string };
-              if (errData.reason === "capacity") {
-                setScreenAnalyzePaused(
-                  "Screen analysis paused — capacity limit reached.",
-                );
-                stopScreenSampler();
-              } else if (response.status === 429) {
-                setScreenAnalyzePaused(
-                  "Screen analysis paused — rate limit. Will retry on the next frame.",
-                );
-              } else {
-                setScreenAnalyzePaused(
-                  "Screen analysis paused — temporary error.",
-                );
-              }
-            } catch {
-              setScreenAnalyzePaused("Screen analysis paused.");
-            }
-            return;
-          }
-
-          setScreenAnalyzePaused(undefined);
-
-          const data = (await response.json()) as {
-            summary?: string;
-            observationStored?: boolean;
-            reason?: string;
-          };
-          if (data.reason === "capacity") {
-            setScreenAnalyzePaused(
-              "Screen analysis paused — session snapshot cap reached.",
-            );
-            stopScreenSampler();
-            return;
-          }
-          if (!data.summary) return;
-
-          setScreenAnalyzePaused(undefined);
-
-          if (data.observationStored === false) {
-            sendScreenContextRef.current(data.summary);
-          } else {
-            appendScreenObservation(data.summary);
-          }
-
-          if (snapshotCountRef.current >= MAX_SCREEN_SNAPSHOTS) return;
-
-          const snapshotResponse = await fetch("/api/media/screen-snapshot", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              sessionId: current.dbSessionId,
-              imageBase64: frames.archiveBase64,
-              mimeType: frames.archiveMime,
-              capturedAt: new Date().toISOString(),
-              questionSequence: current.questionCount,
-              summary: data.summary,
-            }),
-          });
-
-          if (snapshotResponse.ok) {
-            snapshotCountRef.current += 1;
-          } else if (snapshotResponse.status === 400) {
-            setScreenAnalyzePaused("Screen snapshots paused for this session.");
-            stopScreenSampler();
-          }
-        } catch {
-          setScreenAnalyzePaused(
-            "Screen analysis paused — will retry on the next frame.",
-          );
-        } finally {
-          analyzeInFlightRef.current = false;
-        }
-      });
-    },
-    [appendScreenObservation, stopScreenSampler],
-  );
-  bindScreenSamplerRef.current = bindScreenSampler;
-
-  const handleVideoReady = useCallback((video: HTMLVideoElement) => {
-    screenVideoRef.current = video;
-    bindScreenSamplerRef.current(video);
-  }, []);
+    if (current) {
+      const updated = { ...current, screenSharing: true };
+      sessionRef.current = updated;
+      setSession(updated);
+      saveSession(updated);
+    }
+    void refreshRecorderTracks();
+  }, [media, refreshRecorderTracks]);
 
   const clearPendingComplete = useCallback(() => {
     if (pendingCompleteTimerRef.current) {
@@ -282,10 +454,12 @@ export default function InterviewSessionPage() {
       pendingCompleteTimerRef.current = null;
     }
     pendingCompleteRef.current = null;
+    setFinishingInterview(false);
   }, []);
 
   const schedulePendingComplete = useCallback((updated: InterviewSession) => {
     pendingCompleteRef.current = updated;
+    setFinishingInterview(true);
     if (pendingCompleteTimerRef.current) {
       clearTimeout(pendingCompleteTimerRef.current);
     }
@@ -294,7 +468,7 @@ export default function InterviewSessionPage() {
       const pending = pendingCompleteRef.current;
       clearPendingComplete();
       void completeSessionRef.current(pending);
-    }, 30_000);
+    }, INTERVIEW_COMPLETE_FALLBACK_MS);
   }, [clearPendingComplete]);
 
   const handleRealtimeEvent = useCallback(
@@ -312,12 +486,9 @@ export default function InterviewSessionPage() {
       }
 
       const current = sessionRef.current;
-      const currentSpeaker = current
-        ? getPanelistForQuestion(
-            current.questionCount,
-            current.panelistMode ?? "both",
-          ).id
-        : "akshay";
+      const currentSpeaker =
+        voiceGetConnectedPanelistRef.current() ??
+        joinPanelist;
 
       const partial = extractPartialDelta(event, currentSpeaker);
       if (partial) {
@@ -339,16 +510,42 @@ export default function InterviewSessionPage() {
       setPartialTranscript(undefined);
       if (!current) return;
 
+      if (message.role === "assistant") {
+        if (
+          !shouldAcceptAssistantTranscriptEvent(
+            assistantDedupRef.current,
+            event,
+            message.content,
+            current.messages,
+          )
+        ) {
+          logInterviewDebug("assistant_transcript_deduped", {
+            type: event.type,
+            responseId: message.responseId,
+          });
+          return;
+        }
+      }
+
       const last = current.messages[current.messages.length - 1];
       if (last?.role === message.role && last.content === message.content) {
         return;
       }
 
-      const messages = [...current.messages, message];
+      const { responseId: _responseId, itemId: _itemId, source: _source, ...storedMessage } =
+        message;
+
+      const messages = [...current.messages, storedMessage];
       const questionCount =
         message.role === "assistant"
           ? current.questionCount + 1
           : current.questionCount;
+
+      logInterviewDebug("transcript_message", {
+        role: message.role,
+        questionCount,
+        eventType: event.type,
+      });
 
       const lastUserAnswer =
         message.role === "user"
@@ -407,24 +604,44 @@ export default function InterviewSessionPage() {
       }
 
       if (message.role === "assistant") {
-        if (shouldEndInterview(questionCount)) {
+        const interviewDuration =
+          current.interviewDuration ?? DEFAULT_INTERVIEW_DURATION;
+        const maxQuestions = getMaxQuestionsForDuration(interviewDuration);
+        const lastAssistant = message.content;
+
+        if (
+          needsClosingGoodbye(questionCount, lastAssistant, maxQuestions) ||
+          needsClosingGoodbyeByTime(elapsedSeconds, lastAssistant, interviewDuration)
+        ) {
+          voiceRequestClosingGoodbyeRef.current();
           schedulePendingComplete(updated);
           return;
         }
 
-        const nextPanelist = getPanelistForQuestion(
+        if (
+          shouldScheduleInterviewEnd(questionCount, lastAssistant, maxQuestions) ||
+          shouldScheduleInterviewEndByTime(
+            elapsedSeconds,
+            lastAssistant,
+            interviewDuration,
+          )
+        ) {
+          schedulePendingComplete(updated);
+          return;
+        }
+
+        void voicePrefetchBothRef.current({
+          messages: updated.messages,
           questionCount,
-          updated.panelistMode ?? "both",
-        ).id;
-        void voicePrefetchRef.current(nextPanelist);
+        });
         return;
       }
 
-      if (questionCount < MAX_QUESTIONS && !shouldEndInterview(questionCount)) {
-        void continueVoicePanel(updated, messages);
+      if (message.role === "user") {
+        void voiceHandleUserTurnCompleteRef.current(updated.messages);
       }
     },
-    [continueVoicePanel, schedulePendingComplete, clearPendingComplete],
+    [schedulePendingComplete, clearPendingComplete, joinPanelist, elapsedSeconds],
   );
 
   const voice = useRealtimeVoice({
@@ -433,19 +650,65 @@ export default function InterviewSessionPage() {
     roleTitle: session?.roleTitle,
     questionCount: session?.questionCount,
     panelistMode,
-    activePanelist,
+    interviewDuration: session?.interviewDuration ?? DEFAULT_INTERVIEW_DURATION,
+    promptContext: session?.promptContext,
+    courseId:
+      session?.trackMode === "job_description" ? undefined : session?.roleId,
     messages: session?.messages,
     screenReviewEnabled: media.sharingScreen,
+    cameraReviewEnabled: media.cameraEnabled && !media.sharingScreen,
     getMicStream: () => micStreamRef.current,
     onEvent: handleRealtimeEvent,
+    onBeforeAssistantResponse: async () => {
+      const messages = sessionRef.current?.messages ?? [];
+      const lastUser = messages
+        .filter((message) => message.role === "user")
+        .at(-1)?.content;
+      const lastAssistant = messages
+        .filter((message) => message.role === "assistant")
+        .at(-1)?.content;
+      const focusQuestion = buildVisualFocusQuestion(
+        lastUser,
+        lastAssistant,
+      );
+
+      if (media.sharingScreen) {
+        await flushScreenContextRef.current({ focusQuestion });
+        return;
+      }
+      if (media.cameraEnabled) {
+        await flushCameraContextRef.current({ focusQuestion });
+      }
+    },
   });
 
   voiceStopRef.current = voice.stop;
   voiceReconnectRef.current = voice.reconnect;
   sendScreenContextRef.current = voice.sendScreenContext;
+  sendScreenFrameRef.current = voice.sendScreenFrame;
+  notifyScreenShareActiveRef.current = voice.notifyScreenShareActive;
+  notifyScreenShareEndedRef.current = voice.notifyScreenShareEnded;
+  notifyCameraActiveRef.current = voice.notifyCameraActive;
+  notifyCameraInactiveRef.current = voice.notifyCameraInactive;
+  realtimeVisionModeRef.current = voice.realtimeVisionMode;
+  voiceConnectionActiveRef.current = voice.connectionStatus === "active";
+
+  useEffect(() => {
+    realtimeVisionModeRef.current = voice.realtimeVisionMode;
+    voiceConnectionActiveRef.current = voice.connectionStatus === "active";
+    if (media.sharingScreen && voice.realtimeVisionMode === "text") {
+      setScreenAnalyzePaused(
+        "Screen vision using text descriptions — image mode unavailable.",
+      );
+    }
+  }, [media.sharingScreen, voice.realtimeVisionMode, voice.connectionStatus]);
   getRemoteAudioRef.current = voice.getRemoteAudioElement;
-  voicePrefetchRef.current = voice.prefetchSession;
+  voicePrefetchBothRef.current = voice.prefetchBothSessions;
   voiceWaitForSpeechEndRef.current = voice.waitForSpeechEnd;
+  voiceHandleUserTurnCompleteRef.current = voice.handleUserTurnComplete;
+  voiceGetConnectedPanelistRef.current = voice.getConnectedPanelist;
+  voiceRequestClosingGoodbyeRef.current = voice.requestClosingGoodbye;
+  voiceSpeakAnnouncementRef.current = voice.speakAnnouncement;
 
   const recorder = useSessionRecorder({
     sessionId: session?.dbSessionId,
@@ -461,7 +724,8 @@ export default function InterviewSessionPage() {
       if (completingRef.current) return;
       completingRef.current = true;
       clearPendingComplete();
-      stopScreenSampler();
+      stopScreenRealtime();
+      stopCameraRealtime();
 
       setSavingSession(true);
       setSaveError(undefined);
@@ -518,16 +782,21 @@ export default function InterviewSessionPage() {
       }
 
       setSavingSession(false);
+      setCompleteBanner(true);
+      await new Promise((resolve) =>
+        setTimeout(resolve, INTERVIEW_COMPLETE_BANNER_MS),
+      );
       router.push("/report");
     },
-    [clearPendingComplete, media, router, stopScreenSampler],
+    [clearPendingComplete, media, router, stopScreenRealtime, stopCameraRealtime],
   );
   completeSessionRef.current = completeSession;
 
   const abandonSession = useCallback(async () => {
     if (completingRef.current) return;
     clearPendingComplete();
-    stopScreenSampler();
+    stopScreenRealtime();
+    stopCameraRealtime();
 
     voiceStopRef.current();
     await recorderRef.current?.stop();
@@ -545,7 +814,7 @@ export default function InterviewSessionPage() {
     clearPersistedScreenSharing();
     media.cleanup();
     router.push("/interview");
-  }, [clearPendingComplete, clearPersistedScreenSharing, media, router, stopScreenSampler]);
+  }, [clearPendingComplete, clearPersistedScreenSharing, media, router, stopScreenRealtime, stopCameraRealtime]);
 
   const endRound = useCallback(() => {
     const base = sessionRef.current;
@@ -567,6 +836,15 @@ export default function InterviewSessionPage() {
     [voice],
   );
 
+  const handleDurationChange = useCallback((duration: InterviewDuration) => {
+    const current = sessionRef.current;
+    if (!current) return;
+    const updated = { ...current, interviewDuration: duration };
+    sessionRef.current = updated;
+    setSession(updated);
+    saveSession(updated);
+  }, []);
+
   const handleJoin = useCallback(async () => {
     setJoining(true);
     const stream = await media.requestMic();
@@ -574,9 +852,26 @@ export default function InterviewSessionPage() {
       setJoining(false);
       return;
     }
+
+    const current = sessionRef.current;
+    const interviewDuration =
+      current?.interviewDuration ?? DEFAULT_INTERVIEW_DURATION;
+
+    if (current?.dbSessionId) {
+      try {
+        await fetch(`/api/sessions/${current.dbSessionId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ interviewDuration }),
+        });
+      } catch {
+        // Continue with client-side duration if persistence fails.
+      }
+    }
+
     setPhase("room");
     setJoining(false);
-    const current = sessionRef.current;
+    await media.ensureCamera();
     const panelist = getPanelistForQuestion(
       current?.questionCount ?? 0,
       current?.panelistMode ?? "both",
@@ -588,6 +883,12 @@ export default function InterviewSessionPage() {
   useEffect(() => () => clearPendingComplete(), [clearPendingComplete]);
 
   useEffect(() => {
+    setSession(loadSession());
+    setSessionReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!sessionReady) return;
     if (session === null) {
       router.replace("/interview");
       return;
@@ -595,21 +896,18 @@ export default function InterviewSessionPage() {
     if (!session.dbSessionId) {
       router.replace("/interview");
     }
-  }, [router, session]);
+  }, [router, session, sessionReady]);
 
   useEffect(() => {
     if (phase !== "room") return;
-    const shouldRefreshRecorder =
-      voice.connectionState === "active" ||
-      media.sharingScreen ||
-      media.cameraEnabled;
-    if (!shouldRefreshRecorder) return;
-    void refreshRecorderTracks();
+    if (!media.screenStream && !media.cameraStream) return;
+    const delayMs = media.screenStream ? 3000 : 0;
+    const timer = window.setTimeout(() => {
+      void refreshRecorderTracks();
+    }, delayMs);
+    return () => window.clearTimeout(timer);
   }, [
     phase,
-    voice.connectionState,
-    media.sharingScreen,
-    media.cameraEnabled,
     media.screenStream,
     media.cameraStream,
     refreshRecorderTracks,
@@ -617,9 +915,59 @@ export default function InterviewSessionPage() {
 
   useEffect(() => {
     if (phase !== "room") return;
+    if (voice.connectionStatus !== "active") return;
+    void refreshRecorderTracks();
+  }, [phase, voice.connectionStatus, refreshRecorderTracks]);
+
+  useEffect(() => {
+    if (phase !== "room") return;
     const timer = setInterval(() => setElapsedSeconds((s) => s + 1), 1000);
     return () => clearInterval(timer);
   }, [phase]);
+
+  useEffect(() => {
+    if (phase !== "room") return;
+    if (pendingCompleteRef.current) return;
+
+    const current = sessionRef.current;
+    if (!current) return;
+
+    const interviewDuration =
+      current.interviewDuration ?? DEFAULT_INTERVIEW_DURATION;
+    const lastAssistant = current.messages
+      .filter((message) => message.role === "assistant")
+      .at(-1)?.content;
+
+    if (
+      shouldWarnDurationWrapUp(elapsedSeconds, interviewDuration) &&
+      !durationWarningSentRef.current
+    ) {
+      durationWarningSentRef.current = true;
+      voiceSpeakAnnouncementRef.current("time_wrap_up");
+    }
+
+    if (
+      !durationEndTriggeredRef.current &&
+      (needsClosingGoodbyeByTime(elapsedSeconds, lastAssistant, interviewDuration) ||
+        shouldScheduleInterviewEndByTime(
+          elapsedSeconds,
+          lastAssistant,
+          interviewDuration,
+        ))
+    ) {
+      durationEndTriggeredRef.current = true;
+      if (
+        needsClosingGoodbyeByTime(
+          elapsedSeconds,
+          lastAssistant,
+          interviewDuration,
+        )
+      ) {
+        voiceRequestClosingGoodbyeRef.current();
+      }
+      schedulePendingComplete(current);
+    }
+  }, [elapsedSeconds, phase, schedulePendingComplete]);
 
   useEffect(() => {
     const dbSessionId = session?.dbSessionId;
@@ -637,6 +985,7 @@ export default function InterviewSessionPage() {
           status?: string;
           publicId?: string;
           panelistMode?: PanelistMode;
+          interviewDuration?: InterviewDuration;
           snapshotCount?: number;
         };
 
@@ -668,6 +1017,8 @@ export default function InterviewSessionPage() {
             topicsCovered: data.topicsCovered ?? current.topicsCovered,
             weakSignals: data.weakSignals ?? current.weakSignals,
             panelistMode: data.panelistMode ?? current.panelistMode,
+            interviewDuration:
+              data.interviewDuration ?? current.interviewDuration,
             status: data.status === "completed" ? "complete" : "idle",
             publicId: data.publicId ?? current.publicId,
           };
@@ -688,14 +1039,16 @@ export default function InterviewSessionPage() {
 
   useEffect(() => {
     if (!media.sharingScreen) {
-      stopScreenSampler();
+      stopScreenRealtime();
       screenVideoRef.current = null;
+      screenTrackRef.current = null;
     }
-  }, [media.sharingScreen, stopScreenSampler]);
+  }, [media.sharingScreen, stopScreenRealtime]);
 
   useEffect(() => () => {
-    stopScreenSampler();
-  }, [stopScreenSampler]);
+    stopScreenRealtime();
+    stopCameraRealtime();
+  }, [stopScreenRealtime, stopCameraRealtime]);
 
   const handleResume = useCallback(async () => {
     setJoining(true);
@@ -707,6 +1060,7 @@ export default function InterviewSessionPage() {
     setCanResumeSession(false);
     setPhase("room");
     setJoining(false);
+    await media.ensureCamera();
     const current = sessionRef.current;
     if (!current) return;
     const panelist = getPanelistForQuestion(
@@ -717,7 +1071,7 @@ export default function InterviewSessionPage() {
     await recorderRef.current?.start();
   }, [media]);
 
-  if (!session) {
+  if (!sessionReady || !session) {
     return (
       <div className="flex h-dvh items-center justify-center bg-[#030303]">
         <p className="text-sm text-muted-foreground">Loading session...</p>
@@ -730,6 +1084,8 @@ export default function InterviewSessionPage() {
       <PreJoinLobby
         roleTitle={session.roleTitle}
         panelistMode={panelistMode}
+        selectedDuration={session.interviewDuration ?? DEFAULT_INTERVIEW_DURATION}
+        onSelectDuration={handleDurationChange}
         joining={joining}
         error={media.error}
         onJoin={() => void handleJoin()}
@@ -740,21 +1096,36 @@ export default function InterviewSessionPage() {
     );
   }
 
-  const displayPanelist = voice.activePanelist ?? activePanelist;
+  const displayPanelist = voice.connectedPanelist ?? joinPanelist;
+  const speakingPanelist =
+    voice.voiceState === "speaking" ? displayPanelist : undefined;
+
+  const statusChipLabel =
+    completeBanner
+      ? "Interview complete — preparing your report"
+      : finishingInterview
+        ? "Finishing interview…"
+        : voice.connectionStatus === "reconnecting"
+          ? "Reconnecting…"
+          : null;
 
   const stage = media.sharingScreen && media.screenStream ? (
     <ScreenShareStage
       screenStream={media.screenStream}
       activePanelist={displayPanelist}
+      speakingPanelist={speakingPanelist}
       panelistMode={panelistMode}
       voiceState={voice.voiceState}
       connecting={voice.connecting}
       handoffPanelist={voice.handoffPanelist}
+      screenShareWarning={media.screenShareWarning}
+      onRetryScreenShare={() => void handleRetryScreenShare()}
       onVideoReady={handleVideoReady}
     />
   ) : (
     <SpeakerStage
       activePanelist={displayPanelist}
+      speakingPanelist={speakingPanelist}
       panelistMode={panelistMode}
       voiceState={voice.voiceState}
       connecting={voice.connecting}
@@ -774,14 +1145,33 @@ export default function InterviewSessionPage() {
           </div>
         </div>
       ) : null}
+      {completeBanner ? (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80">
+          <div className="rounded-lg border border-border bg-card px-6 py-4 text-center">
+            <p className="font-medium">Interview complete — preparing your report</p>
+          </div>
+        </div>
+      ) : null}
       <InterviewRoom
       roleTitle={session.roleTitle}
       questionCount={session.questionCount}
+      interviewDuration={session.interviewDuration ?? DEFAULT_INTERVIEW_DURATION}
       elapsedSeconds={elapsedSeconds}
       onLeave={() => void abandonSession()}
+      statusChip={
+        statusChipLabel ? (
+          <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs text-amber-100">
+            {statusChipLabel}
+          </span>
+        ) : null
+      }
       stage={stage}
       selfPreview={
-        <SelfPreview stream={media.cameraStream} visible={media.cameraEnabled} />
+        <SelfPreview
+          stream={media.cameraStream}
+          visible={media.cameraEnabled}
+          onVideoReady={handleCameraVideoReady}
+        />
       }
       captions={
         <LiveCaptions
@@ -801,7 +1191,7 @@ export default function InterviewSessionPage() {
           onToggleScreenShare={() => {
             if (media.sharingScreen) {
               media.stopScreenShare();
-              stopScreenSampler();
+              stopScreenRealtime();
             } else {
               void media.startScreenShare().then((stream) => {
                 if (!stream) return;
@@ -812,6 +1202,7 @@ export default function InterviewSessionPage() {
                   setSession(updated);
                   saveSession(updated);
                 }
+                void refreshRecorderTracks();
               });
             }
           }}
@@ -822,6 +1213,7 @@ export default function InterviewSessionPage() {
       error={
         cloudSyncFailed ||
         screenAnalyzePaused ||
+        cameraVisionPaused ||
         session.status === "error" ||
         voice.error ||
         recorder.error ? (
@@ -834,6 +1226,11 @@ export default function InterviewSessionPage() {
             {screenAnalyzePaused ? (
               <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
                 {screenAnalyzePaused}
+              </p>
+            ) : null}
+            {cameraVisionPaused ? (
+              <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                {cameraVisionPaused}
               </p>
             ) : null}
             {session.status === "error" || voice.error || recorder.error ? (

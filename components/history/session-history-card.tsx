@@ -4,6 +4,10 @@ import Link from "next/link";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import {
+  formatDurationLabel,
+  type InterviewDuration,
+} from "@/lib/interview/duration-profiles";
 import { useFailedRecordingRetry } from "@/hooks/use-failed-recording-retry";
 
 type SessionHistoryCardProps = {
@@ -11,6 +15,7 @@ type SessionHistoryCardProps = {
   publicId: string;
   roleTitle: string;
   panelistMode: string;
+  interviewDuration?: InterviewDuration;
   status: string;
   questionCount: number;
   overallScore: number | null;
@@ -36,6 +41,7 @@ export function SessionHistoryCard({
   publicId,
   roleTitle,
   panelistMode,
+  interviewDuration = "minutes_30",
   status,
   questionCount,
   overallScore,
@@ -81,7 +87,8 @@ export function SessionHistoryCard({
         <div>
           <h2 className="font-heading text-lg font-medium">{roleTitle}</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            {formatDate(completedAt ?? startedAt)} · {panelLabel}
+            {formatDate(completedAt ?? startedAt)} · {panelLabel} ·{" "}
+            {formatDurationLabel(interviewDuration)}
           </p>
         </div>
         {overallScore !== null ? (

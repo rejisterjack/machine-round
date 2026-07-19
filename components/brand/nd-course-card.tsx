@@ -8,6 +8,7 @@ type NdCourseCardProps = {
   description: string;
   imageUrl: string;
   rating?: number;
+  tier?: "premium" | "free" | "bundle";
   language?: string;
   selected?: boolean;
   onSelect?: () => void;
@@ -20,7 +21,8 @@ export function NdCourseCard({
   title,
   description,
   imageUrl,
-  rating = 4.9,
+  rating,
+  tier,
   language = "English",
   selected = false,
   onSelect,
@@ -44,8 +46,17 @@ export function NdCourseCard({
       </div>
       <div className="flex flex-1 flex-col px-4 pb-4">
         <div className="mb-2 flex items-start justify-between gap-2">
-          <h3 className="text-left text-sm font-bold">{title}</h3>
-          <CourseRatingBadge rating={`${rating}/5`} />
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-left text-sm font-bold">{title}</h3>
+            {tier === "free" ? (
+              <span className="rounded bg-emerald-600/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-400">
+                Free
+              </span>
+            ) : null}
+          </div>
+          {rating != null ? (
+            <CourseRatingBadge rating={`${rating}/5`} />
+          ) : null}
         </div>
         <p className="flex-1 text-sm leading-relaxed text-muted-foreground">
           {description}

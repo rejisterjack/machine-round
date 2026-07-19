@@ -13,6 +13,25 @@ function readNumber(
 export const ANALYSIS_MAX_WIDTH = 960;
 export const ANALYSIS_JPEG_QUALITY = 0.62;
 
+/** Fast realtime screen context — balanced for accuracy vs latency. */
+export const REALTIME_MAX_WIDTH = 960;
+export const REALTIME_JPEG_QUALITY = 0.78;
+
+/** High-detail capture for user-turn precision questions. */
+export const PRECISION_MAX_WIDTH = 1024;
+export const PRECISION_JPEG_QUALITY = 0.85;
+
+/** Camera frames for gesture / hand questions. */
+export const CAMERA_MAX_WIDTH = 768;
+export const CAMERA_JPEG_QUALITY = 0.9;
+export const CAMERA_PRECISION_MAX_WIDTH = 960;
+export const CAMERA_PRECISION_JPEG_QUALITY = 0.92;
+
+/** WebRTC data channel safe payload (SCTP max message ~64KB). */
+export const REALTIME_CHANNEL_MAX_BASE64_CHARS = 48_000;
+export const PRECISION_LUMINANCE_THRESHOLD = 0.35;
+export const PRECISION_BRIGHTNESS_BOOST = 0.15;
+
 /** Cloudinary archive — replay thumbnails and detail view. */
 export const ARCHIVE_MAX_WIDTH = 640;
 export const ARCHIVE_WEBP_QUALITY = 0.55;

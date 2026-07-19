@@ -1,6 +1,40 @@
 import { describe, expect, test } from "bun:test";
-import { estimateBase64DecodedBytes } from "@/lib/interview/screen-capture";
+import {
+  computeAverageLuminanceFromImageData,
+  estimateBase64DecodedBytes,
+  shouldBoostFrameLuminance,
+  shouldSampleWhileHidden,
+} from "@/lib/interview/screen-capture";
 import { optimizedCaptureImageUrl, optimizedImageUrl, optimizedVideoUrl } from "@/lib/media/cloudinary-url";
+
+describe("shouldSampleWhileHidden", () => {
+  test("returns true so capture continues when the interview tab is backgrounded", () => {
+    expect(shouldSampleWhileHidden()).toBe(true);
+  });
+});
+
+describe("computeAverageLuminanceFromImageData", () => {
+  test("returns low luminance for dark pixels", () => {
+    const dark = new Uint8ClampedArray([17, 17, 17, 255, 17, 17, 17, 255]);
+    expect(computeAverageLuminanceFromImageData(dark)).toBeLessThan(0.2);
+  });
+
+  test("returns high luminance for bright pixels", () => {
+    const bright = new Uint8ClampedArray([240, 240, 240, 255]);
+    expect(computeAverageLuminanceFromImageData(bright)).toBeGreaterThan(0.9);
+  });
+});
+
+describe("shouldBoostFrameLuminance", () => {
+  test("boosts dark frames below threshold", () => {
+    expect(shouldBoostFrameLuminance(0.2)).toBe(true);
+  });
+
+  test("skips bright frames at or above threshold", () => {
+    expect(shouldBoostFrameLuminance(0.35)).toBe(false);
+    expect(shouldBoostFrameLuminance(0.9)).toBe(false);
+  });
+});
 
 describe("estimateBase64DecodedBytes", () => {
   test("decodes unpadded base64 length", () => {

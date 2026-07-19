@@ -1,8 +1,9 @@
 import type { RoleSlug } from "@/generated/client";
-import { prisma } from "@/lib/prisma";
-import { roleIdToSlug, roleSlugToId } from "@/lib/session/role-slug";
-import { roles as fallbackRoles } from "@/lib/design/tokens";
-import { isDbReady } from "@/lib/db/ready";
+import {
+  getNamasteCourse,
+  getSelectableCourses,
+} from "@/lib/courses/namaste-courses";
+import { roleIdToSlug } from "@/lib/session/role-slug";
 
 export type RoleDto = {
   id: string;
@@ -11,45 +12,30 @@ export type RoleDto = {
   description: string;
   icon: string;
   imageUrl: string;
-  rating: number;
+  rating?: number;
   language: string;
+  tier?: "premium" | "free" | "bundle";
+  href?: string;
 };
 
+function catalogRoles(): RoleDto[] {
+  return getSelectableCourses().map((course) => ({
+    id: course.id,
+    slug: course.slug,
+    title: course.title,
+    description: course.description,
+    icon: course.icon,
+    imageUrl: course.imageUrl,
+    rating: course.rating,
+    language: course.language,
+    tier: course.tier,
+    href: course.href,
+  }));
+}
+
+/** NamasteDev /learn catalog — not legacy generic engineer presets. */
 export async function listRoles(): Promise<RoleDto[]> {
-  if (await isDbReady()) {
-    const records = await prisma.role.findMany({
-      where: { isActive: true },
-      orderBy: { sortOrder: "asc" },
-    });
-
-    return records.map((role) => ({
-      id: roleSlugToId(role.slug),
-      slug: role.slug,
-      title: role.title,
-      description: role.description,
-      icon: role.icon,
-      imageUrl: role.imageUrl,
-      rating: role.rating,
-      language: role.language,
-    }));
-  }
-
-  return fallbackRoles.map((role) => {
-    const slug = roleIdToSlug(role.id);
-    if (!slug) {
-      throw new Error(`Invalid fallback role: ${role.id}`);
-    }
-    return {
-      id: role.id,
-      slug,
-      title: role.title,
-      description: role.description,
-      icon: role.icon,
-      imageUrl: role.imageUrl,
-      rating: role.rating,
-      language: role.language,
-    };
-  });
+  return catalogRoles();
 }
 
 export async function resolveRole(input: {
@@ -62,6 +48,22 @@ export async function resolveRole(input: {
   const roleTitle = input.roleTitle ?? input.role;
 
   if (roleId) {
+    const fromCatalog = getNamasteCourse(roleId);
+    if (fromCatalog) {
+      return {
+        id: fromCatalog.id,
+        slug: fromCatalog.slug,
+        title: fromCatalog.title,
+        description: fromCatalog.description,
+        icon: fromCatalog.icon,
+        imageUrl: fromCatalog.imageUrl,
+        rating: fromCatalog.rating,
+        language: fromCatalog.language,
+        tier: fromCatalog.tier,
+        href: fromCatalog.href,
+      };
+    }
+
     const match = roles.find((role) => role.id === roleId);
     if (match) return match;
   }
