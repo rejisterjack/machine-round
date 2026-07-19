@@ -86,8 +86,23 @@ cp .env.example .env
 | `AZURE_OPENAI_EMBEDDING_DEPLOYMENT` | Embeddings deployment for RAG |
 | `DATABASE_URL` | Neon PostgreSQL pooler URL (used by the app at runtime) |
 | `DIRECT_DATABASE_URL` | Optional Neon direct URL for Prisma migrations (recommended) |
+| `AUTH_SECRET` | Auth.js session encryption secret (`openssl rand -base64 32`) |
+| `AUTH_URL` | App base URL for OAuth callbacks (e.g. `http://localhost:7329`) |
+| `AUTH_GOOGLE_ID` | Google OAuth client ID |
+| `AUTH_GOOGLE_SECRET` | Google OAuth client secret |
 
 **Only Azure OpenAI is supported for inference.** Do not set `OPENAI_API_KEY`.
+
+### Google OAuth setup
+
+Interviews require Google sign-in. In [Google Cloud Console](https://console.cloud.google.com/apis/credentials), configure your OAuth client:
+
+| Setting | Local dev | Production |
+|---|---|---|
+| Authorized JavaScript origins | `http://localhost:7329` | `https://your-vercel-domain` |
+| Authorized redirect URIs | `http://localhost:7329/api/auth/callback/google` | `https://your-vercel-domain/api/auth/callback/google` |
+
+Set `AUTH_URL` to match the origin you use (local or production).
 
 ### Database setup (Prisma + pgvector)
 

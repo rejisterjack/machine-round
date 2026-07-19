@@ -52,6 +52,7 @@ function buildWeakTopics(
 export async function createInterviewSession(input: {
   roleId: string;
   inputMode?: InputMode;
+  userId?: string;
 }) {
   if (!(await isDbReady())) {
     return null;
@@ -72,6 +73,7 @@ export async function createInterviewSession(input: {
       roleId: role.id,
       inputMode: input.inputMode ?? "text",
       status: "active",
+      userId: input.userId,
     },
     include: { role: true },
   });

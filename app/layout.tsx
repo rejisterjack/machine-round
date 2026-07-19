@@ -4,6 +4,7 @@ import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
 import { StayInformedModal } from "@/components/layout/stay-informed-modal";
 import { WhatsappFab } from "@/components/layout/whatsapp-fab";
+import { SessionProvider } from "@/components/auth/session-provider";
 import "./globals.css";
 
 const inter = Inter({
@@ -58,11 +59,13 @@ export default function RootLayout({
       className={`${inter.variable} ${plusJakarta.variable} dark h-full antialiased`}
     >
       <body className="flex min-h-full flex-col overflow-x-hidden bg-background font-sans text-foreground">
-        <SiteHeader />
-        <main className="flex flex-1 flex-col">{children}</main>
-        <SiteFooter />
-        <StayInformedModal />
-        <WhatsappFab />
+        <SessionProvider>
+          <SiteHeader />
+          <main className="flex flex-1 flex-col">{children}</main>
+          <SiteFooter />
+          <StayInformedModal />
+          <WhatsappFab />
+        </SessionProvider>
       </body>
     </html>
   );
