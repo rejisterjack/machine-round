@@ -2,6 +2,8 @@ import { describe, expect, test } from "bun:test";
 import {
   canGenerateEvaluateReport,
   evaluateIneligibleMessage,
+  getReportEligibility,
+  shouldSkipReportForEarlyEnd,
 } from "@/lib/session/evaluate-eligibility";
 import type { InterviewMessage } from "@/lib/session/interview-store";
 
@@ -33,5 +35,29 @@ describe("evaluate-eligibility", () => {
     expect(
       evaluateIneligibleMessage([msg("assistant", "Hello only")]),
     ).toMatch(/no candidate answers/i);
+  });
+
+  test("classifies early-ended sessions", () => {
+    expect(getReportEligibility([]).status).toBe("no_transcript");
+    expect(
+      getReportEligibility([msg("assistant", "Welcome")]).status,
+    ).toBe("no_user_answers");
+    expect(
+      shouldSkipReportForEarlyEnd([msg("assistant", "Welcome")]),
+    ).toBe(true);
+    expect(
+      getReportEligibility([
+        msg("assistant", "Hi"),
+        msg("user", "Ready"),
+        msg("assistant", "Question?"),
+      ]).status,
+    ).toBe("too_short");
+    expect(
+      shouldSkipReportForEarlyEnd([
+        msg("assistant", "Hi"),
+        msg("user", "Ready"),
+        msg("assistant", "Question?"),
+      ]),
+    ).toBe(false);
   });
 });
