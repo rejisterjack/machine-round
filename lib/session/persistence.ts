@@ -136,6 +136,7 @@ export async function appendInterviewMessages(
     role: message.role as MessageRole,
     content: message.content,
     sequence: startSequence + index + 1,
+    speakerName: message.speaker,
     referencedAnswer:
       index === messages.length - 1 && message.role === "assistant"
         ? options?.referencedAnswer

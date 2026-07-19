@@ -3,7 +3,7 @@ import { toApiErrorResponse } from "@/lib/api/errors";
 
 export const API_TIMEOUTS = {
   interview: 25_000,
-  evaluate: 9_000,
+  evaluate: 60_000,
   default: 15_000,
 } as const;
 

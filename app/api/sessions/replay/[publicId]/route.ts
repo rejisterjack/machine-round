@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isPanelistId } from "@/lib/ai/personas/panelists";
 import { withApiHandler } from "@/lib/api/handler";
 import { ApiError } from "@/lib/api/errors";
 import {
@@ -29,6 +30,10 @@ export const GET = withApiHandler(
       messages: session.messages.map((message) => ({
         role: message.role,
         content: message.content,
+        speaker:
+          message.speakerName && isPanelistId(message.speakerName)
+            ? message.speakerName
+            : undefined,
       })),
       report: reportToEvaluateResponse(session.report),
       shareToken: session.report?.shareToken ?? null,

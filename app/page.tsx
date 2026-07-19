@@ -28,6 +28,11 @@ const steps = [
 
 const benefits = [
   {
+    title: "NamasteDev panel",
+    description:
+      "Interviewed by Akshay Saini and Archy Gupta — mentor-style behavioral and technical depth.",
+  },
+  {
     title: "Adaptive follow-ups",
     description:
       "Every question references your actual answers — not a static script.",
@@ -35,7 +40,7 @@ const benefits = [
   {
     title: "Voice or text",
     description:
-      "Practice the way real AI screens work, with voice and text input.",
+      "Hear Akshay and Archy speak via voice, or run the full round in text.",
   },
   {
     title: "Readiness report",
@@ -64,6 +69,7 @@ export default function HomePage() {
         accentWord="Machine Round"
         description="A realistic AI-style screening interview that adapts its follow-ups based on your actual answers and returns a structured readiness report — so you walk in knowing what the screener is listening for."
         checklist={[
+          "Panel interview with Akshay Saini & Archy Gupta",
           "Adaptive follow-ups that reference your actual answers",
           "Voice and text input — practice like a real AI screen",
           "Structured readiness report with concrete improvement actions",
@@ -158,6 +164,9 @@ export default function HomePage() {
               checkout flow on the legacy path for two releases.
             </div>
             <div className="nd-message-assistant">
+              <span className="mb-1 block text-xs text-muted-foreground">
+                Archy Gupta
+              </span>
               You mentioned keeping checkout on the legacy path — what metric
               told you that was the right rollback boundary?
             </div>

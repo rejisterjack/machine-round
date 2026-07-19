@@ -27,6 +27,7 @@
 
 # local scratch (pixel audits, screenshots — not served by Next.js)
 .temp/
+/qa-screenshots
 
 # debug
 npm-debug.log*

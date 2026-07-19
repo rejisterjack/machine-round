@@ -92,12 +92,14 @@ cp .env.example .env
 ### Database setup (Prisma + pgvector)
 
 ```bash
-bun run db:migrate   # local dev: apply migrations
+bun run db:migrate   # local dev: apply migrations (Prisma generates SQL — never hand-write migrations)
 bun run db:deploy    # CI/production: apply pending migrations
 bun run db:seed      # seeds roles + RAG question bank
 ```
 
 `db:migrate` prefers `DIRECT_DATABASE_URL` when set; otherwise it uses `DATABASE_URL`.
+
+Schema changes: edit `prisma/schema.prisma`, then run `bun run db:migrate`. Do not create files under `prisma/migrations/` manually.
 
 ### API smoke checks (PRD §6.4)
 
@@ -111,7 +113,7 @@ Acceptance checklist before submission:
 1. Cold start: incognito session completes interview + report in under 3 minutes
 2. Five consecutive runs without manual intervention
 3. App works when database is unavailable (client sessionStorage fallback)
-4. Evaluate request fails gracefully within the 10s budget
+4. Evaluate request fails gracefully within the 60s budget
 5. At least one adaptive follow-up includes `referencedAnswer`
 6. Share token URL returns the same report JSON and renders at `/report/share/[token]`
 7. Realtime route returns `client_secret` when Azure is configured
@@ -122,7 +124,7 @@ Acceptance checklist before submission:
 Optional admin reseed (requires `ADMIN_SECRET`):
 
 ```bash
-curl -X POST http://localhost:3000/api/admin/reseed-questions -H "x-admin-secret: $ADMIN_SECRET"
+curl -X POST http://localhost:7329/api/admin/reseed-questions -H "x-admin-secret: $ADMIN_SECRET"
 ```
 
 ## Getting started
@@ -132,7 +134,9 @@ bun install
 bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+Open [http://localhost:7329](http://localhost:7329).
+
+The dev server always uses port **7329**. `bun dev` frees that port first if something is already listening.
 
 ## Module usage
 

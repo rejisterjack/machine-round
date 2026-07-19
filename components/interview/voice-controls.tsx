@@ -3,12 +3,15 @@
 import { Loader2, Mic, MicOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { getPanelist, type PanelistId } from "@/lib/ai/personas/panelists";
 import type { RealtimeVoiceState } from "@/lib/voice/realtime-webrtc";
 
 type VoiceControlsProps = {
   active: boolean;
   connecting?: boolean;
+  handoffPanelist?: PanelistId;
   voiceState?: RealtimeVoiceState;
+  activePanelist?: PanelistId;
   supported: boolean;
   error?: string;
   onToggle: () => void;
@@ -16,12 +19,19 @@ type VoiceControlsProps = {
 
 const BAR_HEIGHTS = ["h-5", "h-6", "h-7", "h-8", "h-6", "h-7", "h-5", "h-8", "h-6", "h-7", "h-5", "h-6"] as const;
 
-function voiceStateLabel(voiceState: RealtimeVoiceState) {
+function voiceStateLabel(
+  voiceState: RealtimeVoiceState,
+  activePanelist?: PanelistId,
+) {
+  const name = activePanelist
+    ? getPanelist(activePanelist).shortName
+    : "Panelist";
+
   switch (voiceState) {
     case "speaking":
-      return "Interviewer speaking";
+      return `${name} speaking`;
     case "listening":
-      return "Listening to your answer";
+      return "Your turn — type or speak your answer";
     default:
       return "Voice session active";
   }
@@ -30,11 +40,17 @@ function voiceStateLabel(voiceState: RealtimeVoiceState) {
 export function VoiceControls({
   active,
   connecting = false,
+  handoffPanelist,
   voiceState = "idle",
+  activePanelist,
   supported,
   error,
   onToggle,
 }: VoiceControlsProps) {
+  const handoffName = handoffPanelist
+    ? getPanelist(handoffPanelist).shortName
+    : null;
+
   return (
     <div className="nd-course-card p-4">
       <div className="flex items-center justify-between gap-4">
@@ -44,10 +60,12 @@ export function VoiceControls({
             {!supported
               ? "Voice unavailable in this browser"
               : connecting
-                ? "Connecting WebRTC session..."
+                ? handoffName
+                  ? `${handoffName} is joining…`
+                  : "Connecting WebRTC session..."
                 : active
-                  ? voiceStateLabel(voiceState)
-                  : "WebRTC session via Azure OpenAI Realtime"}
+                  ? voiceStateLabel(voiceState, activePanelist)
+                  : "Akshay & Archy speak via Azure Realtime — you answer below"}
           </p>
         </div>
         <Button

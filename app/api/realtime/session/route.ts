@@ -2,11 +2,19 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { API_TIMEOUTS, withApiHandler } from "@/lib/api/handler";
 import { ApiError } from "@/lib/api/errors";
+import {
+  formatMessageSpeaker,
+  getPanelist,
+  getPanelistForQuestion,
+  isPanelistId,
+  PANELIST_IDS,
+} from "@/lib/ai/personas/panelists";
 import { getAzureRealtimeConfig, getAzureRealtimeCredentials } from "@/lib/ai";
 import { buildInterviewerPrompt } from "@/lib/ai/prompts/interviewer";
 import { isDbReady } from "@/lib/db/ready";
 import { prisma } from "@/lib/prisma";
 import { resolveRole } from "@/lib/session/roles";
+import { interviewMessageSchema } from "@/lib/session/interview-store";
 
 const realtimeSessionSchema = z.object({
   sessionId: z.string().optional(),
@@ -14,6 +22,8 @@ const realtimeSessionSchema = z.object({
   roleTitle: z.string().optional(),
   role: z.string().optional(),
   questionCount: z.number().int().min(0).optional(),
+  activePanelist: z.enum(PANELIST_IDS).optional(),
+  messages: z.array(interviewMessageSchema).optional(),
 });
 
 export const POST = withApiHandler(async (request: Request) => {
@@ -22,6 +32,21 @@ export const POST = withApiHandler(async (request: Request) => {
   );
   const role = await resolveRole(body);
   const questionCount = body.questionCount ?? 0;
+  const activePanelist =
+    body.activePanelist ?? getPanelistForQuestion(questionCount).id;
+  const panelist = getPanelist(
+    isPanelistId(activePanelist) ? activePanelist : "akshay",
+  );
+  const transcript = body.messages?.map(formatMessageSpeaker).join("\n");
+  const instructions = buildInterviewerPrompt({
+    role: role.title,
+    questionCount,
+    activePanelist: panelist.id,
+    forVoice: true,
+  });
+  const fullInstructions = transcript
+    ? `${instructions}\n\nPrior transcript:\n${transcript}\n\nContinue as ${panelist.name}. Ask the next question based on the candidate's latest answer when applicable.`
+    : instructions;
   const realtimeCreds = getAzureRealtimeCredentials();
   const realtime = getAzureRealtimeConfig();
 
@@ -35,10 +60,10 @@ export const POST = withApiHandler(async (request: Request) => {
       session: {
         type: "realtime",
         model: realtime.deployment,
-        instructions: buildInterviewerPrompt(role.title, questionCount),
+        instructions: fullInstructions,
         audio: {
           output: {
-            voice: "alloy",
+            voice: panelist.voice,
           },
         },
       },
@@ -95,5 +120,7 @@ export const POST = withApiHandler(async (request: Request) => {
     },
     callsUrl: realtime.callsUrl,
     deployment: realtime.deployment,
+    activePanelist: panelist.id,
+    voice: panelist.voice,
   });
 }, { timeoutMs: API_TIMEOUTS.default });

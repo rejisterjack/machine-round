@@ -1,13 +1,16 @@
 import type { InterviewMessage } from "@/lib/session/interview-store";
+import type { PanelistId } from "@/lib/ai/personas/panelists";
 import type { RealtimeEvent } from "@/lib/voice/realtime-webrtc";
 
 export type PartialTranscript = {
   role: "user" | "assistant";
   content: string;
+  speaker?: PanelistId;
 };
 
 export function extractMessageFromRealtimeEvent(
   event: RealtimeEvent,
+  activeSpeaker?: PanelistId,
 ): InterviewMessage | null {
   if (event.type === "conversation.item.input_audio_transcription.completed") {
     const transcript =
@@ -18,21 +21,38 @@ export function extractMessageFromRealtimeEvent(
   if (event.type === "response.output_audio_transcript.done") {
     const transcript =
       typeof event.transcript === "string" ? event.transcript.trim() : "";
-    return transcript ? { role: "assistant", content: transcript } : null;
+    return transcript
+      ? {
+          role: "assistant",
+          content: transcript,
+          speaker: activeSpeaker,
+        }
+      : null;
   }
 
   if (event.type === "response.output_text.done") {
     const text = typeof event.text === "string" ? event.text.trim() : "";
-    return text ? { role: "assistant", content: text } : null;
+    return text
+      ? {
+          role: "assistant",
+          content: text,
+          speaker: activeSpeaker,
+        }
+      : null;
   }
 
   return null;
 }
 
-export function extractPartialDelta(event: RealtimeEvent): PartialTranscript | null {
+export function extractPartialDelta(
+  event: RealtimeEvent,
+  activeSpeaker?: PanelistId,
+): PartialTranscript | null {
   if (event.type === "response.output_audio_transcript.delta") {
     const delta = typeof event.delta === "string" ? event.delta : "";
-    return delta ? { role: "assistant", content: delta } : null;
+    return delta
+      ? { role: "assistant", content: delta, speaker: activeSpeaker }
+      : null;
   }
 
   if (event.type === "conversation.item.input_audio_transcription.delta") {
@@ -43,12 +63,16 @@ export function extractPartialDelta(event: RealtimeEvent): PartialTranscript | n
   return null;
 }
 
-export async function syncVoiceTranscript(sessionId: string, content: string) {
+export async function syncVoiceTranscript(
+  sessionId: string,
+  content: string,
+  speaker?: PanelistId,
+) {
   try {
     await fetch("/api/interview/transcript", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sessionId, content }),
+      body: JSON.stringify({ sessionId, content, speaker }),
     });
   } catch {
     // Best-effort DB sync; client transcript remains source of truth.

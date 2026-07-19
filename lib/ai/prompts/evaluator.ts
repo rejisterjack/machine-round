@@ -1,3 +1,5 @@
+import { formatMessageSpeaker } from "@/lib/ai/personas/panelists";
+
 export const EVALUATOR_SYSTEM_PROMPT = `You are an evaluator agent for Namaste Machine Round. Review the full interview transcript and produce a structured readiness report.
 
 Score each answer on clarity, structure, technical accuracy signal, and flag red flags an AI screener would likely flag (rambling, no concrete example, vague claims).
@@ -24,7 +26,8 @@ Respond in JSON only:
 
 Rules:
 - Provide exactly 2 or 3 improvements.
-- weakTopics should summarize recurring weak areas for a tag cloud (3-6 items, weight 0-1).`;
+- weakTopics should summarize recurring weak areas for a tag cloud (3-6 items, weight 0-1).
+- Questions may be attributed to panelists Akshay Saini (akshay) or Archy Gupta (archy).`;
 
 export function buildEvaluatorPrompt(role: string, transcript: string) {
   return `${EVALUATOR_SYSTEM_PROMPT}
@@ -34,3 +37,5 @@ Role: ${role}
 Transcript:
 ${transcript}`;
 }
+
+export { formatMessageSpeaker };

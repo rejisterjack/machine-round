@@ -23,9 +23,9 @@ function MetricBar({
     <div>
       <div className="mb-1 flex items-center justify-between text-xs">
         <span className="text-muted-foreground">{label}</span>
-        <span className="font-medium">{value}/10</span>
+        <span className="font-medium">{value}/100</span>
       </div>
-      <Progress value={value * 10} className="h-2" />
+      <Progress value={value} className="h-2" />
     </div>
   );
 }

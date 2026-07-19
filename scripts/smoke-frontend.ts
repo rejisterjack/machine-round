@@ -1,4 +1,6 @@
-const baseUrl = process.env.SMOKE_BASE_URL ?? "http://localhost:3000";
+import { DEV_SERVER_URL } from "../lib/config/dev-server";
+
+const baseUrl = process.env.SMOKE_BASE_URL ?? DEV_SERVER_URL;
 
 async function check(path: string, init?: RequestInit) {
   const response = await fetch(`${baseUrl}${path}`, init);

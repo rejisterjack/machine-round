@@ -3,10 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "sh -c 'pids=$(lsof -ti :7329 2>/dev/null); [ -n \"$pids\" ] && kill -9 $pids; rm -f .next/dev/lock; exec next dev --port 7329'",
     "build": "prisma generate && next build",
     "postinstall": "prisma generate",
-    "start": "next start",
+    "start": "next start --port 7329",
     "lint": "eslint",
     "seed:questions": "bun run scripts/seed-questions.ts",
     "db:generate": "prisma generate",
