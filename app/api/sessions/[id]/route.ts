@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import type { InputMode, RecordingStatus, SessionStatus } from "@/generated/client";
+import type { InputMode, InterviewDuration, RecordingStatus, SessionStatus } from "@/generated/client";
 import { withApiHandler } from "@/lib/api/handler";
 import { ApiError } from "@/lib/api/errors";
 import { requireAuth } from "@/lib/auth/require-auth";
@@ -9,6 +9,7 @@ import { getInterviewSessionById } from "@/lib/session/persistence";
 import { countScreenCaptures } from "@/lib/session/media-queries";
 import { reportToEvaluateResponse } from "@/lib/session/report-queries";
 import { assertSessionOwner } from "@/lib/session/session-access";
+import { interviewDurationSchema } from "@/lib/session/interview-store";
 import { prisma } from "@/lib/prisma";
 
 const patchSessionSchema = z.object({
@@ -16,6 +17,7 @@ const patchSessionSchema = z.object({
     .enum(["active", "thinking", "completed", "abandoned", "error"])
     .optional(),
   inputMode: z.enum(["text", "voice", "mixed"]).optional(),
+  interviewDuration: interviewDurationSchema.optional(),
   questionCount: z.number().int().min(0).optional(),
   topicsCovered: z.array(z.string()).optional(),
   weakSignals: z.array(z.string()).optional(),
@@ -47,6 +49,7 @@ export const GET = withApiHandler(
       status: session.status,
       inputMode: session.inputMode,
       panelistMode: session.panelistMode ?? "both",
+      interviewDuration: session.interviewDuration ?? "minutes_30",
       questionCount: session.questionCount,
       topicsCovered: session.topicsCovered,
       weakSignals: session.weakSignals,
@@ -99,6 +102,7 @@ export const PATCH = withApiHandler(
       data: {
         status: body.status as SessionStatus | undefined,
         inputMode: body.inputMode as InputMode | undefined,
+        interviewDuration: body.interviewDuration as InterviewDuration | undefined,
         questionCount: body.questionCount,
         topicsCovered: body.topicsCovered,
         weakSignals: body.weakSignals,

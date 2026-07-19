@@ -12,11 +12,14 @@ import { ApiErrorCard } from "@/components/ui/api-error-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { roles } from "@/lib/design/tokens";
 
+import type { InterviewDuration } from "@/lib/interview/duration-profiles";
+
 type HistorySession = {
   id: string;
   publicId: string;
   roleTitle: string;
   panelistMode: string;
+  interviewDuration?: InterviewDuration;
   status: string;
   questionCount: number;
   overallScore: number | null;

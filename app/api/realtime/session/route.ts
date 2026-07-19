@@ -3,7 +3,8 @@ import { z } from "zod";
 import { API_TIMEOUTS, withApiHandler } from "@/lib/api/handler";
 import { ApiError } from "@/lib/api/errors";
 import { requireAuth } from "@/lib/auth/require-auth";
-import { buildContinuationPrompt } from "@/lib/ai/conversation-phases";
+import { buildContinuationPrompt, getPriorAssistantSpeaker } from "@/lib/ai/conversation-phases";
+import { isThreadComplete } from "@/lib/ai/panelist-router";
 import {
   formatMessageSpeaker,
   getPanelist,
@@ -12,6 +13,7 @@ import {
   PANELIST_IDS,
   PANELIST_MODES,
 } from "@/lib/ai/personas/panelists";
+import { resolveRealtimeVoice } from "@/lib/voice/panelist-voices";
 import { getAzureRealtimeConfig, getAzureRealtimeCredentials } from "@/lib/ai";
 import { buildInterviewerPrompt } from "@/lib/ai/prompts/interviewer";
 import { getGroundedQuestions } from "@/lib/rag/vector-store";
@@ -19,7 +21,8 @@ import { isDbReady } from "@/lib/db/ready";
 import { prisma } from "@/lib/prisma";
 import { resolveRole } from "@/lib/session/roles";
 import { assertSessionOwnerIfPresent } from "@/lib/session/session-access";
-import { interviewMessageSchema } from "@/lib/session/interview-store";
+import { interviewDurationSchema, interviewMessageSchema } from "@/lib/session/interview-store";
+import { getMaxQuestionsForDuration } from "@/lib/interview/duration-profiles";
 
 const realtimeSessionSchema = z.object({
   sessionId: z.string(),
@@ -28,26 +31,59 @@ const realtimeSessionSchema = z.object({
   role: z.string().optional(),
   questionCount: z.number().int().min(0).optional(),
   panelistMode: z.enum(PANELIST_MODES).optional(),
+  interviewDuration: interviewDurationSchema.optional(),
+  promptContext: z.string().max(20_000).optional(),
+  courseId: z.string().optional(),
   activePanelist: z.enum(PANELIST_IDS).optional(),
   messages: z.array(interviewMessageSchema).optional(),
   screenReviewEnabled: z.boolean().optional(),
+  cameraReviewEnabled: z.boolean().optional(),
+  routerReason: z.string().optional(),
 });
+
+type TurnDetectionConfig = {
+  type: "server_vad";
+  threshold?: number;
+  silence_duration_ms: number;
+  prefix_padding_ms: number;
+  create_response: boolean;
+};
 
 type RealtimeSessionPayload = {
   type: "realtime";
   model: string;
   instructions: string;
-  turn_detection?: {
-    type: "server_vad";
-    silence_duration_ms: number;
-    prefix_padding_ms: number;
-  };
   audio: {
+    input?: {
+      transcription?: { model: string };
+      turn_detection?: TurnDetectionConfig;
+    };
     output: {
       voice: string;
     };
   };
 };
+
+function withServerVad(
+  session: RealtimeSessionPayload,
+): RealtimeSessionPayload {
+  return {
+    ...session,
+    audio: {
+      ...session.audio,
+      input: {
+        transcription: { model: "whisper-1" },
+        turn_detection: {
+          type: "server_vad",
+          threshold: 0.5,
+          silence_duration_ms: 1000,
+          prefix_padding_ms: 300,
+          create_response: false,
+        },
+      },
+    },
+  };
+}
 
 async function createRealtimeSession(
   clientSecretsUrl: string,
@@ -73,6 +109,8 @@ export const POST = withApiHandler(async (request: Request) => {
   const role = await resolveRole(body);
   const questionCount = body.questionCount ?? 0;
   const panelistMode = body.panelistMode ?? "both";
+  const interviewDuration = body.interviewDuration ?? "minutes_30";
+  const maxQuestions = getMaxQuestionsForDuration(interviewDuration);
   const activePanelist =
     body.activePanelist ?? getPanelistForQuestion(questionCount, panelistMode).id;
   const panelist = getPanelist(
@@ -80,7 +118,12 @@ export const POST = withApiHandler(async (request: Request) => {
   );
   const messages = body.messages ?? [];
   const transcript = messages.map(formatMessageSpeaker).join("\n");
-  const grounded = await getGroundedQuestions(role.title, 2, role.id);
+  const priorAssistant = getPriorAssistantSpeaker(messages);
+  const threadComplete = isThreadComplete(messages, priorAssistant);
+  const includeRagHints = questionCount <= 1 || threadComplete;
+  const grounded = includeRagHints
+    ? await getGroundedQuestions(role.title, 4, role.id)
+    : [];
   const ragHint = grounded.length
     ? `\n\nRole-specific question bank (weave in naturally when relevant): ${grounded.join(" | ")}`
     : "";
@@ -91,6 +134,14 @@ export const POST = withApiHandler(async (request: Request) => {
     panelistMode,
     forVoice: true,
     screenReviewEnabled: body.screenReviewEnabled,
+    cameraReviewEnabled: body.cameraReviewEnabled,
+    sessionId: body.sessionId,
+    interviewDuration,
+    maxQuestions,
+    courseId:
+      body.courseId ??
+      (body.roleId && body.roleId !== "job-custom" ? body.roleId : undefined),
+    promptContext: body.promptContext,
   });
   const fullInstructions = transcript
     ? `${instructions}\n\n${buildContinuationPrompt({
@@ -100,10 +151,12 @@ export const POST = withApiHandler(async (request: Request) => {
         activePanelist: panelist.id,
         transcript,
         messages,
+        routerReason: body.routerReason,
       })}${ragHint}`
     : `${instructions}${ragHint}`;
   const realtimeCreds = getAzureRealtimeCredentials();
   const realtime = getAzureRealtimeConfig();
+  const realtimeVoice = resolveRealtimeVoice(panelist.id, panelist.voice);
 
   const baseSession: RealtimeSessionPayload = {
     type: "realtime",
@@ -111,26 +164,21 @@ export const POST = withApiHandler(async (request: Request) => {
     instructions: fullInstructions,
     audio: {
       output: {
-        voice: panelist.voice,
+        voice: realtimeVoice,
       },
     },
   };
 
+  let serverVadEnabled = true;
   let response = await createRealtimeSession(
     realtime.clientSecretsUrl,
     realtimeCreds.apiKey,
-    {
-      ...baseSession,
-      turn_detection: {
-        type: "server_vad",
-        silence_duration_ms: 1000,
-        prefix_padding_ms: 300,
-      },
-    },
+    withServerVad(baseSession),
   );
 
   if (!response.ok) {
     const turnDetectionError = await response.text();
+    serverVadEnabled = false;
     console.warn(
       "Realtime session with turn_detection failed, retrying without it:",
       turnDetectionError,
@@ -194,6 +242,8 @@ export const POST = withApiHandler(async (request: Request) => {
     callsUrl: realtime.callsUrl,
     deployment: realtime.deployment,
     activePanelist: panelist.id,
-    voice: panelist.voice,
+    voice: realtimeVoice,
+    requestedVoice: panelist.voice,
+    serverVadEnabled,
   });
 }, { timeoutMs: API_TIMEOUTS.default });

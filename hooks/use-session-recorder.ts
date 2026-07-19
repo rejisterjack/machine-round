@@ -161,15 +161,29 @@ export function useSessionRecorder(options: SessionRecorderOptions) {
 
       recorder.start(CHUNK_INTERVAL_MS);
 
-      if (!stopTimerRef.current) {
-        stopTimerRef.current = setTimeout(() => {
-          if (recorderRef.current?.state === "recording") {
-            recorderRef.current.stop();
-          }
-        }, MAX_RECORDING_MS);
+      if (stopTimerRef.current) {
+        clearTimeout(stopTimerRef.current);
       }
+      stopTimerRef.current = setTimeout(() => {
+        void (async () => {
+          const active = recorderRef.current;
+          if (!active || active.state !== "recording") return;
+          await new Promise<void>((resolve) => {
+            active.onstop = () => resolve();
+            active.requestData();
+            active.stop();
+          });
+          recorderRef.current = null;
+          try {
+            const nextStream = await buildCompositeStream();
+            attachRecorder(nextStream, false);
+          } catch {
+            // Segment restart failed — recording stops until next refresh.
+          }
+        })();
+      }, MAX_RECORDING_MS);
     },
-    [],
+    [buildCompositeStream],
   );
 
   const start = useCallback(async () => {

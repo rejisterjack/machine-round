@@ -3,142 +3,91 @@ import "dotenv/config";
 import pgvector from "pgvector/pg";
 import { QuestionCategory } from "@/generated/client";
 import { getAzureEmbeddings } from "@/lib/ai";
-import { roles } from "@/lib/design/tokens";
+import {
+  JOB_CUSTOM_COURSE,
+  NAMASTE_COURSES,
+  RETIRED_COURSE_SLUGS,
+} from "@/lib/courses/namaste-courses";
 import { prisma } from "@/lib/prisma";
-import { roleIdToSlug } from "@/lib/session/role-slug";
 
 type SeedQuestion = {
-  roleId: (typeof roles)[number]["id"];
+  courseId: string;
   content: string;
   category?: QuestionCategory;
 };
 
 const seedQuestionItems: SeedQuestion[] = [
   {
-    roleId: "full-stack",
-    content:
-      "Tell me about a feature you shipped end-to-end. What tradeoff did you make between frontend speed and backend correctness?",
-    category: "behavioral",
+    courseId: "namaste-dsa",
+    content: "How would you approach finding the longest substring without repeating characters?",
+    category: "technical",
   },
   {
-    roleId: "full-stack",
-    content:
-      "How would you design a REST API for a collaborative document editor with real-time updates?",
+    courseId: "namaste-react",
+    content: "Explain when you would lift state up versus use context in a React app.",
+    category: "technical",
+  },
+  {
+    courseId: "namaste-node",
+    content: "How do you design idempotent payment webhooks at scale?",
     category: "system_design",
   },
   {
-    roleId: "full-stack",
-    content:
-      "Describe how you would debug a slow page that only happens in production.",
-    category: "technical",
-  },
-  {
-    roleId: "full-stack",
-    content:
-      "Walk me through how you decide between server-side rendering and client-side rendering for a new page.",
-    category: "technical",
-  },
-  {
-    roleId: "backend",
-    content:
-      "Describe a production incident you resolved. What signal told you the root cause was in the data layer?",
-    category: "behavioral",
-  },
-  {
-    roleId: "backend",
-    content:
-      "How would you design idempotent payment webhooks at scale?",
+    courseId: "namaste-frontend-system-design",
+    content: "Design the frontend architecture for a collaborative document editor.",
     category: "system_design",
   },
   {
-    roleId: "backend",
-    content:
-      "Explain your approach to database indexing when query patterns evolve over time.",
+    courseId: "namaste-javascript",
+    content: "Walk me through closures and a real bug they helped you fix.",
     category: "technical",
   },
   {
-    roleId: "backend",
-    content:
-      "How do you balance caching with data consistency in a high-traffic service?",
-    category: "technical",
-  },
-  {
-    roleId: "frontend",
-    content:
-      "Walk me through a UI performance issue you fixed. What metric moved and how did you measure it?",
+    courseId: "namaste-interview",
+    content: "Tell me about a frontend bug you debugged under time pressure.",
     category: "behavioral",
   },
   {
-    roleId: "frontend",
-    content:
-      "How would you structure state in a complex dashboard with filters, charts, and live updates?",
-    category: "technical",
-  },
-  {
-    roleId: "frontend",
-    content:
-      "Describe your approach to accessibility when shipping under tight deadlines.",
+    courseId: "job-custom",
+    content: "Tell me about a project that best matches this role's requirements.",
     category: "behavioral",
-  },
-  {
-    roleId: "frontend",
-    content:
-      "What tradeoffs do you consider when choosing between CSS modules, Tailwind, and component libraries?",
-    category: "technical",
-  },
-  {
-    roleId: "product-minded",
-    content:
-      "Tell me about a time you cut scope to ship faster. How did you decide what not to build?",
-    category: "behavioral",
-  },
-  {
-    roleId: "product-minded",
-    content:
-      "How do you validate whether a technical refactor is worth the product delay?",
-    category: "mixed",
-  },
-  {
-    roleId: "product-minded",
-    content:
-      "Describe a feature you shipped where user metrics disagreed with stakeholder expectations.",
-    category: "behavioral",
-  },
-  {
-    roleId: "product-minded",
-    content:
-      "How would you prioritize reliability work versus new feature requests on a small team?",
-    category: "mixed",
   },
 ];
 
 async function seedRoles() {
-  for (const [index, role] of roles.entries()) {
-    const slug = roleIdToSlug(role.id);
-    if (!slug) continue;
+  const allCourses = [...NAMASTE_COURSES, JOB_CUSTOM_COURSE];
 
+  for (const [index, course] of allCourses.entries()) {
     await prisma.role.upsert({
-      where: { slug },
+      where: { slug: course.slug },
       create: {
-        slug,
-        title: role.title,
-        description: role.description,
-        icon: role.icon,
-        imageUrl: role.imageUrl,
-        rating: role.rating,
-        language: role.language,
-        sortOrder: index,
-      },
-      update: {
-        title: role.title,
-        description: role.description,
-        icon: role.icon,
-        imageUrl: role.imageUrl,
-        rating: role.rating,
-        language: role.language,
+        slug: course.slug,
+        title: course.title,
+        description: course.description,
+        icon: course.icon,
+        imageUrl: course.imageUrl,
+        rating: course.rating,
+        language: course.language,
         sortOrder: index,
         isActive: true,
       },
+      update: {
+        title: course.title,
+        description: course.description,
+        icon: course.icon,
+        imageUrl: course.imageUrl,
+        rating: course.rating,
+        language: course.language,
+        sortOrder: index,
+        isActive: true,
+      },
+    });
+  }
+
+  for (const slug of RETIRED_COURSE_SLUGS) {
+    await prisma.role.updateMany({
+      where: { slug },
+      data: { isActive: false },
     });
   }
 }
@@ -155,11 +104,13 @@ async function seedQuestions() {
   }
 
   for (const item of seedQuestionItems) {
-    const slug = roleIdToSlug(item.roleId);
-    if (!slug) continue;
+    const course = [...NAMASTE_COURSES, JOB_CUSTOM_COURSE].find(
+      (entry) => entry.id === item.courseId,
+    );
+    if (!course) continue;
 
-    const roleId = roleBySlug.get(slug);
-    const metadata = { role: item.roleId, source: "seed" };
+    const roleId = roleBySlug.get(course.slug);
+    const metadata = { courseId: item.courseId, source: "seed" };
 
     const existing = await prisma.interviewQuestion.findFirst({
       where: {
@@ -196,7 +147,7 @@ async function seedQuestions() {
 async function main() {
   await seedRoles();
   await seedQuestions();
-  console.log("Seeded roles and interview questions.");
+  console.log("Seeded NamasteDev course tracks and interview questions.");
 }
 
 export async function seedQuestionBank() {

@@ -1,6 +1,7 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
+import { DurationPicker } from "@/components/interview/duration-picker";
 import { PanelistAvatar } from "@/components/interview/panelist-avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -8,11 +9,17 @@ import {
   getPanelistModeLabel,
   type PanelistMode,
 } from "@/lib/ai/personas/panelists";
+import {
+  getLobbyHelperText,
+  type InterviewDuration,
+} from "@/lib/interview/duration-profiles";
 import { ndColors } from "@/lib/design/tokens";
 
 type PreJoinLobbyProps = {
   roleTitle: string;
   panelistMode: PanelistMode;
+  selectedDuration: InterviewDuration;
+  onSelectDuration: (duration: InterviewDuration) => void;
   joining: boolean;
   error?: string;
   onJoin: () => void;
@@ -24,6 +31,8 @@ type PreJoinLobbyProps = {
 export function PreJoinLobby({
   roleTitle,
   panelistMode,
+  selectedDuration,
+  onSelectDuration,
   joining,
   error,
   onJoin,
@@ -35,7 +44,7 @@ export function PreJoinLobby({
 
   return (
     <div
-      className="flex h-dvh w-full flex-col items-center justify-center px-6"
+      className="flex min-h-dvh w-full flex-col items-center justify-center px-6 py-10"
       style={{ backgroundColor: ndColors.bg }}
     >
       <p className="nd-section-heading mb-2">Ready to join?</p>
@@ -50,9 +59,19 @@ export function PreJoinLobby({
         ))}
       </div>
 
+      <div className="mt-10 w-full max-w-4xl">
+        <p className="nd-section-heading mb-2 text-center">Session length</p>
+        <h2 className="text-center font-heading text-xl font-medium sm:text-2xl">
+          How long do you want to practice?
+        </h2>
+        <DurationPicker
+          selected={selectedDuration}
+          onSelect={onSelectDuration}
+        />
+      </div>
+
       <p className="mt-8 max-w-md text-center text-sm text-muted-foreground">
-        Your microphone will be used for this voice-only interview. Camera and
-        screen share are optional.
+        {getLobbyHelperText(selectedDuration)}
       </p>
 
       {error ? (

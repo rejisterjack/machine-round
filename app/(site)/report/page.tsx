@@ -19,10 +19,13 @@ import {
 } from "@/lib/session/interview-store";
 import { canUseStoredReport } from "@/lib/session/report-hydration";
 
+import type { InterviewDuration } from "@/lib/interview/duration-profiles";
+
 type SessionApiResponse = {
   id: string;
   publicId: string;
   roleTitle: string;
+  interviewDuration?: InterviewDuration;
   questionCount: number;
   topicsCovered: string[];
   weakSignals: string[];
@@ -131,6 +134,10 @@ function ReportPageContent() {
                 roleId: stored?.roleId ?? "",
                 roleTitle: data.roleTitle ?? stored?.roleTitle ?? "Interview",
                 panelistMode: stored?.panelistMode ?? "both",
+                interviewDuration:
+                  data.interviewDuration ??
+                  stored?.interviewDuration ??
+                  "minutes_30",
                 messages: data.messages?.length
                   ? data.messages
                   : (stored?.messages ?? []),

@@ -2,6 +2,12 @@ import type { InterviewMessage } from "@/lib/session/interview-store";
 import type { PanelistId } from "@/lib/ai/personas/panelists";
 import type { RealtimeEvent } from "@/lib/voice/realtime-webrtc";
 import {
+  extractItemId,
+  extractResponseId,
+  getAssistantTranscriptSource,
+  type ExtractedRealtimeMessage,
+} from "@/lib/voice/transcript-dedup";
+import {
   enqueueTranscriptSync,
   flushTranscriptQueue,
   type TranscriptSyncPayload,
@@ -15,14 +21,22 @@ export type PartialTranscript = {
   speaker?: PanelistId;
 };
 
+export type { ExtractedRealtimeMessage };
+
 export function extractMessageFromRealtimeEvent(
   event: RealtimeEvent,
   activeSpeaker?: PanelistId,
-): InterviewMessage | null {
+): ExtractedRealtimeMessage | null {
   if (event.type === "conversation.item.input_audio_transcription.completed") {
     const transcript =
       typeof event.transcript === "string" ? event.transcript.trim() : "";
-    return transcript ? { role: "user", content: transcript } : null;
+    return transcript
+      ? {
+          role: "user",
+          content: transcript,
+          itemId: extractItemId(event),
+        }
+      : null;
   }
 
   if (event.type === "response.output_audio_transcript.done") {
@@ -33,6 +47,9 @@ export function extractMessageFromRealtimeEvent(
           role: "assistant",
           content: transcript,
           speaker: activeSpeaker,
+          responseId: extractResponseId(event),
+          itemId: extractItemId(event),
+          source: getAssistantTranscriptSource(event),
         }
       : null;
   }
@@ -44,6 +61,9 @@ export function extractMessageFromRealtimeEvent(
           role: "assistant",
           content: text,
           speaker: activeSpeaker,
+          responseId: extractResponseId(event),
+          itemId: extractItemId(event),
+          source: getAssistantTranscriptSource(event),
         }
       : null;
   }
