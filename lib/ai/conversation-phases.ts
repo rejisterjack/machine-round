@@ -5,7 +5,14 @@ import {
 } from "@/lib/ai/personas/panelists";
 import type { InterviewScope } from "@/lib/courses/interview-scope";
 import { getCourseInterviewScope } from "@/lib/courses/interview-scope";
-import { MAX_QUESTIONS } from "@/lib/design/tokens";
+import {
+  shouldEndByDuration,
+  shouldWarnDurationWrapUp,
+} from "@/lib/ai/question-cap";
+import {
+  DEFAULT_INTERVIEW_DURATION,
+  type InterviewDuration,
+} from "@/lib/interview/duration-profiles";
 import type { InterviewMessage } from "@/lib/session/interview-store";
 
 export type ConversationPhase = "greeting" | "warmup" | "explore" | "closing";
@@ -32,11 +39,17 @@ export function getVarietyStyle(sessionId: string): string {
 
 export function getConversationPhase(
   questionCount: number,
-  maxQuestions: number = MAX_QUESTIONS,
+  elapsedSeconds: number,
+  interviewDuration: InterviewDuration = DEFAULT_INTERVIEW_DURATION,
 ): ConversationPhase {
   if (questionCount <= 0) return "greeting";
   if (questionCount === 1) return "warmup";
-  if (questionCount >= maxQuestions - 1) return "closing";
+  if (
+    shouldWarnDurationWrapUp(elapsedSeconds, interviewDuration) ||
+    shouldEndByDuration(elapsedSeconds, interviewDuration)
+  ) {
+    return "closing";
+  }
   return "explore";
 }
 
@@ -189,9 +202,17 @@ export function buildContinuationPrompt(input: {
   routerReason?: string;
   courseId?: string;
   promptContext?: string;
+  elapsedSeconds?: number;
+  interviewDuration?: InterviewDuration;
 }): string {
   const panelist = getPanelist(input.activePanelist);
-  const phase = getConversationPhase(input.questionCount);
+  const interviewDuration =
+    input.interviewDuration ?? DEFAULT_INTERVIEW_DURATION;
+  const phase = getConversationPhase(
+    input.questionCount,
+    input.elapsedSeconds ?? 0,
+    interviewDuration,
+  );
   const priorSpeaker = getPriorAssistantSpeaker(input.messages);
   const isHandoff = isPanelistHandoff(
     input.activePanelist,

@@ -58,18 +58,37 @@ describe("shouldIncrementQuestionCount", () => {
     const thread = [
       assistant("Hi, welcome."),
       user("Ready."),
+      assistant("Tell me a bit about your background."),
+      user("I have three years of frontend experience."),
       assistant("What is a closure in JavaScript?"),
       user("A function that remembers its lexical scope."),
       assistant("Can you elaborate on the lexical environment part?"),
       user("It stores variables from the outer scope."),
     ];
-    expect(computeQuestionCount(thread)).toBe(2);
+    expect(computeQuestionCount(thread)).toBe(3);
 
     const newQuestion = assistant(
       "Moving on — how does the event loop handle microtasks?",
     );
     expect(shouldIncrementQuestionCount(thread, newQuestion)).toBe(true);
-    expect(computeQuestionCount([...thread, newQuestion])).toBe(3);
+    expect(computeQuestionCount([...thread, newQuestion])).toBe(4);
+  });
+
+  it("does not count probe follow-ups as new topics", () => {
+    const thread = [
+      assistant("Hi, welcome."),
+      user("Ready."),
+      assistant("Tell me a bit about your background."),
+      user("I have three years of frontend experience."),
+      assistant("What is a closure in JavaScript?"),
+      user("A function that remembers its lexical scope."),
+    ];
+
+    const practiceFollowUp = assistant(
+      "How would you use closures in practice?",
+    );
+    expect(shouldIncrementQuestionCount(thread, practiceFollowUp)).toBe(false);
+    expect(computeQuestionCount([...thread, practiceFollowUp])).toBe(3);
   });
 
   it("collapses three realtime chunks into one question", () => {

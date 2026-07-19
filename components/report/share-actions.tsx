@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Copy, Download, Link2 } from "lucide-react";
+import { Check, Copy, Download, Link2, Share2 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { EvaluateResponse } from "@/lib/session/interview-store";
@@ -78,27 +78,40 @@ export function ShareActions({
   }
 
   return (
-    <div className="nd-course-card p-6">
-      <div className="flex flex-col gap-4">
+    <div className="nd-course-card overflow-hidden p-0">
+      <div className="border-b border-border/60 bg-gradient-to-r from-primary/10 via-card to-card px-6 py-5">
         <div className="flex items-start gap-3">
-          <Link2 className="mt-0.5 size-5 text-primary" />
+          <div className="rounded-lg bg-primary/15 p-2 text-primary">
+            <Share2 className="size-5" />
+          </div>
           <div className="min-w-0 flex-1">
             <h2 className="font-heading text-lg font-medium">Share & export</h2>
-            {shareUrl ? (
-              <p className="mt-2 break-all text-sm text-muted-foreground">
-                {shareUrl}
-              </p>
-            ) : (
-              <p className="mt-2 text-sm text-muted-foreground">
-                {canDownloadPdf
-                  ? "Share links are available when your report is saved to the cloud."
-                  : "Share links and PDF export are available when your report is saved to the cloud."}
-              </p>
-            )}
+            <p className="mt-1 text-sm text-muted-foreground">
+              Send your readiness report to a mentor or save a PDF for your prep
+              notes.
+            </p>
           </div>
         </div>
+      </div>
 
-        <div className="flex flex-wrap gap-3">
+      <div className="space-y-4 p-6">
+        {shareUrl ? (
+          <div className="rounded-xl border border-border/70 bg-secondary/20 p-4">
+            <div className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              <Link2 className="size-3.5" />
+              Public link
+            </div>
+            <p className="break-all text-sm text-foreground/90">{shareUrl}</p>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            {canDownloadPdf
+              ? "Share links appear once your report is saved to the cloud."
+              : "Share links and PDF export require a cloud-saved report."}
+          </p>
+        )}
+
+        <div className="flex flex-wrap items-center gap-3">
           {shareUrl ? (
             <Button variant="ndPrimary" onClick={() => void copyLink()}>
               {copied ? (
@@ -125,6 +138,13 @@ export function ShareActions({
             </Button>
           ) : null}
         </div>
+
+        {report?.overallScore !== undefined ? (
+          <p className="text-xs text-muted-foreground">
+            PDF includes your {report.overallScore}/100 score, per-answer
+            breakdown, and improvement actions.
+          </p>
+        ) : null}
 
         {downloadError ? (
           <p className="text-xs text-destructive">{downloadError}</p>
