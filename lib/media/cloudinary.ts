@@ -45,18 +45,24 @@ export function buildMediaFolder(userId: string, sessionId: string) {
   return `machine-round/${userId}/${sessionId}`;
 }
 
+export type UploadImageOptions = {
+  mimeType?: string;
+  publicId?: string;
+};
+
 export async function uploadImage(
   base64: string,
   folder: string,
-  publicId?: string,
+  options: UploadImageOptions = {},
 ): Promise<CloudinaryUploadResult> {
   configureCloudinary();
 
+  const mimeType = options.mimeType ?? "image/jpeg";
   const result = await cloudinary.uploader.upload(
-    `data:image/jpeg;base64,${base64}`,
+    `data:${mimeType};base64,${base64}`,
     {
       folder,
-      public_id: publicId,
+      public_id: options.publicId,
       resource_type: "image",
       overwrite: true,
     },
