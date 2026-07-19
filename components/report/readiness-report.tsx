@@ -79,6 +79,24 @@ export function ReadinessReport({
       </div>
 
       <WeakTopicsCloud topics={report.weakTopics ?? []} />
+
+      {report.screenReviewNotes && report.screenReviewNotes.length > 0 ? (
+        <div className="nd-course-card p-6">
+          <h2 className="font-heading text-lg font-medium">Screen review signals</h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Observations from when you shared your screen during the interview.
+          </p>
+          <ul className="mt-4 space-y-2 text-sm text-muted-foreground">
+            {report.screenReviewNotes.map((note) => (
+              <li key={note} className="flex gap-2">
+                <span className="text-primary">•</span>
+                <span>{note}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
       {showShareActions ? (
         <ShareActions
           shareToken={report.shareToken}
