@@ -5,7 +5,12 @@ import {
   shouldBoostFrameLuminance,
   shouldSampleWhileHidden,
 } from "@/lib/interview/screen-capture";
-import { optimizedCaptureImageUrl, optimizedImageUrl, optimizedVideoUrl } from "@/lib/media/cloudinary-url";
+import {
+  cloudinaryVideoPosterUrl,
+  optimizedCaptureImageUrl,
+  optimizedImageUrl,
+  optimizedVideoUrl,
+} from "@/lib/media/cloudinary-url";
 
 describe("shouldSampleWhileHidden", () => {
   test("returns true so capture continues when the interview tab is backgrounded", () => {
@@ -108,6 +113,16 @@ describe("optimizedCaptureImageUrl", () => {
         process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME = originalCloud;
       }
     }
+  });
+});
+
+describe("cloudinaryVideoPosterUrl", () => {
+  test("builds a frame grab from a cloudinary video url", () => {
+    const url =
+      "https://res.cloudinary.com/demo/video/upload/v123/folder/recording.mp4";
+    expect(cloudinaryVideoPosterUrl(url, { offsetSeconds: 20 })).toBe(
+      "https://res.cloudinary.com/demo/video/upload/so_20,w_1280,h_720,c_fill,q_auto,f_jpg/folder/recording.jpg",
+    );
   });
 });
 
