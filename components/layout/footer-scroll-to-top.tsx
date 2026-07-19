@@ -14,11 +14,9 @@ export function FooterScrollToTop({ className }: FooterScrollToTopProps) {
         type="button"
         aria-label="Scroll to top"
         onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-        className="group flex flex-col items-center gap-2 transition-transform hover:scale-110"
+        className="flex size-11 items-center justify-center rounded-full border-2 border-primary bg-transparent text-primary transition-all hover:bg-primary hover:text-black"
       >
-        <div className="rounded-full border-2 border-primary bg-primary/10 p-3 text-primary transition-all hover:bg-primary hover:text-primary-foreground">
-          <ArrowUp className="size-6" strokeWidth={2} />
-        </div>
+        <ArrowUp className="size-5" strokeWidth={2.5} />
       </button>
     </div>
   );

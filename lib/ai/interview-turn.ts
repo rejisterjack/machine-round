@@ -9,9 +9,15 @@ import {
 } from "@/lib/ai/personas/panelists";
 import { buildInterviewerPrompt } from "@/lib/ai/prompts/interviewer";
 import { getConversationPhase } from "@/lib/ai/conversation-phases";
-import { getGroundedQuestions } from "@/lib/rag/vector-store";
+import { getCourseInterviewScope } from "@/lib/courses/interview-scope";
+import {
+  buildRagGroundingBlock,
+  getGroundedQuestionsStructured,
+} from "@/lib/rag/vector-store";
 import { withRetry } from "@/lib/api/handler";
-import { MAX_QUESTIONS } from "@/lib/design/tokens";
+import { getMaxQuestionsForDuration } from "@/lib/interview/duration-profiles";
+import type { InterviewDuration } from "@/lib/interview/duration-profiles";
+import { resolveMaxQuestions } from "@/lib/ai/question-cap";
 import {
   interviewResponseSchema,
   type InterviewMessage,
@@ -39,20 +45,30 @@ function withSpeaker(
   return { ...parsed, speaker };
 }
 
+function getLastMessageContent(
+  messages: InterviewMessage[],
+  role: InterviewMessage["role"],
+): string | undefined {
+  return messages.filter((message) => message.role === role).at(-1)?.content;
+}
+
 export async function runInterviewTurn(input: {
   roleTitle: string;
   roleId?: string;
   messages: InterviewMessage[];
   questionCount: number;
   panelistMode?: PanelistMode;
+  promptContext?: string;
+  interviewDuration?: InterviewDuration;
 }) {
   const panelistMode = input.panelistMode ?? "both";
   const activePanelist = getPanelistForQuestion(
     input.questionCount,
     panelistMode,
   ).id;
+  const maxQuestions = resolveMaxQuestions(undefined, input.interviewDuration);
 
-  if (input.questionCount >= MAX_QUESTIONS) {
+  if (input.questionCount >= maxQuestions) {
     return {
       message:
         "That wraps us up — thanks so much for your time today. We'll pull up your readiness report next.",
@@ -62,28 +78,35 @@ export async function runInterviewTurn(input: {
   }
 
   const model = getAzureChatModel();
-  const grounded = await getGroundedQuestions(
+  const courseId =
+    input.roleId && input.roleId !== "job-custom" ? input.roleId : undefined;
+  const interviewScope = getCourseInterviewScope(courseId, input.promptContext);
+  const lastUserAnswer = getLastMessageContent(input.messages, "user");
+  const lastAssistant = getLastMessageContent(input.messages, "assistant");
+  const phase = getConversationPhase(input.questionCount, maxQuestions);
+
+  const grounded = await getGroundedQuestionsStructured(
     input.roleTitle,
-    2,
-    input.roleId,
+    3,
+    courseId,
+    {
+      topicAreas: interviewScope?.allowedTopics,
+      strictScope: interviewScope?.strictCourseMode,
+      lastUserAnswer,
+      lastAssistant,
+      messages: input.messages,
+      phase: input.messages.length === 0 ? "greeting" : "follow_up",
+    },
   );
+  const ragBlock = buildRagGroundingBlock(grounded);
   const transcript = input.messages.map(formatMessageSpeaker).join("\n");
 
-  const phase = getConversationPhase(input.questionCount);
   const openingHint =
     phase === "greeting"
       ? `Start the interview like a real video call — greet them warmly, introduce yourself${
           panelistMode === "both" ? " and mention your co-panelist" : ""
-        }, briefly explain this is a machine round for ${input.roleTitle}, then ease in with a light opener.${
-          grounded.length
-            ? ` You may ground one question in this bank if useful: ${grounded.join(" | ")}`
-            : ""
-        }`
-      : `Start the interview with your first question.${
-          grounded.length
-            ? ` Ground one question in this bank if useful: ${grounded.join(" | ")}`
-            : ""
-        }`;
+        }, briefly explain this is a machine round for ${input.roleTitle}, then ease in with a light opener.`
+      : "Start the interview with your first question.";
 
   const invokeModel = async (strictReferencedAnswer = false) => {
     const response = await model.invoke([
@@ -93,6 +116,11 @@ export async function runInterviewTurn(input: {
           questionCount: input.questionCount,
           activePanelist,
           panelistMode,
+          courseId,
+          promptContext: input.promptContext,
+          interviewDuration: input.interviewDuration,
+          maxQuestions,
+          ragBlock,
         }),
       ),
       new HumanMessage(
@@ -123,7 +151,7 @@ export async function runInterviewTurn(input: {
     parsed = await invokeModel(true);
   }
 
-  if (input.questionCount + 1 >= MAX_QUESTIONS) {
+  if (input.questionCount + 1 >= maxQuestions) {
     parsed.done = true;
   }
 

@@ -1,4 +1,4 @@
-import { isPanelistId } from "@/lib/ai/personas/panelists";
+import { normalizeInterviewMessageSpeaker } from "@/lib/session/message-speaker";
 import type { getSessionMediaForReplay } from "@/lib/session/media-queries";
 import { reportToEvaluateResponse } from "@/lib/session/report-queries";
 
@@ -37,10 +37,7 @@ export function buildReplayPayload(session: ReplaySession, media: ReplayMedia) {
     messages: session.messages.map((message) => ({
       role: message.role,
       content: message.content,
-      speaker:
-        message.speakerName && isPanelistId(message.speakerName)
-          ? message.speakerName
-          : undefined,
+      speaker: normalizeInterviewMessageSpeaker(message.speakerName),
     })),
     report: reportToEvaluateResponse(session.report),
     shareToken: session.report?.shareToken ?? null,

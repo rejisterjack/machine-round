@@ -3,6 +3,6 @@ export function canUseStoredReport(
   sessionIdParam: string | null,
 ): boolean {
   if (!stored?.report) return false;
-  if (!sessionIdParam) return true;
+  if (!sessionIdParam) return false;
   return sessionIdParam === stored.dbSessionId;
 }

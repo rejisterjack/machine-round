@@ -14,6 +14,7 @@ const BAR_HEIGHTS = ["h-3", "h-5", "h-7", "h-5", "h-8", "h-4", "h-6", "h-5"] as 
 
 type SpeakerStageProps = {
   activePanelist: PanelistId;
+  speakingPanelist?: PanelistId;
   panelistMode: PanelistMode;
   voiceState: RealtimeVoiceState;
   connecting?: boolean;
@@ -34,6 +35,7 @@ function statusLabel(voiceState: RealtimeVoiceState, name: string) {
 
 export function SpeakerStage({
   activePanelist,
+  speakingPanelist,
   panelistMode,
   voiceState,
   connecting = false,
@@ -43,6 +45,8 @@ export function SpeakerStage({
   const panelists = getActivePanelists(panelistMode);
   const active = getPanelist(activePanelist);
   const joining = handoffPanelist ? getPanelist(handoffPanelist) : null;
+  const ringPanelist = speakingPanelist ?? activePanelist;
+  const ringPanelistInfo = getPanelist(ringPanelist);
   const isSpeaking = voiceState === "speaking";
   const isListening = voiceState === "listening";
 
@@ -50,7 +54,7 @@ export function SpeakerStage({
     ? joining
       ? `${joining.shortName} is joining the call…`
       : "Connecting…"
-    : statusLabel(voiceState, active.shortName);
+    : statusLabel(voiceState, ringPanelistInfo.shortName);
 
   if (compact) {
     return (
@@ -73,16 +77,25 @@ export function SpeakerStage({
     <div className="relative flex h-full w-full flex-col items-center justify-center px-4">
       {panelistMode === "both" ? (
         <div className="absolute right-4 top-4 flex gap-2">
-          {panelists
-            .filter((id) => id !== activePanelist)
-            .map((id) => (
-              <div
-                key={id}
-                className="rounded-xl border border-white/10 bg-black/40 p-2 opacity-60"
-              >
-                <PanelistAvatar panelistId={id} className="size-10" />
-              </div>
-            ))}
+          {connecting && handoffPanelist && handoffPanelist !== activePanelist ? (
+            <div className="rounded-xl border border-primary/40 bg-black/50 p-2">
+              <PanelistAvatar panelistId={handoffPanelist} className="size-10 opacity-80" />
+              <p className="mt-1 text-center text-[10px] text-muted-foreground">
+                Joining…
+              </p>
+            </div>
+          ) : (
+            panelists
+              .filter((id) => id !== activePanelist)
+              .map((id) => (
+                <div
+                  key={id}
+                  className="rounded-xl border border-white/10 bg-black/40 p-2 opacity-60"
+                >
+                  <PanelistAvatar panelistId={id} className="size-10" />
+                </div>
+              ))
+          )}
         </div>
       ) : null}
 

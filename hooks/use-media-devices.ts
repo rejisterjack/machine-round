@@ -1,6 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  getDisplaySurface,
+  getScreenShareWarning,
+  isMonitorCapture,
+  requestScreenCapture,
+  type DisplaySurface,
+} from "@/lib/media/display-capture";
 
 type UseMediaDevicesOptions = {
   onScreenShareEnd?: () => void;
@@ -13,21 +20,49 @@ export function useMediaDevices(options: UseMediaDevicesOptions = {}) {
   const [muted, setMuted] = useState(false);
   const [cameraEnabled, setCameraEnabled] = useState(false);
   const [sharingScreen, setSharingScreen] = useState(false);
+  const [captureSurface, setCaptureSurface] = useState<DisplaySurface>();
+  const [screenShareWarning, setScreenShareWarning] = useState<string>();
   const [error, setError] = useState<string>();
   const micStreamRef = useRef<MediaStream | null>(null);
+  const cameraStreamRef = useRef<MediaStream | null>(null);
+  const screenStreamRef = useRef<MediaStream | null>(null);
   const onScreenShareEndRef = useRef(options.onScreenShareEnd);
+
   useEffect(() => {
     onScreenShareEndRef.current = options.onScreenShareEnd;
   }, [options.onScreenShareEnd]);
+
+  useEffect(() => {
+    micStreamRef.current = micStream;
+  }, [micStream]);
+
+  useEffect(() => {
+    cameraStreamRef.current = cameraStream;
+  }, [cameraStream]);
+
+  useEffect(() => {
+    screenStreamRef.current = screenStream;
+  }, [screenStream]);
 
   const notifyScreenShareEnd = useCallback(() => {
     onScreenShareEndRef.current?.();
   }, []);
 
+  const stopStreamTracks = useCallback((stream: MediaStream | null) => {
+    stream?.getTracks().forEach((track) => track.stop());
+  }, []);
+
+  const attachTrackEndedHandler = useCallback(
+    (track: MediaStreamTrack, onEnded: () => void) => {
+      track.onended = onEnded;
+    },
+    [],
+  );
+
   const requestMic = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      micStreamRef.current?.getTracks().forEach((t) => t.stop());
+      stopStreamTracks(micStreamRef.current);
       micStreamRef.current = stream;
       setMicStream(stream);
       setError(undefined);
@@ -36,7 +71,7 @@ export function useMediaDevices(options: UseMediaDevicesOptions = {}) {
       setError("Microphone permission denied.");
       return null;
     }
-  }, []);
+  }, [stopStreamTracks]);
 
   const toggleMic = useCallback(() => {
     const stream = micStreamRef.current;
@@ -48,66 +83,135 @@ export function useMediaDevices(options: UseMediaDevicesOptions = {}) {
     setMuted(next);
   }, [muted]);
 
+  const ensureCamera = useCallback(async () => {
+    const existing = cameraStreamRef.current;
+    if (cameraEnabled && existing?.getVideoTracks().some((track) => track.readyState === "live")) {
+      return existing;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user" },
+        audio: false,
+      });
+      const track = stream.getVideoTracks()[0];
+      if (track) {
+        attachTrackEndedHandler(track, () => {
+          if (cameraStreamRef.current === stream) {
+            cameraStreamRef.current = null;
+            setCameraStream(null);
+            setCameraEnabled(false);
+          }
+        });
+      }
+      stopStreamTracks(cameraStreamRef.current);
+      cameraStreamRef.current = stream;
+      setCameraStream(stream);
+      setCameraEnabled(true);
+      setError(undefined);
+      return stream;
+    } catch {
+      setError("Camera permission denied.");
+      return null;
+    }
+  }, [attachTrackEndedHandler, cameraEnabled, stopStreamTracks]);
+
   const toggleCamera = useCallback(async () => {
     if (cameraEnabled) {
-      cameraStream?.getTracks().forEach((t) => t.stop());
+      stopStreamTracks(cameraStreamRef.current);
+      cameraStreamRef.current = null;
       setCameraStream(null);
       setCameraEnabled(false);
       return;
     }
 
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      setCameraStream(stream);
-      setCameraEnabled(true);
-      setError(undefined);
-    } catch {
-      setError("Camera permission denied.");
-    }
-  }, [cameraEnabled, cameraStream]);
+    await ensureCamera();
+  }, [cameraEnabled, ensureCamera, stopStreamTracks]);
 
   const startScreenShare = useCallback(async () => {
     try {
-      const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: { frameRate: { ideal: 15, max: 30 } },
-        audio: false,
-      });
+      const stream = await requestScreenCapture();
       const track = stream.getVideoTracks()[0];
-      track.onended = () => {
-        setScreenStream(null);
-        setSharingScreen(false);
-        notifyScreenShareEnd();
-      };
+      if (!track) {
+        stopStreamTracks(stream);
+        setError("Screen share did not return a video track.");
+        return null;
+      }
+
+      const surface = getDisplaySurface(track);
+      setCaptureSurface(surface);
+      setScreenShareWarning(
+        isMonitorCapture(surface) ? undefined : getScreenShareWarning(surface),
+      );
+
+      attachTrackEndedHandler(track, () => {
+        if (screenStreamRef.current === stream) {
+          screenStreamRef.current = null;
+          setScreenStream(null);
+          setSharingScreen(false);
+          setCaptureSurface(undefined);
+          setScreenShareWarning(undefined);
+          notifyScreenShareEnd();
+        }
+      });
+
+      stopStreamTracks(screenStreamRef.current);
+      screenStreamRef.current = stream;
       setScreenStream(stream);
       setSharingScreen(true);
       setError(undefined);
       return stream;
-    } catch {
-      setError("Screen share was cancelled or denied.");
+    } catch (shareError) {
+      if (
+        shareError instanceof DOMException &&
+        shareError.name === "NotAllowedError"
+      ) {
+        setError("Screen share was cancelled or denied.");
+      } else {
+        setError("Could not start screen share.");
+      }
       return null;
     }
-  }, [notifyScreenShareEnd]);
+  }, [attachTrackEndedHandler, notifyScreenShareEnd, stopStreamTracks]);
 
   const stopScreenShare = useCallback(() => {
-    screenStream?.getTracks().forEach((t) => t.stop());
+    stopStreamTracks(screenStreamRef.current);
+    screenStreamRef.current = null;
     setScreenStream(null);
     setSharingScreen(false);
+    setCaptureSurface(undefined);
+    setScreenShareWarning(undefined);
     notifyScreenShareEnd();
-  }, [notifyScreenShareEnd, screenStream]);
+  }, [notifyScreenShareEnd, stopStreamTracks]);
+
+  const retryScreenShare = useCallback(async () => {
+    stopScreenShare();
+    return startScreenShare();
+  }, [startScreenShare, stopScreenShare]);
 
   const cleanup = useCallback(() => {
-    micStreamRef.current?.getTracks().forEach((t) => t.stop());
-    cameraStream?.getTracks().forEach((t) => t.stop());
-    screenStream?.getTracks().forEach((t) => t.stop());
+    stopStreamTracks(micStreamRef.current);
+    stopStreamTracks(cameraStreamRef.current);
+    stopStreamTracks(screenStreamRef.current);
     micStreamRef.current = null;
+    cameraStreamRef.current = null;
+    screenStreamRef.current = null;
     setMicStream(null);
     setCameraStream(null);
     setScreenStream(null);
     setCameraEnabled(false);
     setSharingScreen(false);
-  }, [cameraStream, screenStream]);
+    setCaptureSurface(undefined);
+    setScreenShareWarning(undefined);
+  }, [stopStreamTracks]);
 
-  useEffect(() => () => cleanup(), [cleanup]);
+  useEffect(() => {
+    return () => {
+      stopStreamTracks(micStreamRef.current);
+      stopStreamTracks(cameraStreamRef.current);
+      stopStreamTracks(screenStreamRef.current);
+    };
+  }, [stopStreamTracks]);
 
   return {
     micStream,
@@ -116,12 +220,16 @@ export function useMediaDevices(options: UseMediaDevicesOptions = {}) {
     muted,
     cameraEnabled,
     sharingScreen,
+    captureSurface,
+    screenShareWarning,
     error,
     requestMic,
     toggleMic,
     toggleCamera,
+    ensureCamera,
     startScreenShare,
     stopScreenShare,
+    retryScreenShare,
     cleanup,
   };
 }

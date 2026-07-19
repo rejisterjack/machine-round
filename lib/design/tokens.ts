@@ -1,3 +1,9 @@
+import {
+  getSelectableCourses,
+  JOB_CUSTOM_COURSE,
+  NAMASTE_COURSES,
+} from "@/lib/courses/namaste-courses";
+
 export const ndColors = {
   bg: "#030303",
   surface: "#111111",
@@ -12,48 +18,19 @@ export const ndColors = {
   userBubble: "#252525",
 } as const;
 
-export const roles = [
-  {
-    id: "full-stack",
-    title: "Full-Stack Engineer",
-    description:
-      "System design, APIs, frontend delivery, and cross-stack tradeoffs.",
-    icon: "Layers",
-    imageUrl: "/brand/roles/full-stack.webp",
-    rating: 4.9,
-    language: "English",
-  },
-  {
-    id: "backend",
-    title: "Backend Engineer",
-    description:
-      "Services, databases, reliability, and performance under load.",
-    icon: "Server",
-    imageUrl: "/brand/roles/backend.webp",
-    rating: 4.9,
-    language: "English",
-  },
-  {
-    id: "frontend",
-    title: "Frontend Engineer",
-    description:
-      "UI craft, accessibility, state management, and web performance.",
-    icon: "Monitor",
-    imageUrl: "/brand/roles/frontend.webp",
-    rating: 4.9,
-    language: "English",
-  },
-  {
-    id: "product-minded",
-    title: "Product-minded Engineer",
-    description:
-      "User impact, prioritization, and shipping with product judgment.",
-    icon: "Sparkles",
-    imageUrl: "/brand/roles/product-minded.webp",
-    rating: 4.9,
-    language: "English",
-  },
-] as const;
+/** NamasteDev course interview tracks — titles/images match namastedev.com/learn */
+export const roles = getSelectableCourses().map((course) => ({
+  id: course.id,
+  title: course.title,
+  description: course.description,
+  icon: course.icon,
+  imageUrl: course.imageUrl,
+  rating: course.rating,
+  language: course.language,
+  href: course.href,
+  tier: course.tier,
+  kind: course.kind,
+}));
 
 export type RoleId = (typeof roles)[number]["id"];
 
@@ -95,6 +72,56 @@ export const appStoreLinks = [
   },
 ] as const;
 
+/** Footer course column — matches namastedev.com footer */
+const footerCourseIds = [
+  "namaste-dsa",
+  "namaste-react",
+  "namaste-node",
+  "namaste-frontend-system-design",
+  "namaste-javascript",
+  "namaste-interview",
+] as const;
+
+export const footerCourseLinks = footerCourseIds.map((id) => {
+  const course = NAMASTE_COURSES.find((item) => item.id === id);
+  if (!course) {
+    throw new Error(`Missing footer course: ${id}`);
+  }
+
+  return {
+    label: id === "namaste-node" ? "Namaste Node" : course.title,
+    href: course.href,
+  };
+});
+
+export const footerCta = {
+  headline: "Ready to Transform Your Career?",
+  description:
+    "Explore our course bundles designed to take you from beginner to job-ready, with skills that top companies demand.",
+  buttonLabel: "EXPLORE COURSE BUNDLES",
+  href: "https://namastedev.com/learn",
+} as const;
+
+/** Matches namastedev.com homepage hero */
+export const heroContent = {
+  eyebrow: "Learn To code. Launch Your Career.",
+  lead: "Learn. Build. Grow.",
+  title: "Become The Top 1% ",
+  accent: "Software Engineer!",
+  description:
+    "Go from zero to hero, build hands-on projects, gain practical skills and the confidence to turn code into a career.",
+  checklist: [
+    "Frontend, backend, or full-stack mastery",
+    "Solve hands-on coding challenges",
+    "Get job-ready and land your dream offers",
+  ],
+  ctaLabel: "Explore Courses",
+  ctaHref: "https://namastedev.com/learn",
+  ctaExternal: true,
+  imageSrc: "/brand/hero-interview.jpeg",
+  imageAlt: "Akshay Saini with YouTube Silver Play Button",
+} as const;
+
 export const footerNav = {
   navigation: [
     {
@@ -115,32 +142,7 @@ export const footerNav = {
     { label: "Need Help", href: "https://namastedev.com/pages/faq" },
     { label: "Free Guides", href: "https://namastedev.com/guides" },
   ],
-  courses: [
-    {
-      label: "Namaste DSA",
-      href: "https://namastedev.com/learn/dsa-in-javascript",
-    },
-    {
-      label: "Namaste React",
-      href: "https://namastedev.com/learn/namaste-react",
-    },
-    {
-      label: "Namaste Node.js",
-      href: "https://namastedev.com/learn/namaste-node",
-    },
-    {
-      label: "Namaste Frontend System Design",
-      href: "https://namastedev.com/learn/namaste-frontend-system-design",
-    },
-    {
-      label: "Namaste JavaScript",
-      href: "https://namastedev.com/learn/namaste-javascript",
-    },
-    {
-      label: "Crack Frontend Interview",
-      href: "https://namastedev.com/learn/namaste-interview",
-    },
-  ],
+  courses: footerCourseLinks,
   legal: [
     {
       label: "Privacy Policy",
@@ -163,13 +165,50 @@ export const footerNav = {
 export const whatsappUrl =
   "https://wa.me/919876543210?text=Hi%20NamasteDev%2C%20I%20have%20a%20question%20about%20Namaste%20Machine%20Round";
 
-export const exploreCourses = [
-  { label: "Namaste DSA", href: "https://namastedev.com" },
-  { label: "Namaste React", href: "https://namastedev.com" },
-  { label: "Namaste Node.js", href: "https://namastedev.com" },
+/** Matches namastedev.com header Explore menu */
+export const exploreNavItems = [
   {
-    label: "Namaste Frontend System Design",
-    href: "https://namastedev.com",
+    label: "Interview Practice",
+    href: "/interview",
+    icon: "monitor",
   },
+  {
+    label: "Join Community",
+    href: "https://discord.gg/AGWng6gTxQ",
+    icon: "users",
+  },
+  {
+    label: "Leaderboard",
+    href: "https://namastedev.com/leaderboard",
+    icon: "trophy",
+  },
+  {
+    label: "Quizzes",
+    href: "https://namastedev.com/quizzes",
+    icon: "clipboard",
+  },
+  {
+    label: "Playground",
+    href: "https://namastedev.com/playground",
+    icon: "code",
+  },
+] as const;
+
+export const hackathonNav = {
+  label: "Hackathon",
+  href: "https://namastedev.com/hackathon",
+  live: true,
+} as const;
+
+export const coursesNav = {
+  label: "Courses",
+  href: "https://namastedev.com/learn",
+} as const;
+
+export const exploreCourses = [
+  ...NAMASTE_COURSES.map((course) => ({
+    label: course.title,
+    href: course.href,
+  })),
   { label: "Namaste Machine Round", href: "/" },
 ] as const;

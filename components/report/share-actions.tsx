@@ -9,6 +9,7 @@ type ShareActionsProps = {
   shareToken?: string | null;
   report?: EvaluateResponse;
   roleTitle?: string;
+  sessionId?: string;
   /** When set, PDF downloads via the public share route (no auth). */
   publicShareToken?: string;
 };
@@ -17,6 +18,7 @@ export function ShareActions({
   shareToken,
   report,
   roleTitle,
+  sessionId,
   publicShareToken,
 }: ShareActionsProps) {
   const [copied, setCopied] = useState(false);
@@ -41,8 +43,10 @@ export function ShareActions({
     }
   }
 
+  const canDownloadPdf = Boolean(sessionId || publicShareToken);
+
   async function downloadPdf() {
-    if (!report && !publicShareToken) return;
+    if (!canDownloadPdf) return;
     setDownloading(true);
     setDownloadError(undefined);
 
@@ -52,7 +56,7 @@ export function ShareActions({
         : await fetch("/api/reports/pdf", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ...report, roleTitle }),
+            body: JSON.stringify({ sessionId, roleTitle }),
           });
 
       if (!response.ok) {
@@ -86,8 +90,9 @@ export function ShareActions({
               </p>
             ) : (
               <p className="mt-2 text-sm text-muted-foreground">
-                Share links are available when your report is saved to the cloud.
-                You can still download a PDF from this device.
+                {canDownloadPdf
+                  ? "Share links are available when your report is saved to the cloud."
+                  : "Share links and PDF export are available when your report is saved to the cloud."}
               </p>
             )}
           </div>
@@ -109,7 +114,7 @@ export function ShareActions({
               )}
             </Button>
           ) : null}
-          {report || publicShareToken ? (
+          {canDownloadPdf ? (
             <Button
               variant="ndFilled"
               disabled={downloading}

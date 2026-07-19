@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { withApiHandler } from "@/lib/api/handler";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { isDbReady } from "@/lib/db/ready";
-import { appendInterviewMessages } from "@/lib/session/persistence";
+import { appendInterviewMessages, recomputeSessionQuestionCount } from "@/lib/session/persistence";
 import { transcriptRequestSchema } from "@/lib/session/interview-store";
 import { assertSessionOwner } from "@/lib/session/session-access";
 import type { SessionStatus } from "@/generated/client";
@@ -13,16 +13,12 @@ type TranscriptBody = z.infer<typeof transcriptRequestSchema>;
 
 async function applyTranscriptSessionMetadata(body: TranscriptBody) {
   const data: {
-    questionCount?: number;
     topicsCovered?: string[];
     weakSignals?: string[];
     status?: SessionStatus;
     completedAt?: Date | null;
   } = {};
 
-  if (body.questionCount !== undefined) {
-    data.questionCount = body.questionCount;
-  }
   if (body.topicsCovered !== undefined) {
     data.topicsCovered = body.topicsCovered;
   }
@@ -62,6 +58,7 @@ export const POST = withApiHandler(async (request: Request) => {
       });
       if (existing) {
         await applyTranscriptSessionMetadata(body);
+        await recomputeSessionQuestionCount(body.sessionId);
         return NextResponse.json({ ok: true, deduped: true });
       }
     }
@@ -79,7 +76,6 @@ export const POST = withApiHandler(async (request: Request) => {
         inputMode: "voice",
         clientSyncId: body.clientSyncId,
         referencedAnswer: body.referencedAnswer,
-        questionCount: body.questionCount,
         topicsCovered: body.topicsCovered,
         weakSignals: body.weakSignals,
         status: body.status as SessionStatus | undefined,
@@ -91,6 +87,7 @@ export const POST = withApiHandler(async (request: Request) => {
               : null,
       },
     );
+    await recomputeSessionQuestionCount(body.sessionId);
   }
 
   return NextResponse.json({ ok: true });

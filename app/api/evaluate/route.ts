@@ -1,124 +1,97 @@
-import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { NextResponse } from "next/server";
-import { API_TIMEOUTS, withApiHandler, withRetry } from "@/lib/api/handler";
+import { after } from "next/server";
+import { assertRateLimit, rateLimitKey } from "@/lib/api/assert-rate-limit";
+import { API_TIMEOUTS, withApiHandler } from "@/lib/api/handler";
 import { ApiError } from "@/lib/api/errors";
 import { requireAuth } from "@/lib/auth/require-auth";
-import { getAzureEvaluatorModel, getAzureConfig } from "@/lib/ai";
-import { formatMessageSpeaker } from "@/lib/ai/personas/panelists";
-import { buildEvaluatorPrompt } from "@/lib/ai/prompts/evaluator";
 import { isDbReady } from "@/lib/db/ready";
-import { getScreenObservations } from "@/lib/session/media-queries";
+import { prisma } from "@/lib/prisma";
+import { generateEvaluateReport } from "@/lib/session/generate-evaluate-report";
+import { evaluateRequestSchema } from "@/lib/session/interview-store";
+import { getInterviewSessionById } from "@/lib/session/persistence";
 import { buildCachedEvaluatePayload } from "@/lib/session/evaluate-cache";
 import { shouldReturnCachedReport } from "@/lib/session/evaluate-idempotency";
-import {
-  appendInterviewMessages,
-  getInterviewSessionById,
-  saveReadinessReport,
-} from "@/lib/session/persistence";
-import {
-  evaluateRequestSchema,
-  evaluateResponseSchema,
-} from "@/lib/session/interview-store";
-import { resolveRole } from "@/lib/session/roles";
 import { assertSessionOwnerIfPresent } from "@/lib/session/session-access";
 
-function normalizeImprovements(improvements: string[]) {
-  const unique = improvements.filter(Boolean).slice(0, 3);
-  while (unique.length < 2) {
-    unique.push(
-      "Lead with a concrete example, metric, and tradeoff in your next answer.",
-    );
-  }
-  return unique;
-}
+export const maxDuration = 60;
+
+const EVALUATE_LIMIT = 10;
+const EVALUATE_WINDOW_MS = 60_000;
 
 export const POST = withApiHandler(async (request: Request) => {
   const authSession = await requireAuth();
+  assertRateLimit(
+    request,
+    rateLimitKey(request, ["evaluate", authSession.user.id]),
+    { limit: EVALUATE_LIMIT, windowMs: EVALUATE_WINDOW_MS },
+    "Too many report generations. Please wait a minute.",
+  );
+
   const body = evaluateRequestSchema.parse(await request.json());
   if (!body.sessionId) {
     throw new ApiError("VALIDATION_ERROR", "sessionId is required.", 400);
   }
   await assertSessionOwnerIfPresent(body.sessionId, authSession.user.id);
-  const role = await resolveRole(body);
 
-  let sessionWeakSignals = body.weakSignals ?? [];
-  let dbSession = null;
+  const sync = new URL(request.url).searchParams.get("sync") === "1";
 
-  if (body.sessionId && (await isDbReady())) {
-    dbSession = await getInterviewSessionById(body.sessionId);
-    if (dbSession) {
-      sessionWeakSignals = dbSession.weakSignals;
-      const unsynced = body.messages.slice(dbSession.messages.length);
-      if (unsynced.length > 0) {
-        await appendInterviewMessages(body.sessionId, unsynced);
-        dbSession = await getInterviewSessionById(body.sessionId);
+  if (await isDbReady()) {
+    const dbSession = await getInterviewSessionById(body.sessionId);
+    if (dbSession && shouldReturnCachedReport(Boolean(dbSession.report))) {
+      const cached = buildCachedEvaluatePayload(dbSession);
+      if (cached) {
+        return NextResponse.json(cached);
       }
+    }
 
-      if (
-        dbSession &&
-        shouldReturnCachedReport(
-          dbSession.messages.length === body.messages.length,
-          Boolean(dbSession.report),
-        )
-      ) {
-        const cached = buildCachedEvaluatePayload(dbSession);
-        if (cached) {
-          return NextResponse.json(cached);
-        }
-      }
+    if (
+      !sync &&
+      dbSession?.status === "thinking" &&
+      Date.now() - dbSession.updatedAt.getTime() < 120_000
+    ) {
+      return NextResponse.json(
+        { jobId: body.sessionId, status: "thinking" },
+        { status: 202 },
+      );
     }
   }
 
-  const transcript = body.messages.map(formatMessageSpeaker).join("\n");
-
-  const screenObservations =
-    body.sessionId && (await isDbReady())
-      ? (await getScreenObservations(body.sessionId)).map((observation) => ({
-          timestamp: observation.timestamp.toISOString(),
-          summary: observation.summary,
-        }))
-      : [];
-
-  const model = getAzureEvaluatorModel();
-  const screenNotes = screenObservations.map((o) => o.summary);
-  const response = await withRetry(() =>
-    model.invoke([
-      new SystemMessage(
-        buildEvaluatorPrompt(role.title, transcript, screenNotes),
-      ),
-      new HumanMessage("Return the readiness report JSON."),
-    ]),
-  );
-
-  const content =
-    typeof response.content === "string"
-      ? response.content
-      : JSON.stringify(response.content);
-
-  const jsonMatch = content.match(/\{[\s\S]*\}/);
-  const parsed = evaluateResponseSchema.parse(
-    JSON.parse(jsonMatch ? jsonMatch[0] : content),
-  );
-  parsed.improvements = normalizeImprovements(parsed.improvements);
-
-  if (body.sessionId && (await isDbReady())) {
-    const saved = await saveReadinessReport(
-      body.sessionId,
-      parsed,
-      getAzureConfig().chatDeployment,
-      sessionWeakSignals,
-      parsed.screenReviewNotes ?? [],
-    );
-
-    return NextResponse.json({
-      ...parsed,
-      shareToken: saved.shareToken,
-      weakTopics: saved.weakTopicTags.map((tag) => ({
-        label: tag.label,
-        weight: tag.weight,
-      })),
+  if (!sync && (await isDbReady())) {
+    await prisma.interviewSession.update({
+      where: { id: body.sessionId },
+      data: { status: "thinking", lastError: null },
     });
+
+    after(async () => {
+      try {
+        await generateEvaluateReport({
+          sessionId: body.sessionId!,
+          userId: authSession.user.id,
+          messages: body.messages,
+          weakSignals: body.weakSignals,
+        });
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Evaluate failed.";
+        await prisma.interviewSession.update({
+          where: { id: body.sessionId! },
+          data: { status: "error", lastError: message.slice(0, 500) },
+        });
+      }
+    });
+
+    return NextResponse.json(
+      { jobId: body.sessionId, status: "thinking" },
+      { status: 202 },
+    );
   }
 
-  return NextResponse.json(parsed);
+  const report = await generateEvaluateReport({
+    sessionId: body.sessionId,
+    userId: authSession.user.id,
+    messages: body.messages,
+    weakSignals: body.weakSignals,
+  });
+
+  return NextResponse.json(report);
 }, { timeoutMs: API_TIMEOUTS.evaluate });

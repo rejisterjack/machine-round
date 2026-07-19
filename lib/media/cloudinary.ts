@@ -7,6 +7,16 @@ export type CloudinaryUploadResult = {
   duration?: number;
 };
 
+export type DirectUploadSignature = {
+  cloudName: string;
+  apiKey: string;
+  timestamp: number;
+  folder: string;
+  signature: string;
+  resourceType: "video";
+  publicId?: string;
+};
+
 function configureCloudinary() {
   const url = process.env.CLOUDINARY_URL?.trim();
   if (url) {
@@ -43,6 +53,45 @@ export function isCloudinaryConfigured(): boolean {
 
 export function buildMediaFolder(userId: string, sessionId: string) {
   return `machine-round/${userId}/${sessionId}`;
+}
+
+export function createDirectUploadSignature(
+  folder: string,
+  publicId = "session-recording",
+): DirectUploadSignature {
+  configureCloudinary();
+
+  const cloudName =
+    process.env.CLOUDINARY_CLOUD_NAME?.trim() ??
+    cloudinary.config().cloud_name;
+  const apiKey =
+    process.env.CLOUDINARY_API_KEY?.trim() ?? cloudinary.config().api_key;
+  const apiSecret =
+    process.env.CLOUDINARY_API_SECRET?.trim() ?? cloudinary.config().api_secret;
+
+  if (!cloudName || !apiKey || !apiSecret) {
+    throw new Error("Cloudinary credentials are not configured.");
+  }
+
+  const timestamp = Math.round(Date.now() / 1000);
+  const params = {
+    folder,
+    public_id: publicId,
+    timestamp,
+    resource_type: "video" as const,
+  };
+
+  const signature = cloudinary.utils.api_sign_request(params, apiSecret);
+
+  return {
+    cloudName,
+    apiKey,
+    timestamp,
+    folder,
+    signature,
+    resourceType: "video",
+    publicId,
+  };
 }
 
 export type UploadImageOptions = {
@@ -120,4 +169,40 @@ export async function deleteAsset(
 ) {
   configureCloudinary();
   await cloudinary.uploader.destroy(publicId, { resource_type: resourceType });
+}
+
+export type CloudinaryResourceSummary = {
+  publicId: string;
+  resourceType: "image" | "video";
+};
+
+export async function listResourcesByPrefix(
+  prefix: string,
+  resourceType: "image" | "video",
+): Promise<CloudinaryResourceSummary[]> {
+  configureCloudinary();
+
+  const resources: CloudinaryResourceSummary[] = [];
+  let nextCursor: string | undefined;
+
+  do {
+    const page = await cloudinary.api.resources({
+      type: "upload",
+      resource_type: resourceType,
+      prefix,
+      max_results: 500,
+      next_cursor: nextCursor,
+    });
+
+    for (const resource of page.resources ?? []) {
+      resources.push({
+        publicId: resource.public_id,
+        resourceType,
+      });
+    }
+
+    nextCursor = page.next_cursor;
+  } while (nextCursor);
+
+  return resources;
 }

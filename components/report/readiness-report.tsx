@@ -1,5 +1,5 @@
 import { AlertTriangle } from "lucide-react";
-import { ShareActions } from "@/components/report/share-actions";
+import { LazyShareActions } from "@/components/report/lazy-share-actions";
 import { WeakTopicsCloud } from "@/components/report/weak-topics-cloud";
 import { Progress } from "@/components/ui/progress";
 import type { EvaluateResponse } from "@/lib/session/interview-store";
@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 type ReadinessReportProps = {
   report: EvaluateResponse & { shareToken?: string | null };
   roleTitle?: string;
+  sessionId?: string;
   generatedAt?: string;
   showShareActions?: boolean;
 };
@@ -39,6 +40,7 @@ function scoreTone(score: number) {
 export function ReadinessReport({
   report,
   roleTitle,
+  sessionId,
   generatedAt,
   showShareActions = true,
 }: ReadinessReportProps) {
@@ -98,10 +100,11 @@ export function ReadinessReport({
       ) : null}
 
       {showShareActions ? (
-        <ShareActions
+        <LazyShareActions
           shareToken={report.shareToken}
           report={report}
           roleTitle={roleTitle}
+          sessionId={sessionId}
         />
       ) : null}
 
