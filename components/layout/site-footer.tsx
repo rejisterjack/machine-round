@@ -1,12 +1,9 @@
-"use client";
-
 import Image from "next/image";
 import { AtSign, Earth, Heart, Map } from "lucide-react";
 import { AppStoreBadges } from "@/components/brand/app-store-badges";
 import { SocialLinks } from "@/components/brand/social-links";
-import { FooterNewsletter } from "@/components/layout/footer-newsletter";
 import { FooterScrollToTop } from "@/components/layout/footer-scroll-to-top";
-import { footerNav } from "@/lib/design/tokens";
+import { footerCta, footerNav } from "@/lib/design/tokens";
 
 function FooterColumn({
   icon: Icon,
@@ -19,9 +16,11 @@ function FooterColumn({
 }) {
   return (
     <div className="flex flex-col gap-4">
-      <Icon className="size-6 text-primary" strokeWidth={2} />
-      <div className="font-semibold text-foreground">{title}</div>
-      <div className="flex flex-col gap-2">{children}</div>
+      <div className="nd-footer-column-title">
+        <Icon className="size-5 shrink-0 text-primary" strokeWidth={2} />
+        <span>{title}</span>
+      </div>
+      <div className="flex flex-col gap-2.5">{children}</div>
     </div>
   );
 }
@@ -55,8 +54,8 @@ function MadeInIndiaHeart() {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
+      width="18"
+      height="18"
       viewBox="0 0 24 24"
       aria-hidden
       className="text-nd-heart"
@@ -71,94 +70,83 @@ function MadeInIndiaHeart() {
 
 export function SiteFooter() {
   return (
-    <footer className="w-full bg-nd-footer">
-      <div className="nd-container">
-        <FooterNewsletter />
+    <footer className="w-full bg-black">
+      <div className="nd-footer-bar">
+        <div className="nd-footer-grid">
+          <div className="flex flex-col gap-4">
+            <Image
+              src="/brand/logo.webp"
+              alt="NamasteDev"
+              width={208}
+              height={45}
+              className="h-auto w-44 object-contain sm:w-[13rem]"
+              unoptimized
+            />
+            <p className="text-base font-semibold text-foreground">
+              {footerCta.headline}
+            </p>
+            <p className="max-w-xs text-sm leading-relaxed text-nd-muted-text">
+              {footerCta.description}
+            </p>
+            <a
+              href={footerCta.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="nd-footer-cta"
+            >
+              {footerCta.buttonLabel}
+            </a>
+            <AppStoreBadges className="mt-1" />
+          </div>
 
-        <div className="nd-section-gap nd-surface-panel">
-          <div className="relative z-10 flex flex-col gap-8 lg:flex-row lg:items-start lg:justify-between">
-            <div className="flex w-full flex-col gap-4 lg:max-w-xs">
-              <Image
-                src="/brand/logo.webp"
-                alt="NamasteDev"
-                width={208}
-                height={45}
-                className="h-auto w-44 object-contain sm:w-52"
-                unoptimized
-              />
-              <p className="text-sm text-foreground">
-                Ready to Transform Your Career?
-              </p>
-              <p className="text-xs text-nd-muted-text">
-                Explore our course bundles designed to take you from beginner to
-                job-ready, with skills that top companies demand.
-              </p>
-              <div className="relative w-full rounded-full bg-nd-cta-track p-1">
-                <a
-                  href="https://namastedev.com/learn"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="relative inline-block w-full rounded-full border-2 border-transparent bg-primary px-4 py-3 text-center text-xs font-semibold text-primary-foreground transition hover:bg-primary/80 sm:px-6"
-                >
-                  EXPLORE COURSE BUNDLES
-                </a>
-              </div>
-              <AppStoreBadges />
-            </div>
+          <FooterColumn icon={Map} title="Navigation">
+            {footerNav.navigation.map((link) => (
+              <FooterLink key={link.label} href={link.href}>
+                {link.label}
+              </FooterLink>
+            ))}
+          </FooterColumn>
 
-            <div className="grid w-full grid-cols-1 gap-8 sm:grid-cols-2 lg:contents lg:w-auto">
-              <FooterColumn icon={Map} title="Navigation">
-                {footerNav.navigation.map((link) => (
-                  <FooterLink key={link.label} href={link.href}>
-                    {link.label}
-                  </FooterLink>
-                ))}
-              </FooterColumn>
+          <FooterColumn icon={Earth} title="Explore Our Courses">
+            {footerNav.courses.map((link) => (
+              <FooterLink key={link.label} href={link.href}>
+                {link.label}
+              </FooterLink>
+            ))}
+          </FooterColumn>
 
-              <FooterColumn icon={Earth} title="Explore Our Courses">
-                {footerNav.courses.map((link) => (
-                  <FooterLink key={link.label} href={link.href}>
-                    {link.label}
-                  </FooterLink>
-                ))}
-              </FooterColumn>
+          <FooterColumn icon={AtSign} title="Contact Us">
+            <FooterLink href="mailto:support@namastedev.com">
+              support@namastedev.com
+            </FooterLink>
+          </FooterColumn>
 
-              <FooterColumn icon={AtSign} title="Contact Us">
-                <FooterLink href="mailto:support@namastedev.com">
-                  support@namastedev.com
-                </FooterLink>
-              </FooterColumn>
-
-              <div className="flex flex-col gap-4">
-                <Heart className="size-6 text-primary" strokeWidth={2} />
-                <div className="flex items-center gap-2 text-sm text-foreground">
-                  <p>Made with</p>
+          <div className="flex items-start justify-between gap-6">
+            <div className="flex flex-col gap-4">
+              <div className="nd-footer-column-title">
+                <Heart className="size-5 shrink-0 text-primary" strokeWidth={2} />
+                <span className="inline-flex items-center gap-1.5 font-normal text-foreground">
+                  Made with
                   <MadeInIndiaHeart />
-                  <p>in India</p>
-                </div>
-                <div className="font-semibold text-foreground">Follow Us</div>
-                <SocialLinks />
+                  in India
+                </span>
               </div>
+              <div className="font-semibold text-foreground">Follow Us</div>
+              <SocialLinks />
             </div>
-
-            <FooterScrollToTop className="self-end lg:self-auto" />
+            <FooterScrollToTop className="hidden sm:flex" />
           </div>
+        </div>
 
-          <div className="z-10 mt-12 flex flex-col items-center justify-between gap-4 border-t border-border pt-6 md:flex-row">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:gap-6">
-              <p className="text-center text-xs text-muted-foreground md:text-left">
-                OpenAI × NamasteDev Codex Hackathon
-              </p>
-              <div className="flex flex-wrap justify-center gap-x-5 gap-y-2 md:justify-start">
-                {footerNav.legal.map((link) => (
-                  <FooterLink key={link.label} href={link.href} variant="legal">
-                    {link.label}
-                  </FooterLink>
-                ))}
-              </div>
-            </div>
-            <p className="text-sm text-foreground">© 2026 NamasteDev.com</p>
+        <div className="nd-footer-bottom">
+          <div className="flex flex-wrap justify-center gap-x-5 gap-y-2 md:justify-start">
+            {footerNav.legal.map((link) => (
+              <FooterLink key={link.label} href={link.href} variant="legal">
+                {link.label}
+              </FooterLink>
+            ))}
           </div>
+          <p className="text-sm text-nd-muted-text">© 2026 NamasteDev.com</p>
         </div>
       </div>
     </footer>

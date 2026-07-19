@@ -1,4 +1,5 @@
 import { isAzureConfigured, isDbReady } from "@/lib/db/ready";
+import { getRagCorpusStats, isRagReady } from "@/lib/ops/rag-readiness";
 import { prisma } from "@/lib/prisma";
 
 export function isCloudinaryConfigured(): boolean {
@@ -36,14 +37,22 @@ export function isAuthConfigured(): boolean {
 export async function getReadinessStatus() {
   let db = false;
   let dbSeeded = false;
+  let ragReady = false;
+  let ragStats: Awaited<ReturnType<typeof getRagCorpusStats>> = [];
 
   try {
     await prisma.$queryRaw`SELECT 1`;
     db = true;
     dbSeeded = await isDbReady();
+    if (dbSeeded) {
+      ragStats = await getRagCorpusStats();
+      ragReady = await isRagReady();
+    }
   } catch {
     db = false;
     dbSeeded = false;
+    ragReady = false;
+    ragStats = [];
   }
 
   const azureChat = isAzureConfigured();
@@ -55,6 +64,8 @@ export async function getReadinessStatus() {
     ok: azureChat && azureRealtime && auth && db && dbSeeded,
     db,
     dbSeeded,
+    ragReady,
+    ragStats,
     azureChat,
     azureRealtime,
     azureConfigured: azureChat,

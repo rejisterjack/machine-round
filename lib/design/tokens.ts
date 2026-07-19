@@ -72,6 +72,56 @@ export const appStoreLinks = [
   },
 ] as const;
 
+/** Footer course column — matches namastedev.com footer */
+const footerCourseIds = [
+  "namaste-dsa",
+  "namaste-react",
+  "namaste-node",
+  "namaste-frontend-system-design",
+  "namaste-javascript",
+  "namaste-interview",
+] as const;
+
+export const footerCourseLinks = footerCourseIds.map((id) => {
+  const course = NAMASTE_COURSES.find((item) => item.id === id);
+  if (!course) {
+    throw new Error(`Missing footer course: ${id}`);
+  }
+
+  return {
+    label: id === "namaste-node" ? "Namaste Node" : course.title,
+    href: course.href,
+  };
+});
+
+export const footerCta = {
+  headline: "Ready to Transform Your Career?",
+  description:
+    "Explore our course bundles designed to take you from beginner to job-ready, with skills that top companies demand.",
+  buttonLabel: "EXPLORE COURSE BUNDLES",
+  href: "https://namastedev.com/learn",
+} as const;
+
+/** Matches namastedev.com homepage hero */
+export const heroContent = {
+  eyebrow: "Learn To code. Launch Your Career.",
+  lead: "Learn. Build. Grow.",
+  title: "Become The Top 1% ",
+  accent: "Software Engineer!",
+  description:
+    "Go from zero to hero, build hands-on projects, gain practical skills and the confidence to turn code into a career.",
+  checklist: [
+    "Frontend, backend, or full-stack mastery",
+    "Solve hands-on coding challenges",
+    "Get job-ready and land your dream offers",
+  ],
+  ctaLabel: "Explore Courses",
+  ctaHref: "https://namastedev.com/learn",
+  ctaExternal: true,
+  imageSrc: "/brand/hero-interview.jpeg",
+  imageAlt: "Akshay Saini with YouTube Silver Play Button",
+} as const;
+
 export const footerNav = {
   navigation: [
     {
@@ -92,10 +142,7 @@ export const footerNav = {
     { label: "Need Help", href: "https://namastedev.com/pages/faq" },
     { label: "Free Guides", href: "https://namastedev.com/guides" },
   ],
-  courses: NAMASTE_COURSES.map((course) => ({
-    label: course.title,
-    href: course.href,
-  })),
+  courses: footerCourseLinks,
   legal: [
     {
       label: "Privacy Policy",
@@ -117,6 +164,46 @@ export const footerNav = {
 
 export const whatsappUrl =
   "https://wa.me/919876543210?text=Hi%20NamasteDev%2C%20I%20have%20a%20question%20about%20Namaste%20Machine%20Round";
+
+/** Matches namastedev.com header Explore menu */
+export const exploreNavItems = [
+  {
+    label: "Interview Practice",
+    href: "/interview",
+    icon: "monitor",
+  },
+  {
+    label: "Join Community",
+    href: "https://discord.gg/AGWng6gTxQ",
+    icon: "users",
+  },
+  {
+    label: "Leaderboard",
+    href: "https://namastedev.com/leaderboard",
+    icon: "trophy",
+  },
+  {
+    label: "Quizzes",
+    href: "https://namastedev.com/quizzes",
+    icon: "clipboard",
+  },
+  {
+    label: "Playground",
+    href: "https://namastedev.com/playground",
+    icon: "code",
+  },
+] as const;
+
+export const hackathonNav = {
+  label: "Hackathon",
+  href: "https://namastedev.com/hackathon",
+  live: true,
+} as const;
+
+export const coursesNav = {
+  label: "Courses",
+  href: "https://namastedev.com/learn",
+} as const;
 
 export const exploreCourses = [
   ...NAMASTE_COURSES.map((course) => ({

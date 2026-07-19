@@ -6,7 +6,7 @@ import { useSession } from "next-auth/react";
 import { useState } from "react";
 import { UserMenu } from "@/components/auth/user-menu";
 import { ExploreDropdown } from "@/components/layout/explore-dropdown";
-import { MobileNav } from "@/components/layout/mobile-nav";
+import { coursesNav, hackathonNav } from "@/lib/design/tokens";
 import { cn } from "@/lib/utils";
 
 const moreOptions = [
@@ -20,64 +20,72 @@ export function SiteHeaderAuth() {
   const { data: session } = useSession();
 
   return (
-    <>
-      <nav aria-label="Main" className="hidden lg:block">
-        <ul className="flex items-center gap-x-1">
-          <li>
-            <ExploreDropdown />
-          </li>
-          {session?.user ? (
-            <li>
-              <Link href="/history" className="nd-nav-link">
-                My Rounds
-              </Link>
-            </li>
-          ) : null}
-          <li>
-            <UserMenu />
-          </li>
-          <li className="relative">
+    <nav aria-label="Main" className="flex items-center gap-1 sm:gap-2 lg:gap-3">
+      <a
+        href={hackathonNav.href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="nd-hackathon-pill hidden sm:inline-flex"
+      >
+        {hackathonNav.label}
+        {hackathonNav.live ? <span className="nd-live-badge">Live</span> : null}
+      </a>
+
+      <a
+        href={coursesNav.href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="nd-header-link hidden md:inline-flex"
+      >
+        {coursesNav.label}
+      </a>
+
+      <div className="hidden md:block">
+        <ExploreDropdown />
+      </div>
+
+      {session?.user ? (
+        <Link href="/history" className="nd-header-link hidden lg:inline-flex">
+          My Rounds
+        </Link>
+      ) : null}
+
+      <UserMenu />
+
+      <div className="relative hidden lg:block">
+        <button
+          type="button"
+          className="inline-flex size-10 items-center justify-center rounded-full text-foreground transition-colors hover:bg-white/5"
+          aria-label="More options"
+          aria-expanded={moreOpen}
+          aria-haspopup="true"
+          onClick={() => setMoreOpen((value) => !value)}
+        >
+          <MoreVertical className="size-6" strokeWidth={2} />
+        </button>
+        {moreOpen ? (
+          <>
             <button
               type="button"
-              className="nd-nav-link"
-              aria-label="More options"
-              aria-expanded={moreOpen}
-              aria-haspopup="true"
-              onClick={() => setMoreOpen((value) => !value)}
-            >
-              <MoreVertical className="size-7" strokeWidth={2} />
-            </button>
-            {moreOpen ? (
-              <>
-                <button
-                  type="button"
-                  className="fixed inset-0 z-40"
-                  aria-label="Close more options menu"
+              className="fixed inset-0 z-40"
+              aria-label="Close more options menu"
+              onClick={() => setMoreOpen(false)}
+            />
+            <div className="nd-header-more-panel">
+              {moreOptions.map((option) => (
+                <a
+                  key={option.label}
+                  href={option.href}
+                  className={cn("nd-header-more-item")}
                   onClick={() => setMoreOpen(false)}
-                />
-                <div className="absolute right-0 top-full z-50 mt-1 w-44 rounded-lg border border-border bg-card p-2 shadow-xl">
-                  {moreOptions.map((option) => (
-                    <a
-                      key={option.label}
-                      href={option.href}
-                      className={cn(
-                        "block rounded-md px-3 py-2 text-sm text-foreground transition-colors hover:bg-secondary",
-                      )}
-                      onClick={() => setMoreOpen(false)}
-                    >
-                      {option.label}
-                    </a>
-                  ))}
-                </div>
-              </>
-            ) : null}
-          </li>
-        </ul>
-      </nav>
-
-      <div className="lg:hidden">
-        <MobileNav />
+                >
+                  {option.label}
+                </a>
+              ))}
+            </div>
+          </>
+        ) : null}
       </div>
-    </>
+    </nav>
   );
 }

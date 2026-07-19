@@ -61,7 +61,7 @@ All AI inference runs exclusively through **Azure OpenAI**. Shared config lives 
 | AI / agents | LangChain.js + `@langchain/openai` (Azure only) |
 | Voice | Azure OpenAI Realtime API via **WebRTC** (browser) |
 | Database | Neon PostgreSQL + pgvector (`@neondatabase/serverless`) |
-| RAG vectors | LangChain `PGVectorStore` (`@langchain/community`) |
+| RAG vectors | Neon pgvector + raw SQL retrieval (`lib/rag/retrieval.ts`) |
 | UI | Tailwind CSS + shadcn/ui |
 | Hosting | Vercel |
 
@@ -198,9 +198,18 @@ import { getSql } from "@/lib/db";
 const sql = getSql();
 ```
 
-### RAG (stretch goal)
+### RAG question bank
 
-Use `PGVectorStore` from `@langchain/community/vectorstores/pgvector` with `getAzureEmbeddings()` and your `DATABASE_URL` pooler connection.
+Role-specific interview grounding uses Azure `text-embedding-3-small` (1536 dims) stored in Neon's `interview_questions` table with an HNSW cosine index.
+
+```bash
+bun run db:seed          # seeds ~134 questions across all course tracks
+bun run seed:questions   # re-embed only (idempotent)
+```
+
+Retrieval lives in [`lib/rag/retrieval.ts`](lib/rag/retrieval.ts). Per-turn grounding is injected into interviewer prompts via [`lib/rag/hints.ts`](lib/rag/hints.ts). Readiness checks expose `ragReady` and per-course corpus stats from `/api/health` (via [`lib/ops/rag-readiness.ts`](lib/ops/rag-readiness.ts)).
+
+Admin reseed (development): `POST /api/admin/reseed-questions` with `x-admin-secret` header.
 
 ## Voice flow (WebRTC)
 
