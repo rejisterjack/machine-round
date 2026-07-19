@@ -1,9 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Plus_Jakarta_Sans } from "next/font/google";
-import { SiteFooter } from "@/components/layout/site-footer";
-import { SiteHeader } from "@/components/layout/site-header";
-import { StayInformedModal } from "@/components/layout/stay-informed-modal";
-import { WhatsappFab } from "@/components/layout/whatsapp-fab";
 import { SessionProvider } from "@/components/auth/session-provider";
 import "./globals.css";
 
@@ -59,13 +55,7 @@ export default function RootLayout({
       className={`${inter.variable} ${plusJakarta.variable} dark h-full antialiased`}
     >
       <body className="flex min-h-full flex-col overflow-x-hidden bg-background font-sans text-foreground">
-        <SessionProvider>
-          <SiteHeader />
-          <main className="flex flex-1 flex-col">{children}</main>
-          <SiteFooter />
-          <StayInformedModal />
-          <WhatsappFab />
-        </SessionProvider>
+        <SessionProvider>{children}</SessionProvider>
       </body>
     </html>
   );

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { Breadcrumb } from "@/components/layout/breadcrumb";
 import { PageShell } from "@/components/layout/page-shell";
@@ -13,16 +13,23 @@ import type {
   EvaluateResponse,
   InterviewMessage,
 } from "@/lib/session/interview-store";
+import type { ScreenCaptureItem } from "@/components/replay/screen-timeline";
 
 type ReplayPayload = {
   publicId: string;
   roleTitle: string;
+  panelistMode?: string;
   messages: InterviewMessage[];
   report?: EvaluateResponse & { shareToken?: string | null };
   shareToken?: string | null;
+  audioRecordingUrl?: string;
+  recordingDurationMs?: number;
+  screenCaptures?: ScreenCaptureItem[];
+  screenReviewNotes?: string[];
 };
 
 export default function ReplayPage() {
+  const router = useRouter();
   const params = useParams<{ publicId: string }>();
   const publicId = params.publicId;
   const [payload, setPayload] = useState<ReplayPayload | null>(null);
@@ -36,6 +43,10 @@ export default function ReplayPage() {
 
     try {
       const response = await fetch(`/api/sessions/replay/${publicId}`);
+      if (response.status === 401 || response.status === 403) {
+        router.replace(`/login?callbackUrl=${encodeURIComponent(`/replay/${publicId}`)}`);
+        return;
+      }
       if (!response.ok) {
         throw new Error("Session not found.");
       }
@@ -47,7 +58,7 @@ export default function ReplayPage() {
     } finally {
       setLoading(false);
     }
-  }, [publicId]);
+  }, [publicId, router]);
 
   useEffect(() => {
     void loadReplay();
@@ -86,6 +97,11 @@ export default function ReplayPage() {
               report={payload.report}
               shareToken={payload.shareToken}
               publicId={payload.publicId}
+              panelistMode={payload.panelistMode}
+              audioRecordingUrl={payload.audioRecordingUrl}
+              recordingDurationMs={payload.recordingDurationMs}
+              screenCaptures={payload.screenCaptures}
+              screenReviewNotes={payload.screenReviewNotes}
             />
           </div>
         ) : null}
