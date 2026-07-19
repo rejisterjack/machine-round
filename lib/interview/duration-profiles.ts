@@ -21,7 +21,6 @@ export type DurationProfile = {
   label: string;
   tagline: string;
   description: string;
-  maxQuestions: number;
   format: DurationFormat;
   screenShareExpectation: ScreenShareExpectation;
 };
@@ -34,7 +33,6 @@ export const DURATION_PROFILES: Record<InterviewDuration, DurationProfile> = {
     tagline: "Conversation only",
     description:
       "Behavioral and technical discussion by voice — no live coding.",
-    maxQuestions: 5,
     format: "conversation",
     screenShareExpectation: "optional",
   },
@@ -45,7 +43,6 @@ export const DURATION_PROFILES: Record<InterviewDuration, DurationProfile> = {
     tagline: "Light coding",
     description:
       "Mix of discussion plus an optional small coding or pseudo-code exercise.",
-    maxQuestions: 7,
     format: "light_coding",
     screenShareExpectation: "encouraged",
   },
@@ -56,7 +53,6 @@ export const DURATION_PROFILES: Record<InterviewDuration, DurationProfile> = {
     tagline: "Full machine round",
     description:
       "A true machine-coding session with live problem solving on screen.",
-    maxQuestions: 11,
     format: "machine_coding",
     screenShareExpectation: "expected",
   },
@@ -73,12 +69,6 @@ export function getDurationProfile(
   duration: InterviewDuration = DEFAULT_INTERVIEW_DURATION,
 ): DurationProfile {
   return DURATION_PROFILES[duration];
-}
-
-export function getMaxQuestionsForDuration(
-  duration: InterviewDuration = DEFAULT_INTERVIEW_DURATION,
-): number {
-  return getDurationProfile(duration).maxQuestions;
 }
 
 export function getDurationSeconds(

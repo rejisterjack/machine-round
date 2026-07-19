@@ -15,9 +15,10 @@ import {
   getGroundedQuestionsStructured,
 } from "@/lib/rag/vector-store";
 import { withRetry } from "@/lib/api/handler";
-import { getMaxQuestionsForDuration } from "@/lib/interview/duration-profiles";
-import type { InterviewDuration } from "@/lib/interview/duration-profiles";
-import { resolveMaxQuestions } from "@/lib/ai/question-cap";
+import {
+  DEFAULT_INTERVIEW_DURATION,
+  type InterviewDuration,
+} from "@/lib/interview/duration-profiles";
 import {
   interviewResponseSchema,
   type InterviewMessage,
@@ -60,22 +61,15 @@ export async function runInterviewTurn(input: {
   panelistMode?: PanelistMode;
   promptContext?: string;
   interviewDuration?: InterviewDuration;
+  elapsedSeconds?: number;
 }) {
   const panelistMode = input.panelistMode ?? "both";
   const activePanelist = getPanelistForQuestion(
     input.questionCount,
     panelistMode,
   ).id;
-  const maxQuestions = resolveMaxQuestions(undefined, input.interviewDuration);
-
-  if (input.questionCount >= maxQuestions) {
-    return {
-      message:
-        "That wraps us up — thanks so much for your time today. We'll pull up your readiness report next.",
-      speaker: activePanelist,
-      done: true,
-    } satisfies InterviewResponse;
-  }
+  const interviewDuration = input.interviewDuration ?? DEFAULT_INTERVIEW_DURATION;
+  const elapsedSeconds = input.elapsedSeconds ?? 0;
 
   const model = getAzureChatModel();
   const courseId =
@@ -83,7 +77,11 @@ export async function runInterviewTurn(input: {
   const interviewScope = getCourseInterviewScope(courseId, input.promptContext);
   const lastUserAnswer = getLastMessageContent(input.messages, "user");
   const lastAssistant = getLastMessageContent(input.messages, "assistant");
-  const phase = getConversationPhase(input.questionCount, maxQuestions);
+  const phase = getConversationPhase(
+    input.questionCount,
+    elapsedSeconds,
+    interviewDuration,
+  );
 
   const grounded = await getGroundedQuestionsStructured(
     input.roleTitle,
@@ -118,8 +116,8 @@ export async function runInterviewTurn(input: {
           panelistMode,
           courseId,
           promptContext: input.promptContext,
-          interviewDuration: input.interviewDuration,
-          maxQuestions,
+          interviewDuration,
+          elapsedSeconds,
           ragBlock,
         }),
       ),
@@ -149,10 +147,6 @@ export async function runInterviewTurn(input: {
     !parsed.referencedAnswer?.trim()
   ) {
     parsed = await invokeModel(true);
-  }
-
-  if (input.questionCount + 1 >= maxQuestions) {
-    parsed.done = true;
   }
 
   return parsed;

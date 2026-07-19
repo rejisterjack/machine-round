@@ -1,11 +1,15 @@
 "use client";
 
-import Link from "next/link";
+import { Suspense } from "react";
 import { MoreVertical } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useState } from "react";
 import { UserMenu } from "@/components/auth/user-menu";
 import { ExploreDropdown } from "@/components/layout/explore-dropdown";
+import {
+  MyRoundsNavLink,
+  MyRoundsNavLinkFallback,
+} from "@/components/layout/my-rounds-nav-link";
 import { coursesNav, hackathonNav } from "@/lib/design/tokens";
 import { cn } from "@/lib/utils";
 
@@ -45,9 +49,9 @@ export function SiteHeaderAuth() {
       </div>
 
       {session?.user ? (
-        <Link href="/history" className="nd-header-link hidden lg:inline-flex">
-          My Rounds
-        </Link>
+        <Suspense fallback={<MyRoundsNavLinkFallback />}>
+          <MyRoundsNavLink />
+        </Suspense>
       ) : null}
 
       <UserMenu />
