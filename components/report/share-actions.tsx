@@ -9,12 +9,15 @@ type ShareActionsProps = {
   shareToken?: string | null;
   report?: EvaluateResponse;
   roleTitle?: string;
+  /** When set, PDF downloads via the public share route (no auth). */
+  publicShareToken?: string;
 };
 
 export function ShareActions({
   shareToken,
   report,
   roleTitle,
+  publicShareToken,
 }: ShareActionsProps) {
   const [copied, setCopied] = useState(false);
   const [downloading, setDownloading] = useState(false);
@@ -39,16 +42,18 @@ export function ShareActions({
   }
 
   async function downloadPdf() {
-    if (!report) return;
+    if (!report && !publicShareToken) return;
     setDownloading(true);
     setDownloadError(undefined);
 
     try {
-      const response = await fetch("/api/reports/pdf", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...report, roleTitle }),
-      });
+      const response = publicShareToken
+        ? await fetch(`/api/reports/share/${publicShareToken}/pdf`)
+        : await fetch("/api/reports/pdf", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...report, roleTitle }),
+          });
 
       if (!response.ok) {
         throw new Error("PDF generation failed.");
@@ -104,7 +109,7 @@ export function ShareActions({
               )}
             </Button>
           ) : null}
-          {report ? (
+          {report || publicShareToken ? (
             <Button
               variant="ndFilled"
               disabled={downloading}

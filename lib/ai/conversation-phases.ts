@@ -79,7 +79,7 @@ export function getPhaseGuidance(input: {
       if (input.panelistMode === "both" && input.activePanelist === "akshay") {
         return `Open the call like a real video interview. Greet them warmly ("hey, thanks for joining"), introduce yourself and mention ${coPanelist?.shortName} is on the call too. Briefly explain this is a quick machine round for ${input.role}. End with a light, easy opener — not a hard technical grill yet.`;
       }
-      return `Open the call like a real video interview. Greet them warmly ("hey, thanks for hopping on"), introduce yourself briefly, mention this is a machine round for ${input.role}. End with a light, conversational opener — ease them in.`;
+      return `Open the call like a real video interview. Greet them warmly ("hey, thanks for hopping on"), introduce yourself as ${panelist.shortName}, and mention this is a machine round for ${input.role}. End with a light, conversational opener — ease them in.`;
 
     case "warmup":
       return `Ease into the interview. Ask about their background, what they're working on lately, or what drew them to ${input.role}. React naturally to their answer before your question. Keep it conversational — you're getting to know them.`;

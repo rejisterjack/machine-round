@@ -17,10 +17,22 @@ export const reportInclude = {
 };
 
 export async function getReportByShareToken(shareToken: string) {
-  return prisma.readinessReport.findUnique({
+  const report = await prisma.readinessReport.findUnique({
     where: { shareToken },
     include: reportInclude,
   });
+
+  if (!report) return null;
+
+  const ttlDays = Number(process.env.SHARE_TOKEN_TTL_DAYS ?? 0);
+  if (ttlDays > 0) {
+    const expiresAt = report.generatedAt.getTime() + ttlDays * 86_400_000;
+    if (Date.now() > expiresAt) {
+      return null;
+    }
+  }
+
+  return report;
 }
 
 export async function getSessionByPublicId(publicId: string) {

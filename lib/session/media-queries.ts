@@ -1,4 +1,4 @@
-import type { RecordingStatus } from "@/generated/client";
+import type { RecordingStatus, RoleSlug, SessionStatus } from "@/generated/client";
 import { ApiError } from "@/lib/api/errors";
 import { prisma } from "@/lib/prisma";
 import {
@@ -203,14 +203,41 @@ export async function updateSessionRecording(
 
 export async function getUserSessions(
   userId: string,
-  options: { limit?: number; offset?: number } = {},
+  options: {
+    limit?: number;
+    offset?: number;
+    status?: SessionStatus;
+    roleSlug?: RoleSlug;
+    q?: string;
+  } = {},
 ) {
   const limit = options.limit ?? 20;
   const offset = Math.max(0, options.offset ?? 0);
 
+  const where: {
+    userId: string;
+    status?: SessionStatus;
+    role?: { slug?: RoleSlug; title?: { contains: string; mode: "insensitive" } };
+  } = { userId };
+
+  if (options.status) {
+    where.status = options.status;
+  }
+
+  if (options.roleSlug) {
+    where.role = { slug: options.roleSlug };
+  }
+
+  if (options.q?.trim()) {
+    where.role = {
+      ...where.role,
+      title: { contains: options.q.trim(), mode: "insensitive" },
+    };
+  }
+
   const [sessions, total] = await Promise.all([
     prisma.interviewSession.findMany({
-      where: { userId },
+      where,
       orderBy: { startedAt: "desc" },
       take: limit,
       skip: offset,
@@ -220,7 +247,7 @@ export async function getUserSessions(
         _count: { select: { screenCaptures: true } },
       },
     }),
-    prisma.interviewSession.count({ where: { userId } }),
+    prisma.interviewSession.count({ where }),
   ]);
 
   return { sessions, total };

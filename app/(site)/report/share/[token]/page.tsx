@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Breadcrumb } from "@/components/layout/breadcrumb";
 import { PageShell } from "@/components/layout/page-shell";
 import { ReadinessReport } from "@/components/report/readiness-report";
+import { ShareActions } from "@/components/report/share-actions";
 import { Button } from "@/components/ui/button";
 import { ApiErrorCard } from "@/components/ui/api-error-card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -13,6 +14,7 @@ import type { EvaluateResponse } from "@/lib/session/interview-store";
 
 type SharedReport = EvaluateResponse & {
   roleTitle?: string;
+  publicId?: string;
   generatedAt?: string;
   shareToken?: string | null;
 };
@@ -45,7 +47,7 @@ export default function SharedReportPage() {
   }, [token]);
 
   useEffect(() => {
-    void loadReport();
+    queueMicrotask(() => void loadReport());
   }, [loadReport]);
 
   return (
@@ -83,6 +85,26 @@ export default function SharedReportPage() {
               generatedAt={report.generatedAt}
               showShareActions={false}
             />
+            <div className="mt-6 space-y-4">
+              {report.publicId ? (
+                <Button
+                  variant="ndPrimary"
+                  render={
+                    <Link
+                      href={`/replay/${report.publicId}?shareToken=${encodeURIComponent(token)}`}
+                    />
+                  }
+                >
+                  Watch session replay
+                </Button>
+              ) : null}
+              <ShareActions
+                shareToken={token}
+                publicShareToken={token}
+                report={report}
+                roleTitle={report.roleTitle}
+              />
+            </div>
           </div>
         ) : null}
 

@@ -1,12 +1,10 @@
 "use client";
 
-import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { Breadcrumb } from "@/components/layout/breadcrumb";
 import { PageShell } from "@/components/layout/page-shell";
 import { SessionReplay } from "@/components/replay/session-replay";
-import { Button } from "@/components/ui/button";
 import { ApiErrorCard } from "@/components/ui/api-error-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import type {
@@ -16,6 +14,7 @@ import type {
 import type { ScreenCaptureItem } from "@/components/replay/screen-timeline";
 
 type ReplayPayload = {
+  id: string;
   publicId: string;
   roleTitle: string;
   panelistMode?: string;
@@ -24,14 +23,18 @@ type ReplayPayload = {
   shareToken?: string | null;
   audioRecordingUrl?: string;
   recordingDurationMs?: number;
+  recordingStatus?: string | null;
+  hasRecording?: boolean;
   screenCaptures?: ScreenCaptureItem[];
   screenReviewNotes?: string[];
 };
 
-export default function ReplayPage() {
+function ReplayPageContent() {
   const router = useRouter();
   const params = useParams<{ publicId: string }>();
+  const searchParams = useSearchParams();
   const publicId = params.publicId;
+  const shareToken = searchParams.get("shareToken");
   const [payload, setPayload] = useState<ReplayPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
@@ -42,9 +45,14 @@ export default function ReplayPage() {
     setError(undefined);
 
     try {
-      const response = await fetch(`/api/sessions/replay/${publicId}`);
+      const query = shareToken
+        ? `?shareToken=${encodeURIComponent(shareToken)}`
+        : "";
+      const response = await fetch(`/api/sessions/replay/${publicId}${query}`);
       if (response.status === 401 || response.status === 403) {
-        router.replace(`/login?callbackUrl=${encodeURIComponent(`/replay/${publicId}`)}`);
+        router.replace(
+          `/login?callbackUrl=${encodeURIComponent(`/replay/${publicId}${query}`)}`,
+        );
         return;
       }
       if (!response.ok) {
@@ -58,10 +66,10 @@ export default function ReplayPage() {
     } finally {
       setLoading(false);
     }
-  }, [publicId, router]);
+  }, [publicId, router, shareToken]);
 
   useEffect(() => {
-    void loadReplay();
+    queueMicrotask(() => void loadReplay());
   }, [loadReplay]);
 
   return (
@@ -77,6 +85,11 @@ export default function ReplayPage() {
         <h1 className="font-heading text-3xl font-medium sm:text-4xl">
           Interview replay
         </h1>
+        {shareToken ? (
+          <p className="mt-2 text-sm text-muted-foreground">
+            Shared replay — transcript and media visible without signing in.
+          </p>
+        ) : null}
 
         {loading ? (
           <div className="mt-10 space-y-4">
@@ -92,20 +105,41 @@ export default function ReplayPage() {
         ) : payload ? (
           <div className="mt-10">
             <SessionReplay
+              sessionId={payload.id}
               roleTitle={payload.roleTitle}
               messages={payload.messages}
               report={payload.report}
-              shareToken={payload.shareToken}
+              shareToken={payload.shareToken ?? shareToken}
               publicId={payload.publicId}
               panelistMode={payload.panelistMode}
               audioRecordingUrl={payload.audioRecordingUrl}
               recordingDurationMs={payload.recordingDurationMs}
+              recordingStatus={payload.recordingStatus}
+              hasRecording={payload.hasRecording}
               screenCaptures={payload.screenCaptures}
               screenReviewNotes={payload.screenReviewNotes}
+              readOnly={Boolean(shareToken)}
+              onRecordingRetry={() => void loadReplay()}
             />
           </div>
         ) : null}
       </div>
     </PageShell>
+  );
+}
+
+export default function ReplayPage() {
+  return (
+    <Suspense
+      fallback={
+        <PageShell>
+          <div className="mx-auto max-w-4xl">
+            <Skeleton className="mt-10 h-64 w-full rounded-lg" />
+          </div>
+        </PageShell>
+      }
+    >
+      <ReplayPageContent />
+    </Suspense>
   );
 }

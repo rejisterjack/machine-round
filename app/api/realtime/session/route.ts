@@ -14,6 +14,7 @@ import {
 } from "@/lib/ai/personas/panelists";
 import { getAzureRealtimeConfig, getAzureRealtimeCredentials } from "@/lib/ai";
 import { buildInterviewerPrompt } from "@/lib/ai/prompts/interviewer";
+import { getGroundedQuestions } from "@/lib/rag/vector-store";
 import { isDbReady } from "@/lib/db/ready";
 import { prisma } from "@/lib/prisma";
 import { resolveRole } from "@/lib/session/roles";
@@ -21,7 +22,7 @@ import { assertSessionOwnerIfPresent } from "@/lib/session/session-access";
 import { interviewMessageSchema } from "@/lib/session/interview-store";
 
 const realtimeSessionSchema = z.object({
-  sessionId: z.string().optional(),
+  sessionId: z.string(),
   roleId: z.string().optional(),
   roleTitle: z.string().optional(),
   role: z.string().optional(),
@@ -79,6 +80,10 @@ export const POST = withApiHandler(async (request: Request) => {
   );
   const messages = body.messages ?? [];
   const transcript = messages.map(formatMessageSpeaker).join("\n");
+  const grounded = await getGroundedQuestions(role.title, 2, role.id);
+  const ragHint = grounded.length
+    ? `\n\nRole-specific question bank (weave in naturally when relevant): ${grounded.join(" | ")}`
+    : "";
   const instructions = buildInterviewerPrompt({
     role: role.title,
     questionCount,
@@ -95,8 +100,8 @@ export const POST = withApiHandler(async (request: Request) => {
         activePanelist: panelist.id,
         transcript,
         messages,
-      })}`
-    : instructions;
+      })}${ragHint}`
+    : `${instructions}${ragHint}`;
   const realtimeCreds = getAzureRealtimeCredentials();
   const realtime = getAzureRealtimeConfig();
 

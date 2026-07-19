@@ -20,6 +20,7 @@ import {
 } from "@/lib/ai/personas/panelists";
 import { startScreenSampler as startScreenSamplerLib } from "@/lib/interview/screen-capture";
 import { MAX_QUESTIONS } from "@/lib/design/tokens";
+import { shouldEndInterview } from "@/lib/ai/question-cap";
 import { MAX_SCREEN_SNAPSHOTS } from "@/lib/session/session-limits";
 import {
   loadSession,
@@ -32,8 +33,14 @@ import type { RealtimeEvent } from "@/lib/voice/realtime-webrtc";
 import {
   extractMessageFromRealtimeEvent,
   extractPartialDelta,
+  flushTranscriptQueue,
   syncVoiceTranscript,
 } from "@/lib/voice/realtime-transcript";
+import { onTranscriptSyncStatus } from "@/lib/voice/transcript-sync";
+import {
+  detectWeakSignalsFromAnswer,
+  mergeWeakSignals,
+} from "@/lib/voice/weak-signal-heuristics";
 
 type RoomPhase = "lobby" | "room";
 
@@ -53,6 +60,9 @@ export default function InterviewSessionPage() {
   }>();
   const [savingSession, setSavingSession] = useState(false);
   const [saveError, setSaveError] = useState<string>();
+  const [cloudSyncFailed, setCloudSyncFailed] = useState(false);
+  const [screenAnalyzePaused, setScreenAnalyzePaused] = useState<string>();
+  const [canResumeSession, setCanResumeSession] = useState(false);
 
   const sessionRef = useRef(session);
   sessionRef.current = session;
@@ -123,7 +133,7 @@ export default function InterviewSessionPage() {
 
   const continueVoicePanel = useCallback(
     async (current: InterviewSession, messages: InterviewMessage[]) => {
-      if (current.questionCount >= MAX_QUESTIONS) return;
+      if (shouldEndInterview(current.questionCount)) return;
       const nextPanelist = getPanelistForQuestion(
         current.questionCount,
         current.panelistMode ?? "both",
@@ -160,6 +170,7 @@ export default function InterviewSessionPage() {
         if (!current?.dbSessionId) return;
         if (analyzeInFlightRef.current) return;
         if (snapshotCountRef.current >= MAX_SCREEN_SNAPSHOTS) {
+          setScreenAnalyzePaused("Snapshot limit reached for this session.");
           stopScreenSampler();
           return;
         }
@@ -183,13 +194,26 @@ export default function InterviewSessionPage() {
             try {
               const errData = (await response.json()) as { reason?: string };
               if (errData.reason === "capacity") {
+                setScreenAnalyzePaused(
+                  "Screen analysis paused — capacity limit reached.",
+                );
                 stopScreenSampler();
+              } else if (response.status === 429) {
+                setScreenAnalyzePaused(
+                  "Screen analysis paused — rate limit. Will retry on the next frame.",
+                );
+              } else {
+                setScreenAnalyzePaused(
+                  "Screen analysis paused — temporary error.",
+                );
               }
             } catch {
-              // Ignore parse errors on error responses.
+              setScreenAnalyzePaused("Screen analysis paused.");
             }
             return;
           }
+
+          setScreenAnalyzePaused(undefined);
 
           const data = (await response.json()) as {
             summary?: string;
@@ -197,10 +221,15 @@ export default function InterviewSessionPage() {
             reason?: string;
           };
           if (data.reason === "capacity") {
+            setScreenAnalyzePaused(
+              "Screen analysis paused — session snapshot cap reached.",
+            );
             stopScreenSampler();
             return;
           }
           if (!data.summary) return;
+
+          setScreenAnalyzePaused(undefined);
 
           if (data.observationStored === false) {
             sendScreenContextRef.current(data.summary);
@@ -226,10 +255,13 @@ export default function InterviewSessionPage() {
           if (snapshotResponse.ok) {
             snapshotCountRef.current += 1;
           } else if (snapshotResponse.status === 400) {
+            setScreenAnalyzePaused("Screen snapshots paused for this session.");
             stopScreenSampler();
           }
         } catch {
-          // Best-effort screen analysis.
+          setScreenAnalyzePaused(
+            "Screen analysis paused — will retry on the next frame.",
+          );
         } finally {
           analyzeInFlightRef.current = false;
         }
@@ -318,10 +350,36 @@ export default function InterviewSessionPage() {
           ? current.questionCount + 1
           : current.questionCount;
 
+      const lastUserAnswer =
+        message.role === "user"
+          ? message.content
+          : current.messages.filter((item) => item.role === "user").at(-1)
+              ?.content;
+
+      const weakSignals =
+        message.role === "user"
+          ? mergeWeakSignals(
+              current.weakSignals,
+              detectWeakSignalsFromAnswer(message.content),
+            )
+          : current.weakSignals;
+
+      const topicsCovered =
+        message.role === "assistant" && lastUserAnswer
+          ? [
+              ...new Set([
+                ...current.topicsCovered,
+                lastUserAnswer.slice(0, 80),
+              ]),
+            ].slice(0, 20)
+          : current.topicsCovered;
+
       const updated: InterviewSession = {
         ...current,
         messages,
         questionCount,
+        topicsCovered,
+        weakSignals,
         inputMode: "voice",
         status: message.role === "assistant" ? "idle" : "listening",
         error: undefined,
@@ -332,16 +390,24 @@ export default function InterviewSessionPage() {
       saveSession(updated);
 
       if (current.dbSessionId) {
-        void syncVoiceTranscript(
-          current.dbSessionId,
-          message.content,
-          message.role,
-          message.speaker,
-        );
+        syncVoiceTranscript({
+          sessionId: current.dbSessionId,
+          content: message.content,
+          role: message.role,
+          speaker: message.speaker,
+          questionCount,
+          topicsCovered,
+          weakSignals,
+          referencedAnswer:
+            message.role === "assistant" && lastUserAnswer
+              ? lastUserAnswer.slice(0, 500)
+              : undefined,
+          status: "active",
+        });
       }
 
       if (message.role === "assistant") {
-        if (questionCount >= MAX_QUESTIONS) {
+        if (shouldEndInterview(questionCount)) {
           schedulePendingComplete(updated);
           return;
         }
@@ -354,7 +420,7 @@ export default function InterviewSessionPage() {
         return;
       }
 
-      if (questionCount < MAX_QUESTIONS) {
+      if (questionCount < MAX_QUESTIONS && !shouldEndInterview(questionCount)) {
         void continueVoicePanel(updated, messages);
       }
     },
@@ -413,10 +479,30 @@ export default function InterviewSessionPage() {
       await voiceWaitForSpeechEndRef.current();
       voiceStopRef.current();
 
+      if (base.dbSessionId) {
+        await flushTranscriptQueue();
+        const patchResponse = await fetch(`/api/sessions/${base.dbSessionId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            status: "completed",
+            questionCount: base.questionCount,
+            topicsCovered: base.topicsCovered,
+            weakSignals: base.weakSignals,
+            completedAt: new Date().toISOString(),
+          }),
+        });
+        if (!patchResponse.ok) {
+          setSaveError(
+            "Could not mark your session complete in the cloud. Your report may still generate from this device.",
+          );
+        }
+      }
+
       let recordingFailed = false;
       if (base.dbSessionId && recorderRef.current?.supported) {
         const uploadResult = await recorderRef.current.stopAndUpload();
-        if (!uploadResult) {
+        if (uploadResult.kind === "failed") {
           recordingFailed = true;
           setSaveError(
             "Your recording could not be uploaded. Your transcript and report are still saved.",
@@ -490,9 +576,12 @@ export default function InterviewSessionPage() {
     }
     setPhase("room");
     setJoining(false);
-    await startVoice(
-      getPanelistForQuestion(0, sessionRef.current?.panelistMode ?? "both").id,
-    );
+    const current = sessionRef.current;
+    const panelist = getPanelistForQuestion(
+      current?.questionCount ?? 0,
+      current?.panelistMode ?? "both",
+    ).id;
+    await startVoice(panelist);
     await recorderRef.current?.start();
   }, [media, startVoice]);
 
@@ -555,10 +644,19 @@ export default function InterviewSessionPage() {
           snapshotCountRef.current = data.snapshotCount;
         }
 
+        if (!data.messages?.length) return;
+
+        if (
+          data.status === "active" &&
+          data.messages.length > 0 &&
+          (sessionRef.current?.messages.length ?? 0) === 0
+        ) {
+          setCanResumeSession(true);
+        }
+
         if (hydrating.current || (sessionRef.current?.messages.length ?? 0) > 0) {
           return;
         }
-        if (!data.messages?.length) return;
 
         hydrating.current = true;
         setSession((current) => {
@@ -585,6 +683,10 @@ export default function InterviewSessionPage() {
   }, [session?.dbSessionId]);
 
   useEffect(() => {
+    return onTranscriptSyncStatus(setCloudSyncFailed);
+  }, []);
+
+  useEffect(() => {
     if (!media.sharingScreen) {
       stopScreenSampler();
       screenVideoRef.current = null;
@@ -594,6 +696,26 @@ export default function InterviewSessionPage() {
   useEffect(() => () => {
     stopScreenSampler();
   }, [stopScreenSampler]);
+
+  const handleResume = useCallback(async () => {
+    setJoining(true);
+    const stream = await media.requestMic();
+    if (!stream) {
+      setJoining(false);
+      return;
+    }
+    setCanResumeSession(false);
+    setPhase("room");
+    setJoining(false);
+    const current = sessionRef.current;
+    if (!current) return;
+    const panelist = getPanelistForQuestion(
+      current.questionCount,
+      current.panelistMode ?? "both",
+    ).id;
+    await voiceReconnectRef.current(panelist, current.messages);
+    await recorderRef.current?.start();
+  }, [media]);
 
   if (!session) {
     return (
@@ -612,6 +734,8 @@ export default function InterviewSessionPage() {
         error={media.error}
         onJoin={() => void handleJoin()}
         onRetryMic={() => void media.requestMic()}
+        canResume={canResumeSession}
+        onResume={() => void handleResume()}
       />
     );
   }
@@ -696,16 +820,34 @@ export default function InterviewSessionPage() {
         />
       }
       error={
-        session.status === "error" || voice.error || recorder.error ? (
-          <ApiErrorCard
-            message={
-              [session.error, voice.error, recorder.error]
-                .filter(Boolean)
-                .join(" ") || "Could not connect voice session."
-            }
-            onRetry={() => void startVoice()}
-            retryLabel="Retry voice"
-          />
+        cloudSyncFailed ||
+        screenAnalyzePaused ||
+        session.status === "error" ||
+        voice.error ||
+        recorder.error ? (
+          <div className="space-y-2">
+            {cloudSyncFailed ? (
+              <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                Cloud sync paused — your transcript is saved on this device.
+              </p>
+            ) : null}
+            {screenAnalyzePaused ? (
+              <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                {screenAnalyzePaused}
+              </p>
+            ) : null}
+            {session.status === "error" || voice.error || recorder.error ? (
+              <ApiErrorCard
+                message={
+                  [session.error, voice.error, recorder.error]
+                    .filter(Boolean)
+                    .join(" ") || "Could not connect voice session."
+                }
+                onRetry={() => void startVoice()}
+                retryLabel="Retry voice"
+              />
+            ) : null}
+          </div>
         ) : null
       }
     />

@@ -2,6 +2,10 @@
 
 Train for the interviewer that isn't human. Namaste Machine Round runs a realistic AI-style screening interview, adapts follow-ups based on your answers, and returns a structured readiness report.
 
+**Live demo:** [nmr.rejisterjack.com](https://nmr.rejisterjack.com)
+
+**Built with [OpenAI Codex](https://openai.com/codex)** per the OpenAI × NamasteDev Codex Hackathon toolkit requirement.
+
 ## Architecture
 
 Namaste Machine Round uses a **two-agent design** on a single Next.js app:
@@ -90,6 +94,11 @@ cp .env.example .env
 | `AUTH_URL` | App base URL for OAuth callbacks (e.g. `http://localhost:7329`) |
 | `AUTH_GOOGLE_ID` | Google OAuth client ID |
 | `AUTH_GOOGLE_SECRET` | Google OAuth client secret |
+| `CLOUDINARY_URL` | Cloudinary connection string (or split `CLOUDINARY_*` vars) |
+| `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME` | Client-side Cloudinary transforms for replay |
+| `NEXT_PUBLIC_DEMO_SHARE_TOKEN` | Optional landing page sample report share token |
+| `SMOKE_AUTH_COOKIE` | Optional session cookie for authenticated smoke tests |
+| `SHARE_TOKEN_TTL_DAYS` | Optional share link expiry (default: no expiry) |
 
 **Only Azure OpenAI is supported for inference.** Do not set `OPENAI_API_KEY`.
 
@@ -125,9 +134,9 @@ bun run smoke:frontend
 ```
 
 Acceptance checklist before submission:
-1. Cold start: incognito session completes interview + report in under 3 minutes
-2. Five consecutive runs without manual intervention
-3. App works when database is unavailable (client sessionStorage fallback)
+1. Cold start: incognito → landing sample report or Google sign-in → complete interview + report in under 3 minutes
+2. Five consecutive runs without manual intervention (see `docs/GO_LIVE_QA.md`)
+3. Auth + database required for interviews; reports recoverable via `/report?session={id}` or share link when sessionStorage is cleared
 4. Evaluate request fails gracefully within the 60s budget
 5. At least one adaptive follow-up includes `referencedAnswer`
 6. Share token URL returns the same report JSON and renders at `/report/share/[token]`
@@ -246,9 +255,22 @@ Requires Neon `DATABASE_URL` and `CREATE EXTENSION vector`.
 
 ## Deploy on Vercel
 
-1. Push to GitHub and import the repo on Vercel
-2. Set all seven environment variables from `.env.example`
-3. Deploy — no separate backend host needed
+```bash
+npx vercel login          # once per machine
+bash scripts/deploy-production.sh
+```
+
+Manual steps:
+
+1. Push to GitHub and import the repo on Vercel (or link existing project)
+2. Set environment variables from `.env.example` (Azure, Neon, Auth, Cloudinary)
+3. Run `bun run db:deploy && bun run db:seed` against production Neon
+4. Configure Google OAuth redirect URIs for your production domain
+5. Deploy — see `docs/GO_LIVE_QA.md` for the full go-live checklist
+
+**Pitch deck:** open [`docs/pitch-deck.html`](docs/pitch-deck.html) in a browser (arrow keys to navigate, Print → PDF).
+
+**Demo video:** timed script in [`docs/DEMO_VIDEO_SCRIPT.md`](docs/DEMO_VIDEO_SCRIPT.md).
 
 ## Cut order (if behind schedule)
 

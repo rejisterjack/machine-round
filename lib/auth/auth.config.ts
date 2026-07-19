@@ -20,7 +20,9 @@ export const authConfig = {
       const isPublicPage =
         pathname === "/" ||
         pathname === "/login" ||
-        pathname.startsWith("/report/share/");
+        pathname.startsWith("/report/share/") ||
+        (pathname.startsWith("/replay/") &&
+          nextUrl.searchParams.has("shareToken"));
 
       if (isPublicPage) {
         return true;

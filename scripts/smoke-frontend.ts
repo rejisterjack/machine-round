@@ -1,9 +1,14 @@
 import { DEV_SERVER_URL } from "../lib/config/dev-server";
+import {
+  assertAuthForSmoke,
+  isSmokeAuthConfigured,
+  smokeFetchInit,
+} from "./smoke-auth";
 
 const baseUrl = process.env.SMOKE_BASE_URL ?? DEV_SERVER_URL;
 
 async function check(path: string, init?: RequestInit) {
-  const response = await fetch(`${baseUrl}${path}`, init);
+  const response = await fetch(`${baseUrl}${path}`, smokeFetchInit(init));
   const text = await response.text();
   let json: unknown;
   try {
@@ -11,6 +16,8 @@ async function check(path: string, init?: RequestInit) {
   } catch {
     json = text;
   }
+
+  assertAuthForSmoke(path, response.status);
 
   if (!response.ok) {
     throw new Error(`${path} failed (${response.status}): ${text}`);
@@ -20,8 +27,9 @@ async function check(path: string, init?: RequestInit) {
 }
 
 async function checkOptional(path: string, init?: RequestInit) {
-  const response = await fetch(`${baseUrl}${path}`, init);
+  const response = await fetch(`${baseUrl}${path}`, smokeFetchInit(init));
   const text = await response.text();
+  assertAuthForSmoke(path, response.status);
   if (response.status === 401) {
     return { skipped: true as const, status: response.status };
   }
@@ -43,6 +51,9 @@ function assert(condition: unknown, message: string): asserts condition {
 
 async function main() {
   console.log(`Running frontend smoke checks against ${baseUrl}`);
+  if (isSmokeAuthConfigured()) {
+    console.log("auth: SMOKE_AUTH_COOKIE configured — authenticated paths required");
+  }
 
   const health = (await check("/api/health")) as {
     ok: boolean;
@@ -54,7 +65,7 @@ async function main() {
 
   const rolesResult = await checkOptional("/api/roles");
   if (rolesResult.skipped) {
-    console.log("roles: skipped (auth required)");
+    console.log("roles: skipped (auth required — set SMOKE_AUTH_COOKIE to exercise)");
     console.log("authenticated API flow: skipped (auth required)");
   } else {
     const roles = rolesResult.data as {
@@ -140,6 +151,26 @@ async function main() {
               "Share token report score mismatch.",
             );
             console.log("share token round-trip: ok");
+
+            const pdfResponse = await fetch(
+              `${baseUrl}/api/reports/share/${evaluate.shareToken}/pdf`,
+              smokeFetchInit(),
+            );
+            assertAuthForSmoke(
+              `/api/reports/share/${evaluate.shareToken}/pdf`,
+              pdfResponse.status,
+            );
+            if (!pdfResponse.ok) {
+              throw new Error(
+                `Share PDF failed (${pdfResponse.status}): ${await pdfResponse.text()}`,
+              );
+            }
+            const pdfType = pdfResponse.headers.get("content-type") ?? "";
+            assert(
+              pdfType.includes("application/pdf"),
+              `Share PDF wrong content-type: ${pdfType}`,
+            );
+            console.log("share PDF export: ok");
           }
         }
       }
@@ -159,7 +190,7 @@ async function main() {
     }
   }
 
-  const homeResponse = await fetch(`${baseUrl}/`);
+  const homeResponse = await fetch(`${baseUrl}/`, smokeFetchInit());
   if (!homeResponse.ok) {
     throw new Error(`Home page failed (${homeResponse.status})`);
   }
@@ -167,7 +198,10 @@ async function main() {
 
   const protectedPages = ["/interview", "/report", "/history"];
   for (const page of protectedPages) {
-    const response = await fetch(`${baseUrl}${page}`, { redirect: "manual" });
+    const response = await fetch(`${baseUrl}${page}`, {
+      ...smokeFetchInit(),
+      redirect: "manual",
+    });
     const redirectedToLogin =
       response.status >= 300 &&
       response.status < 400 &&

@@ -86,16 +86,24 @@ export function useRealtimeVoice(options: RealtimeVoiceOptions = {}) {
   const connectionRef = useRef<RealtimeConnection | null>(null);
   const prefetchedRef = useRef<PrefetchedSession | null>(null);
   const prefetchingRef = useRef<PanelistId | null>(null);
+  const autoReconnectAttemptsRef = useRef(0);
+  const startRef = useRef<
+    (panelistOverride?: PanelistId) => Promise<unknown>
+  >(async () => null);
   const supported =
     typeof window !== "undefined" &&
     typeof RTCPeerConnection !== "undefined" &&
     typeof navigator.mediaDevices?.getUserMedia === "function";
 
   const onEventRef = useRef(options.onEvent);
-  onEventRef.current = options.onEvent;
+  useEffect(() => {
+    onEventRef.current = options.onEvent;
+  }, [options.onEvent]);
 
   const optionsRef = useRef(options);
-  optionsRef.current = options;
+  useEffect(() => {
+    optionsRef.current = options;
+  }, [options]);
 
   const closeConnection = useCallback(() => {
     connectionRef.current?.close();
@@ -128,6 +136,12 @@ export function useRealtimeVoice(options: RealtimeVoiceOptions = {}) {
           setConnectionState(state);
           if (state === "active") {
             setHandoffPanelist(undefined);
+            autoReconnectAttemptsRef.current = 0;
+          }
+          if (state === "error" && autoReconnectAttemptsRef.current < 1) {
+            autoReconnectAttemptsRef.current += 1;
+            const panelist = optionsRef.current.activePanelist;
+            void startRef.current(panelist);
           }
         },
         onVoiceStateChange: setVoiceState,
@@ -220,6 +234,10 @@ export function useRealtimeVoice(options: RealtimeVoiceOptions = {}) {
     [connectWithSession, stop, supported],
   );
 
+  useEffect(() => {
+    startRef.current = start;
+  }, [start]);
+
   const reconnect = useCallback(
     async (panelist: PanelistId, messages?: InterviewMessage[]) => {
       if (messages) {
@@ -248,7 +266,7 @@ export function useRealtimeVoice(options: RealtimeVoiceOptions = {}) {
 
   useEffect(() => {
     if (options.activePanelist) {
-      setActivePanelist(options.activePanelist);
+      queueMicrotask(() => setActivePanelist(options.activePanelist));
     }
   }, [options.activePanelist]);
 

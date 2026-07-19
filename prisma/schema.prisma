@@ -198,11 +198,13 @@ model InterviewMessage {
   sequence         Int
   referencedAnswer String?     @db.Text
   speakerName      String?
+  clientSyncId     String?
   createdAt        DateTime    @default(now())
 
   session InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@unique([sessionId, sequence])
+  @@unique([sessionId, clientSyncId])
   @@index([sessionId])
   @@map("interview_messages")
 }
@@ -213,7 +215,6 @@ model ReadinessReport {
   overallScore    Int
   summary         String   @db.Text
   shareToken      String?  @unique
-  pdfUrl          String?
   screenReviewNotes String[] @default([])
   modelDeployment String?
   generatedAt     DateTime @default(now())

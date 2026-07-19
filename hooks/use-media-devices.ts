@@ -16,7 +16,9 @@ export function useMediaDevices(options: UseMediaDevicesOptions = {}) {
   const [error, setError] = useState<string>();
   const micStreamRef = useRef<MediaStream | null>(null);
   const onScreenShareEndRef = useRef(options.onScreenShareEnd);
-  onScreenShareEndRef.current = options.onScreenShareEnd;
+  useEffect(() => {
+    onScreenShareEndRef.current = options.onScreenShareEnd;
+  }, [options.onScreenShareEnd]);
 
   const notifyScreenShareEnd = useCallback(() => {
     onScreenShareEndRef.current?.();

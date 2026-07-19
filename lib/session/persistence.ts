@@ -109,6 +109,7 @@ export async function appendInterviewMessages(
   messages: InterviewMessage[],
   options?: {
     referencedAnswer?: string;
+    clientSyncId?: string;
     questionCount?: number;
     topicsCovered?: string[];
     weakSignals?: string[];
@@ -142,6 +143,8 @@ export async function appendInterviewMessages(
     content: message.content,
     sequence: startSequence + index + 1,
     speakerName: message.speaker,
+    clientSyncId:
+      index === messages.length - 1 ? options?.clientSyncId : undefined,
     referencedAnswer:
       index === messages.length - 1 && message.role === "assistant"
         ? options?.referencedAnswer

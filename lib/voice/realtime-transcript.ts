@@ -1,6 +1,13 @@
 import type { InterviewMessage } from "@/lib/session/interview-store";
 import type { PanelistId } from "@/lib/ai/personas/panelists";
 import type { RealtimeEvent } from "@/lib/voice/realtime-webrtc";
+import {
+  enqueueTranscriptSync,
+  flushTranscriptQueue,
+  type TranscriptSyncPayload,
+} from "@/lib/voice/transcript-sync";
+
+export type { TranscriptSyncPayload };
 
 export type PartialTranscript = {
   role: "user" | "assistant";
@@ -64,18 +71,9 @@ export function extractPartialDelta(
 }
 
 export async function syncVoiceTranscript(
-  sessionId: string,
-  content: string,
-  role: "user" | "assistant" = "user",
-  speaker?: PanelistId,
+  payload: TranscriptSyncPayload,
 ) {
-  try {
-    await fetch("/api/interview/transcript", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sessionId, content, role, speaker }),
-    });
-  } catch {
-    // Best-effort DB sync; client transcript remains source of truth.
-  }
+  enqueueTranscriptSync(payload);
 }
+
+export { flushTranscriptQueue };

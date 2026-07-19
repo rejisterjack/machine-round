@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import type { InputMode, SessionStatus } from "@/generated/client";
+import type { InputMode, RecordingStatus, SessionStatus } from "@/generated/client";
 import { withApiHandler } from "@/lib/api/handler";
 import { ApiError } from "@/lib/api/errors";
 import { requireAuth } from "@/lib/auth/require-auth";
@@ -20,6 +20,8 @@ const patchSessionSchema = z.object({
   topicsCovered: z.array(z.string()).optional(),
   weakSignals: z.array(z.string()).optional(),
   lastError: z.string().nullable().optional(),
+  recordingStatus: z.enum(["none", "pending", "uploaded", "failed"]).optional(),
+  completedAt: z.string().datetime().optional(),
 });
 
 export const GET = withApiHandler(
@@ -101,6 +103,8 @@ export const PATCH = withApiHandler(
         topicsCovered: body.topicsCovered,
         weakSignals: body.weakSignals,
         lastError: body.lastError ?? undefined,
+        recordingStatus: body.recordingStatus as RecordingStatus | undefined,
+        completedAt: body.completedAt ? new Date(body.completedAt) : undefined,
       },
     });
 
@@ -110,5 +114,30 @@ export const PATCH = withApiHandler(
       inputMode: session.inputMode,
       questionCount: session.questionCount,
     });
+  },
+);
+
+export const DELETE = withApiHandler(
+  async (_request: Request, context?: { params: Promise<{ id: string }> }) => {
+    const authSession = await requireAuth();
+    const { id } = await context!.params;
+    await assertSessionOwner(id, authSession.user.id);
+
+    if (!(await isDbReady())) {
+      throw new ApiError("UPSTREAM_ERROR", "Database is not available.", 503);
+    }
+
+    const existing = await prisma.interviewSession.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+
+    if (!existing) {
+      throw new ApiError("NOT_FOUND", "Session not found.", 404);
+    }
+
+    await prisma.interviewSession.delete({ where: { id } });
+
+    return NextResponse.json({ deleted: true, id });
   },
 );

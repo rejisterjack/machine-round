@@ -88,6 +88,10 @@ Developers and professionals currently facing, or about to face, an AI-conducted
 - Every network call must degrade gracefully (timeout → retry once → clear error state, never a blank screen or infinite spinner).
 - No feature ships unless it works end-to-end at least 5 times in a row without manual intervention.
 
+### 6.4.1 Judge onboarding (implementation note)
+
+Production ships **auth-first**: full voice interviews require Google sign-in for session persistence, history, and replay ownership. Cold visitors see a **sample readiness report** on the landing page (`NEXT_PUBLIC_DEMO_SHARE_TOKEN`) plus a clear Google CTA — satisfying judge discovery without anonymous sessions. Shared report and replay links work without login when a valid `shareToken` is present.
+
 ### 6.5 Media Archive (Cloudinary storage optimization)
 - **Screen snapshots:** dual-profile capture — 960px JPEG for AI vision analysis, adaptive WebP/JPEG archive (~120 KB target) for Cloudinary storage. Max 12 snapshots per session.
 - **Session recording:** downscaled screen recap (854×480 @ 12 fps, 250 kbps video / 48 kbps audio) uploaded as WebM; max upload 25 MB.
@@ -184,9 +188,9 @@ Co-brand footer: **OpenAI × NamasteDev Codex Hackathon**.
 
 ## 12. Submission Checklist
 
-- [ ] Hosted URL — publicly accessible, tested from an incognito/fresh session
-- [ ] Public GitHub repo with a README that ships (setup steps + architecture summary)
-- [ ] 3-minute demo video — public link
-- [ ] Pitch deck (optional, 5–7 slides) — problem, product, market, what's next
-- [ ] Confirm build used OpenAI Codex per hackathon toolkit requirement
-- [ ] Final live smoke test within 1 hour of the 23:59 IST deadline
+- [x] Hosted URL — https://nmr.rejisterjack.com (deployed, health OK)
+- [x] Public GitHub repo with a README that ships (setup steps + architecture summary)
+- [ ] 3-minute demo video — public link ([script](docs/DEMO_VIDEO_SCRIPT.md))
+- [ ] Pitch deck (optional, 5–7 slides) — [pitch-deck.html](docs/pitch-deck.html) or [outline](docs/PITCH_DECK.md)
+- [x] Confirm build used OpenAI Codex per hackathon toolkit requirement (see README)
+- [ ] Final live smoke test within 1 hour of the 23:59 IST deadline ([GO_LIVE_QA.md](docs/GO_LIVE_QA.md))

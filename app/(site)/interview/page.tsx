@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useState, startTransition } from "react";
 import { NdCourseCard } from "@/components/brand/nd-course-card";
 import { RoleCardSkeleton } from "@/components/brand/role-card-skeleton";
 import { PanelistPicker } from "@/components/interview/panelist-picker";
@@ -46,7 +46,7 @@ function InterviewRoleContent() {
     if (!roleParam) return;
     const match = roles.find((role) => role.id === roleParam);
     if (match) {
-      setSelectedRole(match.id);
+      startTransition(() => setSelectedRole(match.id));
     }
   }, [loading, roles, searchParams]);
 
@@ -87,7 +87,7 @@ function InterviewRoleContent() {
 
       if (data.persisted === false || !data.id || !data.publicId) {
         throw new Error(
-          "Interview storage is unavailable. Please try again in a moment.",
+          "Database not ready. Run db:deploy && db:seed on the server, then retry.",
         );
       }
 
