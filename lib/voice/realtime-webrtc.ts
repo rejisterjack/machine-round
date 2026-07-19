@@ -14,6 +14,7 @@ export type RealtimeVoiceState = "idle" | "listening" | "speaking";
 export type CreateRealtimeConnectionOptions = {
   ephemeralKey: string;
   callsUrl: string;
+  localAudioStream?: MediaStream;
   onEvent?: (event: RealtimeEvent) => void;
   onStateChange?: (state: RealtimeConnectionState) => void;
   onVoiceStateChange?: (state: RealtimeVoiceState) => void;
@@ -24,6 +25,7 @@ export type RealtimeConnection = {
   close: () => void;
   sendEvent: (event: Record<string, unknown>) => void;
   dataChannel: RTCDataChannel | null;
+  remoteAudioElement: HTMLAudioElement;
 };
 
 function withWebrtcFilter(callsUrl: string) {
@@ -65,6 +67,7 @@ export async function createRealtimeConnection(
   const {
     ephemeralKey,
     callsUrl,
+    localAudioStream,
     onEvent,
     onStateChange,
     onVoiceStateChange,
@@ -78,13 +81,13 @@ export async function createRealtimeConnection(
   audioElement.autoplay = true;
   audioElement.setAttribute("playsinline", "true");
 
-  let localStream: MediaStream | null = null;
+  let ownedStream: MediaStream | null = null;
   let dataChannel: RTCDataChannel | null = null;
 
   const close = () => {
     dataChannel?.close();
     peerConnection.close();
-    localStream?.getTracks().forEach((track) => track.stop());
+    ownedStream?.getTracks().forEach((track) => track.stop());
     audioElement.srcObject = null;
     audioElement.remove();
     onStateChange?.("idle");
@@ -101,9 +104,14 @@ export async function createRealtimeConnection(
       }
     };
 
-    localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    for (const track of localStream.getAudioTracks()) {
-      peerConnection.addTrack(track, localStream);
+    const stream =
+      localAudioStream ??
+      (await navigator.mediaDevices.getUserMedia({ audio: true }));
+    if (!localAudioStream) {
+      ownedStream = stream;
+    }
+    for (const track of stream.getAudioTracks()) {
+      peerConnection.addTrack(track, stream);
     }
 
     dataChannel = peerConnection.createDataChannel("realtime-channel");
@@ -159,6 +167,7 @@ export async function createRealtimeConnection(
     return {
       close,
       dataChannel,
+      remoteAudioElement: audioElement,
       sendEvent: (event) => {
         if (dataChannel?.readyState === "open") {
           dataChannel.send(JSON.stringify(event));
