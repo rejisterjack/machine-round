@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useLatestRef } from "@/hooks/use-latest-ref";
 import { buildContinuationPrompt } from "@/lib/ai/conversation-phases";
 import type { PanelistId, PanelistMode } from "@/lib/ai/personas/panelists";
 import { formatMessageSpeaker } from "@/lib/ai/personas/panelists";
@@ -143,8 +144,7 @@ export function useRealtimeVoice(options: RealtimeVoiceOptions = {}) {
   const [connectionStatus, setConnectionStatus] =
     useState<VoiceConnectionStatus>("idle");
   const [voiceState, setVoiceState] = useState<RealtimeVoiceState>("idle");
-  const voiceStateRef = useRef<RealtimeVoiceState>("idle");
-  voiceStateRef.current = voiceState;
+  const voiceStateRef = useLatestRef(voiceState);
   const [error, setError] = useState<string>();
   const [connectedPanelist, setConnectedPanelist] = useState<
     PanelistId | undefined
