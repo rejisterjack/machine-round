@@ -242,11 +242,9 @@ export function useRealtimeVoice(options: RealtimeVoiceOptions = {}) {
   }, [options]);
 
   const cancelActiveResponse = useCallback(() => {
-    const channel = connectionRef.current?.dataChannel;
-    if (channel?.readyState !== "open") return;
-    if (voiceStateRef.current === "speaking") {
-      connectionRef.current?.sendEvent({ type: "response.cancel" });
-    }
+    const connection = connectionRef.current;
+    if (connection?.dataChannel?.readyState !== "open") return;
+    connection.sendEvent({ type: "response.cancel" });
   }, []);
 
   const closeConnection = useCallback(() => {

@@ -737,6 +737,8 @@ export default function InterviewSessionPage() {
       stopScreenRealtime();
       stopCameraRealtime();
 
+      voiceStopRef.current();
+
       setSavingSession(true);
       setSaveError(undefined);
 
@@ -749,9 +751,6 @@ export default function InterviewSessionPage() {
       sessionRef.current = completed;
       setSession(completed);
       saveSession(completed);
-
-      await voiceWaitForSpeechEndRef.current();
-      voiceStopRef.current();
 
       if (base.dbSessionId) {
         await flushTranscriptQueue();
