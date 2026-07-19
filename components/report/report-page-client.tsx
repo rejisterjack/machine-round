@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Breadcrumb } from "@/components/layout/breadcrumb";
 import { PageShell } from "@/components/layout/page-shell";
+import { EarlySessionState } from "@/components/report/early-session-state";
 import { ReadinessReport } from "@/components/report/readiness-report";
 import { Button } from "@/components/ui/button";
 import { ApiErrorCard } from "@/components/ui/api-error-card";
@@ -22,6 +23,7 @@ import { canUseStoredReport } from "@/lib/session/report-hydration";
 import {
   canGenerateEvaluateReport,
   evaluateIneligibleMessage,
+  getReportEligibility,
 } from "@/lib/session/evaluate-eligibility";
 import { scoreBadgeClass } from "@/lib/session/score-display";
 import type { SessionReportData } from "@/lib/queries/reports";
@@ -289,7 +291,12 @@ export function ReportPageClient({ initialSession }: ReportPageClientProps) {
     if (reportRequested.current) return;
 
     if (!session.messages.length) {
-      router.replace("/interview");
+      router.replace("/interview?ended=early");
+      return;
+    }
+
+    if (!canGenerateEvaluateReport(session.messages)) {
+      reportRequested.current = true;
       return;
     }
 
@@ -313,7 +320,10 @@ export function ReportPageClient({ initialSession }: ReportPageClientProps) {
   }
 
   const score = session.report?.overallScore;
-  const displayError = session.report ? undefined : error;
+  const reportEligibility = getReportEligibility(session.messages);
+  const isEarlySession = !session.report && reportEligibility.status !== "eligible";
+  const displayError =
+    session.report || isEarlySession ? undefined : error;
 
   return (
     <PageShell glow>
@@ -321,19 +331,25 @@ export function ReportPageClient({ initialSession }: ReportPageClientProps) {
         <Breadcrumb
           items={[
             { label: "History", href: "/history" },
-            { label: "Readiness report" },
+            { label: isEarlySession ? "Session summary" : "Readiness report" },
           ]}
         />
 
         <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p className="nd-section-heading">Session complete</p>
+            <p className="nd-section-heading">
+              {isEarlySession ? "Session ended" : "Session complete"}
+            </p>
             <h1 className="mt-2 font-heading text-3xl font-medium sm:text-4xl">
-              Your readiness report
+              {isEarlySession
+                ? "No readiness report yet"
+                : "Your readiness report"}
             </h1>
             <p className="mt-2 text-sm text-muted-foreground">
-              {session.roleTitle} · AI-evaluated feedback from your Machine
-              Round
+              {session.roleTitle}
+              {isEarlySession
+                ? " · Finish a longer round to unlock scored feedback"
+                : " · AI-evaluated feedback from your Machine Round"}
             </p>
           </div>
           {score !== undefined ? (
@@ -387,6 +403,15 @@ export function ReportPageClient({ initialSession }: ReportPageClientProps) {
             </div>
             <ReportLoadingSkeleton />
           </div>
+        ) : isEarlySession ? (
+          <EarlySessionState
+            eligibility={reportEligibility}
+            roleTitle={session.roleTitle}
+            onTryAgain={() => {
+              clearSession();
+              router.push("/interview");
+            }}
+          />
         ) : displayError ? (
           <ApiErrorCard
             className="mt-10"

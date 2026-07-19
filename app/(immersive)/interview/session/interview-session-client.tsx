@@ -46,6 +46,7 @@ import {
   MAX_SCREEN_SNAPSHOTS,
 } from "@/lib/session/session-limits";
 import {
+  clearSession,
   loadSession,
   saveSession,
   type InterviewMessage,
@@ -62,6 +63,10 @@ import {
 import { onTranscriptSyncStatus } from "@/lib/voice/transcript-sync";
 import { isTranscriptSyncFailing } from "@/lib/voice/transcript-sync";
 import { abandonSessionAction, updateSessionMetadataAction } from "@/lib/actions/session-actions";
+import {
+  canGenerateEvaluateReport,
+  shouldSkipReportForEarlyEnd,
+} from "@/lib/session/evaluate-eligibility";
 import { reconcileTranscriptWithServer } from "@/lib/voice/transcript-reconcile-client";
 import {
   detectWeakSignalsFromAnswer,
@@ -110,8 +115,11 @@ export function InterviewSessionClient() {
   const [finishingInterview, setFinishingInterview] = useState(false);
   const [completeBanner, setCompleteBanner] = useState(false);
   const [canResumeSession, setCanResumeSession] = useState(false);
+  const [endingEarly, setEndingEarly] = useState(false);
+  const [isEndingCall, setIsEndingCall] = useState(false);
 
   const sessionRef = useLatestRef(session);
+  const endingCallRef = useRef(false);
   const voiceStopRef = useRef<() => void>(() => {});
   const voiceReconnectRef = useRef<
     (panelist: PanelistId, messages?: InterviewMessage[]) => Promise<unknown>
@@ -858,7 +866,8 @@ export function InterviewSessionClient() {
       if (
         reportSource.dbSessionId &&
         reportSource.messages.length > 0 &&
-        !reportSource.report
+        !reportSource.report &&
+        canGenerateEvaluateReport(reportSource.messages)
       ) {
         try {
           const evaluateResponse = await fetch("/api/evaluate?sync=1", {
@@ -920,6 +929,10 @@ export function InterviewSessionClient() {
       await new Promise((resolve) =>
         setTimeout(resolve, INTERVIEW_COMPLETE_BANNER_MS),
       );
+      if (shouldSkipReportForEarlyEnd(reportSource.messages)) {
+        router.push("/interview?ended=early");
+        return;
+      }
       router.push(
         reportSource.dbSessionId
           ? `/report?session=${reportSource.dbSessionId}`
@@ -958,11 +971,54 @@ export function InterviewSessionClient() {
     router.push("/interview");
   }, [clearPendingComplete, clearPersistedScreenSharing, media, router, stopScreenRealtime, stopCameraRealtime]);
 
+  const endEarlySession = useCallback(async () => {
+    if (completingRef.current || abandoningRef.current) return;
+    endingCallRef.current = true;
+    abandoningRef.current = true;
+    setEndingEarly(true);
+    clearPendingComplete();
+    stopScreenRealtime();
+    stopCameraRealtime();
+
+    voiceStopRef.current();
+    await recorderRef.current?.stop();
+
+    const base = sessionRef.current;
+    if (base?.dbSessionId && base.status !== "complete") {
+      void abandonSessionAction(base.dbSessionId).catch(() => undefined);
+      void fetch(`/api/sessions/${base.dbSessionId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "abandoned" }),
+        keepalive: true,
+      });
+    }
+
+    clearSession();
+    clearPersistedScreenSharing();
+    media.cleanup();
+    await new Promise((resolve) => setTimeout(resolve, 900));
+    router.push("/interview?ended=early");
+  }, [
+    clearPendingComplete,
+    clearPersistedScreenSharing,
+    media,
+    router,
+    stopScreenRealtime,
+    stopCameraRealtime,
+  ]);
+
   const endRound = useCallback(() => {
     const base = sessionRef.current;
     if (!base) return;
+    endingCallRef.current = true;
+    setIsEndingCall(true);
+    if (shouldSkipReportForEarlyEnd(base.messages)) {
+      void endEarlySession();
+      return;
+    }
     void completeSession(base);
-  }, [completeSession]);
+  }, [completeSession, endEarlySession]);
 
   const startVoice = useCallback(
     async (panelist?: PanelistId) => {
@@ -1287,8 +1343,12 @@ export function InterviewSessionClient() {
     voice.voiceState === "speaking" ? displayPanelist : undefined;
 
   const statusChipLabel =
-    completeBanner
-      ? "Interview complete — saving your report to My Rounds"
+    endingEarly
+      ? "Ending session…"
+      : completeBanner
+      ? canGenerateEvaluateReport(session.messages)
+        ? "Interview complete — saving your report to My Rounds"
+        : "Session saved"
       : finishingInterview
         ? "Finishing interview…"
         : voice.connectionStatus === "reconnecting"
@@ -1331,11 +1391,24 @@ export function InterviewSessionClient() {
           </div>
         </div>
       ) : null}
+      {endingEarly ? (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80">
+          <div className="max-w-sm rounded-lg border border-border bg-card px-6 py-5 text-center">
+            <p className="font-medium">Session ended</p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              No answers were recorded. Head back to start another round when
+              you are ready.
+            </p>
+          </div>
+        </div>
+      ) : null}
       {completeBanner ? (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80">
           <div className="rounded-lg border border-border bg-card px-6 py-4 text-center">
             <p className="font-medium">
-              Interview complete — saving your report to My Rounds
+              {canGenerateEvaluateReport(session.messages)
+                ? "Interview complete — saving your report to My Rounds"
+                : "Session saved — preparing your summary"}
             </p>
           </div>
         </div>
@@ -1398,7 +1471,10 @@ export function InterviewSessionClient() {
         />
       }
       error={
-        cloudSyncFailed ||
+        isEndingCall ||
+        endingEarly ||
+        savingSession ||
+        completeBanner ? null : cloudSyncFailed ||
         screenAnalyzePausedMessage ||
         cameraVisionPaused ||
         session.status === "error" ||

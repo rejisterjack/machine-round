@@ -45,6 +45,7 @@ export default function InterviewRolePage() {
 function InterviewRoleContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const endedEarly = searchParams.get("ended") === "early";
   const { roles, loading } = useRoles();
   const [trackMode, setTrackMode] = useState<InterviewTrackMode>("course");
   const [selectedRole, setSelectedRole] = useState<string | null>(null);
@@ -193,6 +194,19 @@ function InterviewRoleContent() {
           uses voice interviews with Akshay, Archy, or both — tailored to what
           you are preparing for.
         </p>
+
+        {endedEarly ? (
+          <div className="mt-6 rounded-xl border border-amber-500/25 bg-amber-500/10 px-4 py-3 sm:px-5">
+            <p className="text-sm font-medium text-amber-50">
+              Session ended before any answers were recorded
+            </p>
+            <p className="mt-1 text-sm text-amber-100/80">
+              Stay on the call until you have answered at least one question out
+              loud. We will generate your readiness report when you finish a full
+              round.
+            </p>
+          </div>
+        ) : null}
 
         <TrackModeTabs
           mode={trackMode}
