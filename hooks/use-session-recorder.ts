@@ -5,6 +5,14 @@ import {
   clearFailedRecording,
   saveFailedRecording,
 } from "@/lib/media/failed-recording-store";
+import {
+  RECORDING_AUDIO_BPS,
+  RECORDING_VIDEO_BPS,
+} from "@/lib/media/media-optimization";
+import {
+  createRecordingVideoPipeline,
+  type RecordingVideoPipeline,
+} from "@/lib/media/recording-video-pipeline";
 
 const MAX_RECORDING_MS = 15 * 60 * 1000;
 const CHUNK_INTERVAL_MS = 30_000;
@@ -22,14 +30,15 @@ type UploadResult = {
   durationMs?: number;
 };
 
-function pickMimeType() {
-  const mimeCandidates = [
-    "video/webm;codecs=vp9,opus",
-    "video/webm;codecs=vp8,opus",
-    "video/webm",
-    "audio/webm;codecs=opus",
-    "audio/webm",
-  ];
+function pickMimeType(hasVideo: boolean) {
+  const mimeCandidates = hasVideo
+    ? [
+        "video/webm;codecs=vp9,opus",
+        "video/webm;codecs=vp8,opus",
+        "video/webm",
+      ]
+    : ["audio/webm;codecs=opus", "audio/webm"];
+
   return (
     mimeCandidates.find((candidate) => MediaRecorder.isTypeSupported(candidate)) ??
     ""
@@ -43,6 +52,7 @@ export function useSessionRecorder(options: SessionRecorderOptions) {
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const compositeStreamRef = useRef<MediaStream | null>(null);
+  const videoPipelineRef = useRef<RecordingVideoPipeline | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const startedAtRef = useRef<number | null>(null);
   const stopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -55,10 +65,12 @@ export function useSessionRecorder(options: SessionRecorderOptions) {
     typeof AudioContext !== "undefined";
 
   const cleanupStreams = useCallback(() => {
+    videoPipelineRef.current?.stop();
+    videoPipelineRef.current = null;
     compositeStreamRef.current?.getTracks().forEach((track) => track.stop());
     compositeStreamRef.current = null;
-    if (audioContextRef.current?.state !== "closed") {
-      void audioContextRef.current?.close();
+    if (audioContextRef.current && audioContextRef.current.state !== "closed") {
+      void audioContextRef.current.close();
     }
     audioContextRef.current = null;
     if (stopTimerRef.current) {
@@ -67,7 +79,7 @@ export function useSessionRecorder(options: SessionRecorderOptions) {
     }
   }, []);
 
-  const buildCompositeStream = useCallback(() => {
+  const buildCompositeStream = useCallback(async () => {
     const opts = optionsRef.current;
     const audioContext = new AudioContext();
     audioContextRef.current = audioContext;
@@ -103,9 +115,13 @@ export function useSessionRecorder(options: SessionRecorderOptions) {
     }
 
     const videoStream = opts.screenStream ?? opts.cameraStream;
-    const videoTrack = videoStream?.getVideoTracks()[0];
-    if (videoTrack) {
-      composite.addTrack(videoTrack.clone());
+    if (videoStream?.getVideoTracks().length) {
+      videoPipelineRef.current?.stop();
+      const pipeline = await createRecordingVideoPipeline(videoStream);
+      videoPipelineRef.current = pipeline;
+      for (const track of pipeline.stream.getVideoTracks()) {
+        composite.addTrack(track);
+      }
     }
 
     compositeStreamRef.current = composite;
@@ -119,10 +135,15 @@ export function useSessionRecorder(options: SessionRecorderOptions) {
         startedAtRef.current = Date.now();
       }
 
-      const mimeType = pickMimeType();
-      const recorder = mimeType
-        ? new MediaRecorder(stream, { mimeType })
-        : new MediaRecorder(stream);
+      const hasVideo = stream.getVideoTracks().length > 0;
+      const mimeType = pickMimeType(hasVideo);
+      const recorderOptions: MediaRecorderOptions = {
+        ...(mimeType ? { mimeType } : {}),
+        audioBitsPerSecond: RECORDING_AUDIO_BPS,
+        ...(hasVideo ? { videoBitsPerSecond: RECORDING_VIDEO_BPS } : {}),
+      };
+
+      const recorder = new MediaRecorder(stream, recorderOptions);
       recorderRef.current = recorder;
 
       recorder.ondataavailable = (event) => {
@@ -144,7 +165,7 @@ export function useSessionRecorder(options: SessionRecorderOptions) {
     [],
   );
 
-  const start = useCallback(() => {
+  const start = useCallback(async () => {
     if (!supported) return;
     const opts = optionsRef.current;
     if (!opts.micStream && !opts.getRemoteAudioElement()) return;
@@ -153,7 +174,7 @@ export function useSessionRecorder(options: SessionRecorderOptions) {
     cleanupStreams();
 
     try {
-      const stream = buildCompositeStream();
+      const stream = await buildCompositeStream();
       attachRecorder(stream, true);
     } catch (startError) {
       cleanupStreams();
@@ -199,7 +220,14 @@ export function useSessionRecorder(options: SessionRecorderOptions) {
     try {
       await new Promise<void>((resolve) => {
         recorder.onstop = () => {
-          cleanupStreams();
+          videoPipelineRef.current?.stop();
+          videoPipelineRef.current = null;
+          compositeStreamRef.current?.getTracks().forEach((track) => track.stop());
+          compositeStreamRef.current = null;
+          if (audioContextRef.current && audioContextRef.current.state !== "closed") {
+            void audioContextRef.current.close();
+          }
+          audioContextRef.current = null;
           resolve();
         };
         if (recorder.state === "recording") {
@@ -211,7 +239,7 @@ export function useSessionRecorder(options: SessionRecorderOptions) {
       });
       recorderRef.current = null;
 
-      const stream = buildCompositeStream();
+      const stream = await buildCompositeStream();
       attachRecorder(stream, false);
     } catch (refreshError) {
       cleanupStreams();
